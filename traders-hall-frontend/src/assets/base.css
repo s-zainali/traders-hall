@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+    /* Single named colors */
+    --gray-dark: #222831;
+    --gray-light: #393E46;
+    --cream-dark: #948979;
+    --cream-light: #DFD0B8
+  
+    /* Color scale shades */
+    --color-chocolate-50: #fbf7f5;
+    --color-chocolate-500: #7c2d12;
+    --color-chocolate-900: #431407;
+  }
+  
