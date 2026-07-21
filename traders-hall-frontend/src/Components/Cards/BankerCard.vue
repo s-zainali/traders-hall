@@ -3,7 +3,7 @@ const emit = defineEmits(['activateModal'])
 </script>
 
 <template>
-    <div class="p-4 border-2 border-gray-x-light rounded-[0.75rem] flex flex-col justify-center">
+    <div class="p-4 border-2 border-gray-x-light rounded-[0.75rem] flex flex-col justify-center h-min">
         <div class="flex justify-center">
             <!-- inner stays a pure mask -->
             <div class="h-30 w-30 bg-gray-2x-light" :style="{
