@@ -14,7 +14,7 @@ import BankCard from './Components/BankCard.vue';
     <div class="min-h-[100dvh] bg-gray-dark p-6">
         <div class="flex gap-6">
             <div class="p-6 rounded-[1rem] border-2 border-gray-light">
-                <h1 class="text-cream-light text-3xl pb-6 font-bold">Cards</h1>
+                <h1 class="text-gray-x-light text-3xl pb-6 font-bold">Cards</h1>
                 <div class="flex gap-4 flex-wrap">
                     <HouseCard />
                     <MansionCard />
