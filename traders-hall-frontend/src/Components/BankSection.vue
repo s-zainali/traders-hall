@@ -12,7 +12,7 @@ const activeModal = ref('null')
 
 <template>
     <div class="overflow-hidden relative p-6 min-w-lg border-2 border-gray-light rounded-[1rem]">
-        <h1 class="text-3xl text-gray-x-light font-bold pb-6"> Bank </h1>
+        <h1 class="text-3xl text-gray-2x-light font-bold pb-6"> Bank </h1>
         <div class="flex justify-between">
             <PointCard />
             <BankerCard @activate-modal="activeModal = $event"/>

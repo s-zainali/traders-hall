@@ -12,9 +12,9 @@ import BankSection from './Components/BankSection.vue'
 
 <template>
     <div class="min-h-[100dvh] bg-gray-dark p-6">
-        <div class="flex gap-6">
-            <div class="p-6 rounded-[1rem] border-2 border-gray-light">
-                <h1 class="text-gray-x-light text-3xl pb-6 font-bold">Cards</h1>
+        <div class="flex gap-6 justify-between">
+            <div class="max-w-md p-6 rounded-[1rem] border-2 border-gray-light">
+                <h1 class="text-gray-2x-light text-3xl pb-6 font-bold">Cards</h1>
                 <div class="flex gap-4 flex-wrap">
                     <HouseCard />
                     <MansionCard />
