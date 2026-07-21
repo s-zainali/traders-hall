@@ -36,13 +36,14 @@ const deckPadding = computed(() => ({
     <span class="font-bold" :style="{ color: `var(--color-${countColor})` }">
       {{ total }} {{ total === 1 ? 'card' : 'cards' }}
     </span>
-    <div class="inline-grid grid-cols-1 grid-rows-1" :style="deckPadding">
-      <!-- j = 0 is the back card at the origin; the last card is the most offset and on top -->
+    <div class="relative" :style="deckPadding">
       <div
         v-for="(card, j) in cards"
         :key="card.key ?? j"
-        class="col-start-1 row-start-1"
-        :class="j === cards.length - 1 ? 'pointer-events-auto' : 'pointer-events-none'"
+        :class="[
+          j === 0 ? 'relative' : 'absolute top-0 left-0',
+          j === cards.length - 1 ? 'pointer-events-auto' : 'pointer-events-none',
+        ]"
         :style="{ transform: `translate(${j * offsetX}px, ${j * offsetY}px)` }"
       >
         <component :is="card" />

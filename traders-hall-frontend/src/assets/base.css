@@ -3,6 +3,7 @@
 @theme static{
     /* Single named colors */
     --color-gray-dark: #222831;
+    --color-gray-x-dark: #161A20;
     --color-gray-light: #40464C;
     --color-gray-x-light: #9199A2;
     --color-gray-2x-light: #CAD1D8;

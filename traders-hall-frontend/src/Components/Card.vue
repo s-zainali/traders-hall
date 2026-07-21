@@ -18,10 +18,10 @@ const accent = computed(() => `var(--color-${isHovered.value || isSelected.value
 
 <template>
     <div class="flex flex-col">
-        <div class="w-[100px] h-[120px] rounded-xl p-3 flex flex-col items-center border-4 justify-between shrink-0 cursor-pointer hover:scale-110 transition duration-300 ease-in-out"
+        <div class="w-[90px] h-[120px] rounded-xl p-3 flex flex-col items-center border-4 justify-between shrink-0 cursor-pointer hover:scale-110 transition duration-300 ease-in-out"
             :style="{ borderColor: accent, backgroundColor: background }" @mouseenter="isHovered = true"
             @mouseleave="isHovered = false" @click="isSelected = !isSelected">
-            <span class="font-bold text-md uppercase pb-2" :style="{ color: accent }">{{ title }}</span>
+            <span class="font-bold text-sm uppercase pb-2" :style="{ color: accent }">{{ title }}</span>
     
             <!-- wrapper carries the filter (runs on the masked child) -->
             <div class="h-full w-full">
@@ -33,7 +33,7 @@ const accent = computed(() => `var(--color-${isHovered.value || isSelected.value
                 }"></div>
             </div>
         </div>
-        <div v-if="cost !== undefined" class="flex items-center justify-center px-6 pt-2">
+        <div v-if="cost !== undefined" class="flex items-center justify-center pt-3">
             <span v-if="isHovered"  class="font-bold text-md h-4 " :style="{color: background}">{{ cost }} {{cost ? cost === 1? 'Point' : 'Points': '' }}</span>
             <span  class="h-4"></span>
         </div>

@@ -18,17 +18,17 @@ const activeModal = ref('null')
 </script>
 
 <template>
-    <div class=" max-w-xs overflow-hidden relative p-4 min-w-lg border-2 border-gray-light rounded-[1.75rem]">
-        <h1 class="text-3xl text-gray-2x-light font-bold pb-4"> Bank </h1>
+    <div class="overflow-hidden relative p-4 min-w-lg border-2 border-gray-light rounded-[1.75rem] bg-gray-x-dark">
+        <h1 class="text-3xl text-gray-2x-light font-bold pb-4 text-center tracking-wide"> Bank </h1>
         <div class="flex justify-between ml-6">
             <CardDeck :count-color="'gray-x-light'">
                 <PointCard v-for="value in 30" />
             </CardDeck>
             <BankerCard @activate-modal="activeModal = $event" />
         </div>
-        <div class="p-6 mt-6 rounded-[1rem] border-2 border-gray-light">
-            <h1 class="text-gray-2x-light text-3xl pb-4 font-bold">Cards</h1>
-            <div class="flex gap-4 flex-wrap justify-evenly">
+        <div class="p-4 mt-6 rounded-[1rem] border-2 border-gray-light">
+            <h1 class="text-gray-2x-light text-2xl pb-4 font-bold tracking-wide text-center">Cards</h1>
+            <div class="grid grid-cols-3 gap-2 flex-wrap justify-evenly">
                 <CardDeck :count-color="'gray-x-light'">
                     <HouseCard v-for="value in 2"/>
                 </CardDeck>
