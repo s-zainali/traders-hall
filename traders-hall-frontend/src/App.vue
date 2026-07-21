@@ -6,7 +6,7 @@ import TowerCard from './Components/Cards/Properties/TowerCard.vue';
 import HouseCard from './Components/Cards/Properties/HouseCard.vue';
 import MansionCard from './Components/Cards/Properties/MansionCard.vue';
 import InvestCard from './Components/Cards/InvestCard.vue';
-import BankCard from './Components/BankCard.vue';
+import BankSection from './Components/BankSection.vue'
 
 </script>
 
@@ -24,7 +24,7 @@ import BankCard from './Components/BankCard.vue';
                     <InvestCard />
                 </div>
             </div>
-            <BankCard />
+            <BankSection />
         </div>
     </div>
 </template>
