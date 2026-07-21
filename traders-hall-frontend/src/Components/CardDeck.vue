@@ -1,11 +1,13 @@
 <script setup>
-import { computed, useSlots, Fragment, Comment, Text } from 'vue'
+import { computed, useSlots, Fragment, Comment, Text, ref} from 'vue'
 
 const props = defineProps({
-  offsetX: { type: Number, default: 7 },     // px each card shifts right
-  offsetY: { type: Number, default: 7 },     // px each card shifts down
   maxVisible: { type: Number, default: 5 },  // how many cards are actually rendered/stacked
+  contentSmall: {type:Boolean, default: false}
 })
+
+const offsetX = props.contentSmall? 4: 7   
+const offsetY = props.contentSmall? 4: 7
 
 const slots = useSlots()
 
@@ -25,15 +27,15 @@ const cards = computed(() => allCards.value.slice(-shown.value)) // keep only th
 
 const deckPadding = computed(() => ({
   // footprint is bounded to (shown - 1) * offset, no matter how many cards exist
-  paddingRight: `${Math.max(0, shown.value - 1) * props.offsetX}px`,
-  paddingBottom: `${Math.max(0, shown.value - 1) * props.offsetY}px`,
+  paddingRight: `${Math.max(0, shown.value - 1) * offsetX}px`,
+  paddingBottom: `${Math.max(0, shown.value - 1) * offsetY}px`,
 }))
 </script>
 
 <template>
-  <div class="inline-flex flex-col items-center gap-2 mx-2">
+  <div class="inline-flex flex-col items-center gap-2">
     <span class="font-bold text-gray-x-light">
-      {{ total }} {{ total === 1 ? 'card' : 'cards' }}
+      {{ total }} {{ contentSmall ? '': total === 1 ? 'card' : 'cards' }}
     </span>
     <div class="relative" :style="deckPadding">
       <div
