@@ -5,7 +5,6 @@ const props = defineProps({
   offsetX: { type: Number, default: 7 },     // px each card shifts right
   offsetY: { type: Number, default: 7 },     // px each card shifts down
   maxVisible: { type: Number, default: 5 },  // how many cards are actually rendered/stacked
-  countColor: { type: String, required: true }, // theme color token, e.g. "green-light"
 })
 
 const slots = useSlots()
@@ -32,8 +31,8 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div class="inline-flex flex-col items-center gap-2">
-    <span class="font-bold" :style="{ color: `var(--color-${countColor})` }">
+  <div class="inline-flex flex-col items-center gap-2 max-w-fit mx-2">
+    <span class="font-bold text-gray-x-light">
       {{ total }} {{ total === 1 ? 'card' : 'cards' }}
     </span>
     <div class="relative" :style="deckPadding">

@@ -33,7 +33,7 @@ const accent = computed(() => `var(--color-${isHovered.value || isSelected.value
                 }"></div>
             </div>
         </div>
-        <div v-if="cost !== undefined" class="flex items-center justify-center pt-3">
+        <div v-if="cost !== undefined" class="flex items-center justify-center pt-3 mb-1">
             <span v-if="isHovered"  class="font-bold text-md h-4 " :style="{color: background}">{{ cost }} {{cost ? cost === 1? 'Point' : 'Points': '' }}</span>
             <span  class="h-4"></span>
         </div>
