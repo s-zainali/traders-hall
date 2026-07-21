@@ -18,23 +18,35 @@ const activeModal = ref('null')
 </script>
 
 <template>
-    <div class=" max-w-sm overflow-hidden relative p-6 min-w-lg border-2 border-gray-light rounded-[2rem]">
-        <h1 class="text-3xl text-gray-2x-light font-bold pb-6"> Bank </h1>
-        <div class="flex justify-between">
-            <CardDeck>
+    <div class=" max-w-xs overflow-hidden relative p-4 min-w-lg border-2 border-gray-light rounded-[1.75rem]">
+        <h1 class="text-3xl text-gray-2x-light font-bold pb-4"> Bank </h1>
+        <div class="flex justify-between ml-6">
+            <CardDeck :count-color="'gray-x-light'">
                 <PointCard v-for="value in 30" />
             </CardDeck>
             <BankerCard @activate-modal="activeModal = $event" />
         </div>
-        <div class="p-6 rounded-[1rem] border-2 border-gray-light">
-            <h1 class="text-gray-2x-light text-3xl pb-6 font-bold">Cards</h1>
-            <div class="flex gap-4 flex-wrap">
-                <HouseCard />
-                <MansionCard />
-                <TowerCard />
-                <RiceCard />
-                <WheatCard />
-                <InvestCard />
+        <div class="p-6 mt-6 rounded-[1rem] border-2 border-gray-light">
+            <h1 class="text-gray-2x-light text-3xl pb-4 font-bold">Cards</h1>
+            <div class="flex gap-4 flex-wrap justify-evenly">
+                <CardDeck :count-color="'gray-x-light'">
+                    <HouseCard v-for="value in 2"/>
+                </CardDeck>
+                <CardDeck :count-color="'gray-x-light'">
+                    <MansionCard v-for="value in 2"/>
+                </CardDeck>
+                <CardDeck :count-color="'gray-x-light'">
+                    <TowerCard v-for="value in 2"/>
+                </CardDeck>
+                <CardDeck :count-color="'gray-x-light'">
+                    <RiceCard v-for="value in 8"/>
+                </CardDeck>
+                <CardDeck :count-color="'gray-x-light'">
+                    <WheatCard v-for="value in 8"/>
+                </CardDeck>
+                <CardDeck :count-color="'gray-x-light'">
+                    <InvestCard v-for="value in 2"/>
+                </CardDeck>
             </div>
         </div>
         <BankerModal v-if="activeModal === 'bankerModal'" @close-modal="activeModal = null" />
