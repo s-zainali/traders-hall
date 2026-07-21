@@ -5,7 +5,7 @@ const buttonClass = 'py-6 w-60 bg-gray-2x-light text-gray-dark rounded-lg hover:
 <template>
     <div class="absolute w-full h-full top-0 left-0 bg-gray-light/40 backdrop-blur-sm">
         <div class="relative w-full h-full">
-            <span class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light inline-block leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out" @click="emit('closeModal')">🗙</span>
+            <span class="flex justify-center items-center z-50 absolute top-0 right-0 p-8 text-gray-x-light inline-block leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out" @click="emit('closeModal')">🗙</span>
             <div>
                 <h2 class="text-2xl font-bold text-gray-2x-light p-8 pb-2 tracking-widest">Banker Options</h2>
                 <p class="text-sm tracking-widest pl-8 text-gray-2x-light">Select from one of the options below</p>

@@ -31,7 +31,7 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div class="inline-flex flex-col items-center gap-2 max-w-fit mx-2">
+  <div class="inline-flex flex-col items-center gap-2 mx-2">
     <span class="font-bold text-gray-x-light">
       {{ total }} {{ total === 1 ? 'card' : 'cards' }}
     </span>

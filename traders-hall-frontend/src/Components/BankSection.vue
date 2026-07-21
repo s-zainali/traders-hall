@@ -29,7 +29,7 @@ const activeModal = ref('null')
             </div>
             <BankerCard @activate-modal="activeModal = $event" />
         </div>
-        <div class="p-4 mt-6 rounded-[1rem] border-2 border-gray-light">
+        <div class="p-4 mt-6 rounded-[1rem] border-1 border-gray-light">
             <h1 class="text-gray-2x-light text-2xl pb-4 font-bold tracking-wide text-center">Cards</h1>
             <div class="grid grid-cols-3">
                 <CardDeck>

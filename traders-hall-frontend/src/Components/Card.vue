@@ -18,7 +18,7 @@ const accent = computed(() => `var(--color-${isHovered.value || isSelected.value
 
 <template>
     <div class="flex flex-col">
-        <div class="w-[90px] h-[120px] rounded-xl p-3 flex flex-col items-center border-4 justify-between shrink-0 cursor-pointer hover:scale-110 transition duration-300 ease-in-out"
+        <div class="w-[6rem] h-[7rem] rounded-xl p-3 flex flex-col items-center border-4 justify-between shrink-0 cursor-pointer hover:scale-110 transition duration-300 ease-in-out"
             :style="{ borderColor: accent, backgroundColor: background }" @mouseenter="isHovered = true"
             @mouseleave="isHovered = false" @click="isSelected = !isSelected">
             <span class="font-bold text-sm uppercase pb-2" :style="{ color: accent }">{{ title }}</span>
