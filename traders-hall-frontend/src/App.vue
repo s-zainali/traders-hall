@@ -21,7 +21,7 @@ const tradeActive = ref(false)
                 </div>
             </div>
             <PlayerCardHolder :active-action="buyingActive ? 'buy' : sellActive ? 'sell' : tradeActive ? 'trade' : ''"
-                @buy="buyingActive = true" @sell="sellActive = true" @trade="tradeActive = true" @cancel-sell="sellActive=false" @cancel-trade="tradeActive=false" />
+                @buy="buyingActive = true" @sell="sellActive = true" @trade="tradeActive = true" @cancel-operation="sellActive=false,tradeActive=false" />
         </div>
         <BankSection v-model:buying-active="buyingActive" @cancel="buyingActive = false" />
     </div>

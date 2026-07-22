@@ -53,6 +53,15 @@ export const cards = {
         'cost': 0,
     },
 }
+
+// rendered when cardType is empty or unknown instead of throwing on `.title`
+const UNKNOWN_CARD = {
+    title: '',
+    iconUrl: '',
+    accentColor: 'gray-light',
+    backgroundColor: 'gray-dark',
+    cost: undefined,
+}
 </script>
 
 <script setup>
@@ -61,18 +70,31 @@ import { computed, ref } from 'vue'
 const props = defineProps({
     cardType: { type: String, required: true },
     large: { type: Boolean, default: true },
-    selected: {type:Boolean, default:false},
-    buying: {type:Boolean, default:false},
-    selling: {type:Boolean, default:false},
-    trading: {type:Boolean, default:false},
+    selected: { type: Boolean, default: false },
+    buying: { type: Boolean, default: false },
+    selling: { type: Boolean, default: false },
+    trading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['buy', 'sell', 'trade', 'details'])
 
 const isHovered = ref(false)
-const isSelected = ref(props.selected)
-const background = computed(() => `var(--color-${isHovered.value || isSelected.value ? bgColor : color})`)
-const accent = computed(() => `var(--color-${isHovered.value || isSelected.value ? color : bgColor})`)
+
+// All of these were read once at setup, which froze the card's identity: if Vue
+// ever reused this instance for a different cardType (very easy without :key on
+// the parent v-for) it kept rendering the old card. Computed = tracks the prop.
+const info = computed(() => cards[props.cardType] ?? UNKNOWN_CARD)
+const title = computed(() => info.value.title)
+const iconUrl = computed(() => info.value.iconUrl)
+const color = computed(() => info.value.accentColor)
+const bgColor = computed(() => info.value.backgroundColor)
+const cost = computed(() => info.value.cost)
+
+const isSelected = computed(() => props.selected)
+const isActive = computed(() => isHovered.value || isSelected.value)
+
+const background = computed(() => `var(--color-${isActive.value ? bgColor.value : color.value})`)
+const accent = computed(() => `var(--color-${isActive.value ? color.value : bgColor.value})`)
 
 // single source of truth for click behaviour, shared by both the large and small
 // variants — previously this lived inline on the large branch only, so small
@@ -83,12 +105,6 @@ function onClick() {
     else if (props.trading) emit('trade')
     else emit('details')
 }
-
-const title = cards[props.cardType].title
-const iconUrl = cards[props.cardType].iconUrl
-const color = cards[props.cardType].accentColor
-const bgColor = cards[props.cardType].backgroundColor
-const cost = cards[props.cardType].cost
 
 </script>
 
@@ -110,12 +126,12 @@ const cost = cards[props.cardType].cost
             </div>
         </div>
         <div v-if="cost !== undefined" class="flex items-center justify-center pt-3 mb-1">
-            <span v-if="isHovered" class="font-bold text-md h-4 " :style="{ color: background }">{{title === 'Point'? '': cost }} {{ cost ? cost
+            <span v-if="isHovered" class="font-bold text-md h-4 " :style="{ color: background }">{{ title === 'Point' ? '' : cost }} {{ cost ? cost
                 === 1 ? 'Point' : 'Points': '' }}</span>
             <span class="h-4"></span>
         </div>
     </div>
-    <div v-else :style="{backgroundColor: background, borderColor: accent}"
+    <div v-else :style="{ backgroundColor: background, borderColor: accent }"
         class="p-2 rounded-xl border-2 transition duration-200 ease-in-out"
         :class="buying || selling || trading ? 'cursor-pointer hover:scale-110' : ''"
         @mouseenter="isHovered = true" @mouseleave="isHovered = false" @click="onClick">

@@ -1,13 +1,13 @@
 <script setup>
-import { computed, useSlots, Fragment, Comment, Text, ref} from 'vue'
+import { computed, useSlots, Fragment, Comment, Text } from 'vue'
 
 const props = defineProps({
   maxVisible: { type: Number, default: 5 },  // how many cards are actually rendered/stacked
-  contentSmall: {type:Boolean, default: false}
+  contentSmall: { type: Boolean, default: false }
 })
 
-const offsetX = props.contentSmall? 4: 7   
-const offsetY = props.contentSmall? 4: 7
+const offsetX = props.contentSmall ? 4 : 7
+const offsetY = props.contentSmall ? 4 : 7
 
 const slots = useSlots()
 
@@ -24,7 +24,15 @@ const allCards = computed(() => flatten(slots.default?.() ?? []))
 const total = computed(() => allCards.value.length)
 const shown = computed(() => Math.min(total.value, props.maxVisible))
 const cards = computed(() => allCards.value.slice(-shown.value)) // keep only the top `shown` cards
-const isPoint = computed(() => total === 0 ? false : cards.value[0].props['card-type'] === 'point')
+
+// Was `total === 0`, comparing the ref OBJECT to a number — never true, so this
+// always fell through and dereferenced cards.value[0] even for empty decks,
+// throwing on `.props` of undefined. Optional chaining now covers it outright.
+// Callers write either :card-type or :cardType, so accept both spellings.
+const isPoint = computed(() => {
+  const p = cards.value[0]?.props
+  return (p?.['card-type'] ?? p?.cardType) === 'point'
+})
 
 const deckPadding = computed(() => ({
   // footprint is bounded to (shown - 1) * offset, no matter how many cards exist
@@ -34,9 +42,9 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div v-if="total !== 0" class="inline-flex items-center gap-2" :class="isPoint? 'flex-row-reverse' : 'flex-col'">
+  <div v-if="total !== 0" class="inline-flex items-center gap-2" :class="isPoint ? 'flex-row-reverse' : 'flex-col'">
     <span class="font-bold text-gray-x-light">
-      {{ total }} {{ contentSmall ? '': total === 1 ? 'card' : 'cards' }}
+      {{ total }} {{ contentSmall ? '' : total === 1 ? 'card' : 'cards' }}
     </span>
     <div class="relative" :style="deckPadding">
       <div
