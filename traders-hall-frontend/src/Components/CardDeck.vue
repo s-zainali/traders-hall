@@ -24,6 +24,7 @@ const allCards = computed(() => flatten(slots.default?.() ?? []))
 const total = computed(() => allCards.value.length)
 const shown = computed(() => Math.min(total.value, props.maxVisible))
 const cards = computed(() => allCards.value.slice(-shown.value)) // keep only the top `shown` cards
+const isPoint = computed(() => total === 0 ? false : cards.value[0].props['card-type'] === 'point')
 
 const deckPadding = computed(() => ({
   // footprint is bounded to (shown - 1) * offset, no matter how many cards exist
@@ -33,7 +34,7 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div class="inline-flex flex-col items-center gap-2">
+  <div v-if="total !== 0" class="inline-flex items-center gap-2" :class="isPoint? 'flex-row-reverse' : 'flex-col'">
     <span class="font-bold text-gray-x-light">
       {{ total }} {{ contentSmall ? '': total === 1 ? 'card' : 'cards' }}
     </span>
