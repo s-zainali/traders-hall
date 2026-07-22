@@ -1,32 +1,8 @@
-<script setup>
-import { computed, ref, reactive } from 'vue'
-const props = defineProps({
-    cardType: { type: String, required: true },
-    large: { type: Boolean, default: true },
-    selected: {type:Boolean, default:false},
-    buying: {type:Boolean, default:false},
-    selling: {type:Boolean, default:false},
-    trading: {type:Boolean, default:false},
-})
-
-const emit = defineEmits(['buy', 'sell', 'trade', 'details'])
-
-const isHovered = ref(false)
-const isSelected = ref(props.selected)
-const background = computed(() => `var(--color-${isHovered.value || isSelected.value ? bgColor : color})`)
-const accent = computed(() => `var(--color-${isHovered.value || isSelected.value ? color : bgColor})`)
-
-// single source of truth for click behaviour, shared by both the large and small
-// variants — previously this lived inline on the large branch only, so small
-// cards (:large="false") were completely inert.
-function onClick() {
-    if (props.buying) emit('buy')
-    else if (props.selling) emit('sell')
-    else if (props.trading) emit('trade')
-    else emit('details')
-}
-
-const cards = reactive({
+<script>
+// Plain <script> block: runs at module scope, so named exports here are
+// importable by other components while the data stays colocated with the
+// component that owns it. `<script setup>` below can read `cards` directly.
+export const cards = {
     'house': {
         'title': 'House',
         'iconUrl': '/home.png',
@@ -76,7 +52,37 @@ const cards = reactive({
         'backgroundColor': 'teal-light',
         'cost': 0,
     },
+}
+</script>
+
+<script setup>
+import { computed, ref } from 'vue'
+
+const props = defineProps({
+    cardType: { type: String, required: true },
+    large: { type: Boolean, default: true },
+    selected: {type:Boolean, default:false},
+    buying: {type:Boolean, default:false},
+    selling: {type:Boolean, default:false},
+    trading: {type:Boolean, default:false},
 })
+
+const emit = defineEmits(['buy', 'sell', 'trade', 'details'])
+
+const isHovered = ref(false)
+const isSelected = ref(props.selected)
+const background = computed(() => `var(--color-${isHovered.value || isSelected.value ? bgColor : color})`)
+const accent = computed(() => `var(--color-${isHovered.value || isSelected.value ? color : bgColor})`)
+
+// single source of truth for click behaviour, shared by both the large and small
+// variants — previously this lived inline on the large branch only, so small
+// cards (:large="false") were completely inert.
+function onClick() {
+    if (props.buying) emit('buy')
+    else if (props.selling) emit('sell')
+    else if (props.trading) emit('trade')
+    else emit('details')
+}
 
 const title = cards[props.cardType].title
 const iconUrl = cards[props.cardType].iconUrl

@@ -31,7 +31,7 @@ const activeModal = ref('null')
         </div>
         <div class="relative p-4 mt-6 rounded-[1rem] border-1 outline-teal-dark overflow-hidden transition duration-200 ease-in-out"
             :class="props.buyingActive ? 'border-teal-dark outline-4 -outline-offset-4 bg-gray-light/30' : 'border-gray-light outline-0'">
-            <TransactionModal v-if="activeModal === 'buy'" :transaction-type="'buy'" :card-type="buyingType" @confirm="" @cancel="activeModal = '', emit('cancel')"/>
+            <TransactionModal v-if="activeModal === 'buy'" :transaction-type="'buy'" :card-type="buyingType" @confirm="" @cancel="activeModal = ''"/>
             <button v-if="props.buyingActive" @click="emit('cancel')"
                 class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
 
