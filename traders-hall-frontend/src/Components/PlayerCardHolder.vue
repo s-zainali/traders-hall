@@ -6,19 +6,20 @@ import TransactionModal from './Modals/TransactionModal.vue';
 
 const props = defineProps({
     playerType: { type: String, default: 'player' },
-    activeAction: { type: String, default: '' }
+    activeAction: { type: String, default: '' },
+    playerName: { type: String, default: 'Player' },
 })
 const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction'])
 
 // NOTE: no bg-* here. The background is chosen per-state below so exactly one
 // background utility is ever present, avoiding a stylesheet-order conflict.
-const buttonClass = 'w-21 py-2 mx-2 rounded-lg cursor-pointer font-bold hover:scale-105 transition duration-300 ease-in-out hover:text-gray-2x-light'
-const indicatorClass = 'py-2 w-35 rounded-xl font-bold border-4 px-4 flex flex-col justify-between'
+const buttonClass = 'w-18 py-2 rounded-lg cursor-pointer font-bold hover:scale-105 transition duration-300 ease-in-out hover:text-gray-2x-light'
+const indicatorClass = 'py-2 w-30 rounded-xl font-bold border-4 px-4 flex flex-col justify-between'
 
 const actions = [
     { key: 'buy', label: 'Buy', hover: 'hover:bg-emerald-400/50', active: 'bg-emerald-400/60 text-gray-2x-light' },
-    { key: 'sell', label: 'Sell', hover: 'hover:bg-rose-400/50', active: 'bg-rose-400/60 text-gray-2x-light' },
-    { key: 'trade', label: 'Trade', hover: 'hover:bg-amber-300/50', active: 'bg-amber-300/60 text-gray-2x-light' },
+    { key: 'sell', label: 'Sell', hover: 'hover:bg-rose-400/70', active: 'bg-rose-400/60 text-gray-2x-light' },
+    { key: 'trade', label: 'Trade', hover: 'hover:bg-amber-300/70', active: 'bg-amber-300/60 text-gray-2x-light' },
 ]
 
 // per-action chrome for the hand well and the panel border; full literal class
@@ -95,7 +96,7 @@ function onConfirm(payload) {
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
                 <h1 v-if="playerType !== 'player'"
-                    class="text-lg px-2 py-2 text-gray-2x-light font-bold tracking-wide ml-2">Player</h1>
+                    class="text-lg px-2 py-2 text-gray-2x-light font-bold tracking-wide">{{ playerName }}</h1>
                 <div class="flex px-2 py-1 bg-purple-dark border-4 border-purple-light rounded-[1rem]">
                     <span v-if="onRent">On Rent</span>
                     <div class="flex gap-2 items-center">
@@ -110,12 +111,14 @@ function onConfirm(payload) {
                         </div>
                     </div>
                 </div>
-                <div v-if="playerType === 'player'">
+                <div v-if="playerType === 'player'" class="flex gap-4">
                     <button v-for="action in actions" :key="action.key" :class="[
                         buttonClass,
                         action.hover,
                         activeAction === action.key ? action.active : 'text-gray-dark bg-gray-2x-light',
                     ]" @click="activeAction === '' ? $emit(action.key) : ''">{{ action.label }}</button>
+                    <button v-if="playerType === 'player'"
+                        class="bg-rose-400/50 w-30 py-3 rounded-xl font-bold hover:bg-rose-500/50 cursor-pointer transition duration-300 ease-in-out hover:scale-110 text-gray-2x-light">End Turn</button>
                 </div>
             </div>
         </div>
@@ -140,8 +143,7 @@ function onConfirm(payload) {
                     }"></div>
                 </button> -->
             </div>
-            <button v-if="playerType === 'player'"
-                class="bg-rose-400/50 px-6 py-5 rounded-xl font-bold hover:bg-rose-500/50 cursor-pointer transition duration-300 ease-in-out hover:scale-110 text-gray-2x-light">End Turn</button>
+
             <div v-if="playerType === 'player'" class="flex justify-evenly items-center gap-4">
                 <div :class="indicatorClass" class="bg-cream-dark text-cream-light border-cream-light">
                     <span>Food Due</span>

@@ -16,8 +16,8 @@ const tradeActive = ref(false)
         <div class="flex flex-col w-full">
             <Header />
             <div class="flex-grow py-4">
-                <div class="flex gap-4 w-full ">
-                    <PlayerCardHolder v-for="value in 3" :player-type="'opponent'" class="flex-1" />
+                <div class="flex gap-4 w-full flex-wrap ">
+                    <PlayerCardHolder v-for="value in 3" :player-type="'opponent'" :player-name="'Player ' + value" class="flex-1" />
                 </div>
             </div>
             <PlayerCardHolder :active-action="buyingActive ? 'buy' : sellActive ? 'sell' : tradeActive ? 'trade' : ''"
