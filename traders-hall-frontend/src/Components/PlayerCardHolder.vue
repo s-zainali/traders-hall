@@ -89,7 +89,7 @@ const activeModal = ref('')
                 </div>
             </div>
         </div>
-        <div class="flex justify-between">
+        <div class="flex justify-between gap-4 items-center">
             <div class="relative p-2 border-1 outline-rose-400/50 rounded-[1rem] min-w-[100px] flex justify-between px-4 w-full max-w-md overflow-hidden"
                 :class="props.activeAction === 'sell' ? 'border-rose-400/5 outline-4 -outline-offset-4 bg-gray-light/30' : 'border-gray-light outline-0'">
                 <button v-if="props.activeAction === 'sell'" @click="emit('cancelSell')"
@@ -109,6 +109,7 @@ const activeModal = ref('')
                     }"></div>
                 </button> -->
             </div>
+            <button v-if="playerType==='player'" class="bg-rose-400/50 px-6 py-5 rounded-xl font-bold hover:bg-rose-500/50 cursor-pointer transition duration-300 ease-in-out hover:scale-110 text-gray-2x-light"> End Turn</button>
             <div v-if="playerType === 'player'" class="flex justify-evenly items-center gap-4">
                 <div :class="indicatorClass" class="bg-cream-dark text-cream-light border-cream-light">
                     <span>Food Due</span>
