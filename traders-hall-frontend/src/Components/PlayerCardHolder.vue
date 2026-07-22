@@ -53,6 +53,7 @@ const points = ref(2)
 
 const foodDue = ref(0)
 const rentDue = ref(0)
+const loanDue = ref(0)
 
 const onRent = ref(false)
 const residence = ref('house')
@@ -149,6 +150,10 @@ function onConfirm(payload) {
                 <div :class="indicatorClass" class="bg-purple-dark text-purple-light border-purple-light">
                     <span>Rent Due</span>
                     <span>{{ rentDue }} turns</span>
+                </div>
+                <div :class="indicatorClass" class="bg-teal-dark text-teal-light border-teal-light">
+                    <span>Loan Due</span>
+                    <span>{{ loanDue }} turns</span>
                 </div>
             </div>
         </div>

@@ -29,9 +29,10 @@ const cards = computed(() => allCards.value.slice(-shown.value)) // keep only th
 // always fell through and dereferenced cards.value[0] even for empty decks,
 // throwing on `.props` of undefined. Optional chaining now covers it outright.
 // Callers write either :card-type or :cardType, so accept both spellings.
-const isPoint = computed(() => {
+// small point: large was explicitly false
+const isSmallPoint = computed(() => {
   const p = cards.value[0]?.props
-  return (p?.['card-type'] ?? p?.cardType) === 'point'
+  return (p?.['card-type'] ?? p?.cardType) === 'point' && p?.large === false
 })
 
 const deckPadding = computed(() => ({
@@ -42,7 +43,7 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div v-if="total !== 0" class="inline-flex items-center gap-2" :class="isPoint ? 'flex-row-reverse' : 'flex-col'">
+  <div v-if="total !== 0" class="inline-flex items-center gap-2" :class="isSmallPoint ? 'flex-row-reverse' : 'flex-col'">
     <span class="font-bold text-gray-x-light">
       {{ total }} {{ contentSmall ? '' : total === 1 ? 'card' : 'cards' }}
     </span>
