@@ -31,7 +31,7 @@ const isSell = computed(() => props.transactionType === 'sell')
 // Unlike `scale`, `zoom` participates in layout: the wrapper's measured box
 // shrinks too, so the modal actually gets shorter instead of just drawing
 // smaller inside a full-height box. Tune this to taste.
-const PREVIEW_ZOOM = 0.6
+const PREVIEW_ZOOM = 0.85
 const previewZoom = computed(() => (isSell.value ? PREVIEW_ZOOM : 1))
 
 // cost comes from the selected card itself, not from the parent
@@ -92,9 +92,9 @@ const actionButton =
                 </section>
 
                 <!-- quantity -->
-                <section class="flex flex-col gap-3 justify-center">
+                <section class="flex flex-col gap-3 justify-center h-full items-center" :class="isSell ? 'flex-row' : ''">
                     <div>
-                        <h3 class="text-xs font-bold uppercase tracking-widest text-gray-x-light">Quantity</h3>
+                        <h3 class="text-xs font-bold uppercase tracking-widest text-gray-x-light mb-2">Quantity</h3>
 
                         <div class="flex rounded-2xl overflow-hidden border-2 border-gray-x-light w-max">
                             <button type="button" :class="stepButton" :disabled="!canDecrease"
