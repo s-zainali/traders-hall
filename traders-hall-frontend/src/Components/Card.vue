@@ -5,14 +5,26 @@ const props = defineProps({
     large: { type: Boolean, default: true },
     selected: {type:Boolean, default:false},
     buying: {type:Boolean, default:false},
+    selling: {type:Boolean, default:false},
+    trading: {type:Boolean, default:false},
 })
 
-const emit = defineEmits(['buy', 'details'])
+const emit = defineEmits(['buy', 'sell', 'trade', 'details'])
 
 const isHovered = ref(false)
 const isSelected = ref(props.selected)
 const background = computed(() => `var(--color-${isHovered.value || isSelected.value ? bgColor : color})`)
 const accent = computed(() => `var(--color-${isHovered.value || isSelected.value ? color : bgColor})`)
+
+// single source of truth for click behaviour, shared by both the large and small
+// variants — previously this lived inline on the large branch only, so small
+// cards (:large="false") were completely inert.
+function onClick() {
+    if (props.buying) emit('buy')
+    else if (props.selling) emit('sell')
+    else if (props.trading) emit('trade')
+    else emit('details')
+}
 
 const cards = reactive({
     'house': {
@@ -78,7 +90,7 @@ const cost = cards[props.cardType].cost
     <div v-if="large" class="flex flex-col items-center">
         <div class="w-[5.5rem] h-[7rem] rounded-xl p-3 flex flex-col items-center border-4 justify-between shrink-0 cursor-pointer hover:scale-110 transition duration-300 ease-in-out"
             :style="{ borderColor: accent, backgroundColor: background }" @mouseenter="isHovered = true"
-            @mouseleave="isHovered = false" @click="buying? emit('buy') : emit('details')">
+            @mouseleave="isHovered = false" @click="onClick">
             <span class="font-bold text-sm uppercase pb-2" :style="{ color: accent }">{{ title }}</span>
 
             <!-- wrapper carries the filter (runs on the masked child) -->
@@ -97,8 +109,10 @@ const cost = cards[props.cardType].cost
             <span class="h-4"></span>
         </div>
     </div>
-    <div v-else :style="{backgroundColor: background, borderColor: accent}" class="p-2 rounded-xl border-2" @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false">
+    <div v-else :style="{backgroundColor: background, borderColor: accent}"
+        class="p-2 rounded-xl border-2 transition duration-200 ease-in-out"
+        :class="buying || selling || trading ? 'cursor-pointer hover:scale-110' : ''"
+        @mouseenter="isHovered = true" @mouseleave="isHovered = false" @click="onClick">
         <div class="h-5 w-5">
             <!-- inner stays a pure mask -->
             <div class="h-full w-full" :style="{

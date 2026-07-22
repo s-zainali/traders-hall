@@ -4,7 +4,8 @@ import Card from '../Card.vue';
 
 const props = defineProps({
     cardType: { type: String, required: true },
-    available: { type: Number, default: 99 },   // upper bound for the stepper
+    available: { type: Number, default: 99 },
+    transactionType: { type: String }
 })
 
 const emit = defineEmits(['confirm', 'cancel'])
@@ -38,18 +39,12 @@ const actionButton =
 
 <template>
     <!-- backdrop: click outside to dismiss -->
-    <div
-        class="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-gray-dark/90 backdrop-blur-sm"
-        @click.self="emit('cancel')"
-    >
+    <div class="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-gray-dark/90 backdrop-blur-sm"
+        @click.self="emit('cancel')">
         <!-- panel: the dialog is its own surface, not content floating on the blur -->
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="transaction-title"
-            class="flex flex-col gap-6 p-6 w-max max-w-full "
-        >
-            <header class="flex flex-col gap-1">
+        <div role="dialog" aria-modal="true" aria-labelledby="transaction-title"
+            class="flex gap-6 p-6 w-max max-w-full " :class="transactionType === 'buy' ? 'flex-col' : ''">
+            <header class="flex flex-col gap-1" :class="transactionType==='sell' ? 'justify-center items-center' : ''">
                 <h2 id="transaction-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">Buy card</h2>
                 <p class="text-sm text-gray-x-light">Choose how many you want.</p>
             </header>
@@ -58,7 +53,8 @@ const actionButton =
                 <!-- selected card -->
                 <section class="flex flex-col gap-3">
                     <h3 class="text-xs font-bold uppercase tracking-widest text-gray-x-light">Selected card</h3>
-                    <div class="flex items-center justify-center p-4 rounded-[1rem] bg-gray-dark border-1 border-gray-light">
+                    <div
+                        class="flex items-center justify-center p-4 rounded-[1rem] bg-gray-dark border-1 border-gray-light">
                         <Card :card-type="cardType" :selected="true" />
                     </div>
                 </section>
@@ -68,46 +64,31 @@ const actionButton =
                     <h3 class="text-xs font-bold uppercase tracking-widest text-gray-x-light">Quantity</h3>
 
                     <div class="flex rounded-2xl overflow-hidden border-2 border-gray-x-light w-max">
-                        <button
-                            type="button"
-                            :class="stepButton"
-                            :disabled="!canDecrease"
-                            aria-label="Decrease quantity"
-                            @click="step(-1)"
-                        >−</button>
+                        <button type="button" :class="stepButton" :disabled="!canDecrease"
+                            aria-label="Decrease quantity" @click="step(-1)">−</button>
 
-                        <div class="w-20 flex items-center justify-center text-xl font-bold text-gray-2x-light bg-gray-dark tabular-nums">
+                        <div
+                            class="w-20 flex items-center justify-center text-xl font-bold text-gray-2x-light bg-gray-dark tabular-nums">
                             {{ quantity }}
                         </div>
 
-                        <button
-                            type="button"
-                            :class="stepButton"
-                            :disabled="!canIncrease"
-                            aria-label="Increase quantity"
-                            @click="step(1)"
-                        >+</button>
+                        <button type="button" :class="stepButton" :disabled="!canIncrease"
+                            aria-label="Increase quantity" @click="step(1)">+</button>
                     </div>
 
                     <p class="text-sm text-gray-x-light">{{ available }} available</p>
                 </section>
             </div>
 
-            <!-- actions: primary on the right, matching the Buy button elsewhere in the app -->
-            <footer class="flex justify-end gap-3 pt-2 border-t-1 border-gray-light">
-                <button
-                    type="button"
-                    :class="actionButton"
+            <footer class="flex justify-center gap-3 pt-2 border-t-1 border-gray-light"
+                :class="transactionType === 'buy' ? '' : 'flex-col'">
+                <button type="button" :class="actionButton"
                     class="text-gray-x-light border-2 border-gray-light hover:border-gray-x-light hover:text-gray-2x-light"
-                    @click="emit('cancel')"
-                >Cancel</button>
+                    @click="emit('cancel')">Cancel</button>
 
-                <button
-                    type="button"
-                    :class="actionButton"
+                <button type="button" :class="actionButton"
                     class="bg-emerald-400 text-gray-dark border-2 border-emerald-400 hover:bg-emerald-300 hover:border-emerald-300"
-                    @click="emit('confirm', quantity)"
-                >Buy {{ quantity }}</button>
+                    @click="emit('confirm', quantity)">Buy {{ quantity }}</button>
             </footer>
         </div>
     </div>

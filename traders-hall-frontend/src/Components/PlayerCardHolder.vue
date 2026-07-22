@@ -30,6 +30,8 @@ const playerCards = reactive({
     'rice': 1,
 })
 
+const sellingType = ref('')
+
 const points = ref(2)
 
 const foodDue = ref(0)
@@ -43,7 +45,10 @@ const activeModal = ref('')
 </script>
 
 <template>
-    <div class="relative flex flex-col p-4 gap-2 bg-gray-x-dark border-2 border-gray-light rounded-[1.5rem]">
+    <div class="relative flex flex-col p-4 gap-2 bg-gray-x-dark border-2 rounded-[1.5rem] overflow-hidden"
+        :class="activeModal === 'sell' ? 'border-rose-400' : 'border-gray-light'">
+        <TransactionModal v-if="activeModal === 'sell'" transaction-type="sell" :card-type="sellingType" @confirm=""
+            @cancel="activeModal = ''" />
         <div class="flex justify-between items-center gap-4" :class="playerType === 'player' ? '' : 'flex-col-reverse'">
             <div class="flex items-center">
                 <div class="bg-gray-2x-light" :class="playerType === 'player' ? 'h-15 w-15' : 'h-5 w-5'" :style="{
@@ -54,7 +59,8 @@ const activeModal = ref('')
                     :class="playerType === 'player' ? '' : 'text-xl'">{{ playerType === 'player' ? 'Your' : '' }} Cards
                 </h1>
             </div>
-            <div class="flex gap-8 items-center">
+            <div class="flex gap-4 items-center"
+                :class="playerType === 'player' ? 'justify-end' : 'w-full justify-between'">
                 <CardDeck :content-small="true">
                     <Card v-for="count in points" :card-type="'point'" :large="false" />
                 </CardDeck>
@@ -84,13 +90,16 @@ const activeModal = ref('')
             </div>
         </div>
         <div class="flex justify-between">
-            <div class="relative p-2 border-1 outline-rose-400/50 rounded-[1rem] min-w-[100px] flex justify-between px-4 w-full max-w-lg overflow-hidden"
+            <div class="relative p-2 border-1 outline-rose-400/50 rounded-[1rem] min-w-[100px] flex justify-between px-4 w-full max-w-md overflow-hidden"
                 :class="props.activeAction === 'sell' ? 'border-rose-400/5 outline-4 -outline-offset-4 bg-gray-light/30' : 'border-gray-light outline-0'">
                 <button v-if="props.activeAction === 'sell'" @click="emit('cancelSell')"
                     class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
                 <div class="flex gap-2">
                     <CardDeck v-for="type in Object.keys(playerCards)" :content-small="true">
-                        <Card v-for="count in playerCards[type]" :card-type="type" :large="false" />
+                        <Card v-for="count in playerCards[type]" :card-type="type" :large="false"
+                            :class="activeAction === 'sell' || activeAction === 'trade' ? 'cursor-pointer' : ''"
+                            @sell="activeModal = 'sell', sellingType = type" :selling="activeAction === 'sell'"
+                            :trading="activeAction === 'trade'" />
                     </CardDeck>
                 </div>
                 <!-- <button class="w-5 px-4 hover:cursor-pointer">
