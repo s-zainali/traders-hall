@@ -17,6 +17,7 @@ _STATUS = {
     "GAME_ALREADY_STARTED": status.HTTP_409_CONFLICT,
     "NOT_ENOUGH_PLAYERS": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "CODE_GENERATION_FAILED": status.HTTP_503_SERVICE_UNAVAILABLE,
+    "GAME_NOT_EMPTY": status.HTTP_409_CONFLICT,
 }
 
 
@@ -35,7 +36,7 @@ async def create_game(body: GameCreate, user: CurrentUser, db: Db):
         raise _http(e)
 
 
-@router.get("/mine", response_model=list[GameSummary])
+@router.get("/mine", response_model=list[GameOut])
 async def my_games(user: CurrentUser, db: Db):
     return await game_service.list_my_games(db, user=user)
 
@@ -68,5 +69,13 @@ async def leave_game(code: str, user: CurrentUser, db: Db):
 async def start_game(code: str, user: CurrentUser, db: Db):
     try:
         return await game_service.start_game(db, user=user, code=code)
+    except GameError as e:
+        raise _http(e)
+
+
+@router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+async def close_game(code: str, user: CurrentUser, db: Db):
+    try:
+        await game_service.close_game(db, user=user, code=code)
     except GameError as e:
         raise _http(e)

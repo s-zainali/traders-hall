@@ -143,6 +143,26 @@ async def start_game(db: AsyncSession, *, user: User, code: str) -> Game:
     game.state_version += 1
     return game
 
+async def close_game(db: AsyncSession, *, user: User, code: str) -> None:
+    """Host deletes a lobby game nobody else has joined."""
+    game = await _load(db, code=code.upper())
+    if game is None:
+        raise GameError("GAME_NOT_FOUND", "No game with that code")
+    if game.host_user_id != user.id:
+        raise GameError("NOT_HOST", "Only the host can close the game")
+    if game.status != "lobby":
+        raise GameError("GAME_ALREADY_STARTED", "A game in progress cannot be closed")
+
+    # Only the host seated: closing a table with other players in it would
+    # silently evict them, so that needs to be a different, explicit action.
+    others = [p for p in game.players if p.user_id != user.id]
+    if others:
+        raise GameError("GAME_NOT_EMPTY", "Other players have already joined")
+
+    # game_players has ondelete=CASCADE, so the seats go with it — Postgres
+    # enforces that, not application code remembering to clean up.
+    await db.delete(game)
+
 
 async def get_game(db: AsyncSession, *, code: str) -> Game:
     game = await _load(db, code=code.upper())
@@ -156,6 +176,7 @@ async def list_my_games(db: AsyncSession, *, user: User) -> list[Game]:
         select(Game)
         .join(GamePlayer, GamePlayer.game_id == Game.id)
         .where(GamePlayer.user_id == user.id)
+        .options(selectinload(Game.players))   # ← required
         .order_by(Game.created_at.desc())
     )
     return list(await db.scalars(stmt))

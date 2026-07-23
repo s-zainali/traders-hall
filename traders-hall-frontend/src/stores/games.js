@@ -3,9 +3,9 @@ import { ref } from 'vue'
 import { apiJson } from '../api/client'
 
 /**
- * Games: create, join, start, and the list of games you are seated in.
+ * Games: create, join, start, close, and the list of games you are seated in.
  *
- * The API speaks snake_case; everything here converts at the boundary so no
+ * The API speaks snake_case; everything converts at this boundary so no
  * component has to know that.
  */
 function toGame(g) {
@@ -31,7 +31,7 @@ export const useGamesStore = defineStore('games', () => {
   const myGames = ref([])
   const current = ref(null)        // the game most recently created/fetched
   const loadingMine = ref(false)
-  const busy = ref(false)          // a create/join/start is in flight
+  const busy = ref(false)          // a create/join/start/close is in flight
   const error = ref(null)
 
   async function fetchMine() {
@@ -109,6 +109,25 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
+  /** Host-only, lobby-only, and only when nobody else has joined. */
+  async function closeGame(code) {
+    busy.value = true
+    error.value = null
+    try {
+      await apiJson(`/api/v1/games/${code.toUpperCase()}`, { method: 'DELETE' })
+      // drop it locally too, so the list updates before the refetch lands
+      myGames.value = myGames.value.filter((g) => g.joinCode !== code.toUpperCase())
+      if (current.value?.joinCode === code.toUpperCase()) current.value = null
+      await fetchMine()
+      return true
+    } catch (e) {
+      error.value = e.message
+      return false
+    } finally {
+      busy.value = false
+    }
+  }
+
   async function leaveGame(code) {
     error.value = null
     try {
@@ -123,6 +142,6 @@ export const useGamesStore = defineStore('games', () => {
 
   return {
     myGames, current, loadingMine, busy, error,
-    fetchMine, createGame, joinGame, fetchGame, startGame, leaveGame,
+    fetchMine, createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }
 })
