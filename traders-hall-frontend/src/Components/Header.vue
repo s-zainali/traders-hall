@@ -34,7 +34,7 @@ async function confirmLogout() {
                 <button type="button" aria-label="Log out" title="Log out" @click="confirming = true"
                     class="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer
                            bg-gray-dark border-2 border-gray-light text-gray-x-light
-                           hover:border-rose-400 hover:text-rose-400 transition duration-200 ease-in-out
+                           hover:border-rose-400 hover:text-rose-200 hover:bg-rose-400/50 transition duration-200 ease-in-out
                            focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
                     ⏻
                 </button>
