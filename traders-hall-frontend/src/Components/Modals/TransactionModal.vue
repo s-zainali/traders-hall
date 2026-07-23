@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import Card, { cards } from '../Card.vue';
+import Card from '../Card.vue'
+import { useCardTypesStore } from '../../stores/cardTypes'
 
 const props = defineProps({
     cardType: { type: String, required: true },
@@ -14,6 +15,8 @@ const props = defineProps({
  *   trade      -> { give: { type, quantity }, get: { type, quantity } }
  */
 const emit = defineEmits(['confirm', 'cancel'])
+
+const cardTypes = useCardTypesStore()
 
 const quantity = ref(1)          // buy / sell, and the "give" side of a trade
 const getQuantity = ref(1)       // trade only: how many of the wanted card
@@ -75,14 +78,24 @@ const isCompact = computed(() => props.transactionType !== 'buy')
 const PREVIEW_ZOOM = 0.85
 const previewZoom = computed(() => (isCompact.value ? PREVIEW_ZOOM : 1))
 
-// points come from the selected card itself; trade is cards-for-cards, no points
-const unitPoints = computed(() => cards[props.cardType]?.cost ?? 0)
+// Card data comes from the store (fetched from /api/v1/config/card-types), so
+// the price shown here is the same number the server charges.
+const unitPoints = computed(() => cardTypes.get(props.cardType)?.baseCost ?? 0)
 const totalPoints = computed(() => unitPoints.value * quantity.value)
 const showPoints = computed(() => !isTrade.value && unitPoints.value > 0)
 
-// what can be asked for in return: every card except points and the one given
+/** Title for a card code, safe if the catalogue somehow lacks it. */
+function titleOf(code: string) {
+    return cardTypes.get(code)?.title ?? code
+}
+
+// What can be asked for in return: anything tradeable except the card given.
+// Driven by the is_tradeable column now, not a hardcoded `!== 'point'` — so
+// making a card untradeable is a migration, not a frontend edit.
 const tradeableTypes = computed(() =>
-    Object.keys(cards).filter((t) => t !== 'point' && t !== props.cardType))
+    cardTypes.all
+        .filter((c) => c.isTradeable && c.code !== props.cardType)
+        .map((c) => c.code))
 
 const canConfirm = computed(() => !isTrade.value || getType.value !== '')
 
@@ -176,8 +189,7 @@ const actionButton =
                         <!-- selection ring uses `outline`, which doesn't affect layout,
                              so picking a chip never nudges the row -->
                         <button v-for="t in tradeableTypes" :key="t" type="button"
-                            :aria-label="`Trade for ${cards[t].title}`" :aria-pressed="getType === t"
-                            @click="getType = t"
+                            :aria-label="`Trade for ${titleOf(t)}`" :aria-pressed="getType === t" @click="getType = t"
                             class="rounded-xl cursor-pointer outline-amber-400 transition duration-200 ease-in-out hover:scale-110"
                             :class="getType === t ? 'outline-3' : 'outline-0 opacity-60 hover:opacity-100'">
                             <Card :card-type="t" :selected="true" :large="false" />
@@ -191,7 +203,7 @@ const actionButton =
                             @click="stepGet(1)">+</button>
                     </div>
                     <p class="text-xs text-gray-x-light">
-                        {{ getType ? cards[getType].title : 'Pick a card' }}
+                        {{ getType ? titleOf(getType) : 'Pick a card' }}
                     </p>
                 </section>
 
@@ -209,7 +221,7 @@ const actionButton =
                     </div>
                 </section>
 
-                <div class="flex gap-2" :class="isCompact? 'flex-row' : 'flex-col'">
+                <div class="flex gap-2" :class="isCompact ? 'flex-row' : 'flex-col'">
                     <section class="flex flex-col gap-2">
                         <h3 :class="labelClass">Quantity</h3>
                         <div :class="stepperClass">
@@ -221,17 +233,15 @@ const actionButton =
                         </div>
                         <p class="text-sm text-gray-x-light">{{ available }} available</p>
                     </section>
-    
+
                     <section v-if="showPoints" class="flex flex-col gap-2">
                         <h3 :class="labelClass">{{ type.pointsLabel }}</h3>
                         <div :class="[wellClass, isCompact ? 'p-2 gap-2' : 'p-4 gap-3']">
                             <Card :card-type="'point'" :selected="true" :large="false" />
-                            <span class="font-bold text-teal-light tabular-nums"
-                                :class="isCompact ? 'text-xl' : 'text-xl'">{{ totalPoints }}</span>
+                            <span class="font-bold text-teal-light tabular-nums text-xl">{{ totalPoints }}</span>
                         </div>
                     </section>
                 </div>
-
 
             </div>
 

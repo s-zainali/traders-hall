@@ -57,7 +57,7 @@ const rentDue = ref(0)
 const loanDue = ref(0)
 
 const onRent = ref(false)
-const residence = ref('house')
+const residence = ref('')
 
 const activeModal = ref('')
 
@@ -97,14 +97,14 @@ function onConfirm(payload) {
                 </CardDeck>
                 <h1 v-if="playerType !== 'player'"
                     class="text-lg px-2 py-2 text-gray-2x-light font-bold tracking-wide">{{ playerName }}</h1>
-                <div class="flex px-2 py-1 bg-purple-dark border-4 border-purple-light rounded-[1rem]">
+                <div class="flex px-2  bg-purple-dark border-4 border-purple-light rounded-[1rem]">
                     <span v-if="onRent">On Rent</span>
                     <div class="flex gap-2 items-center">
                         <span v-if="playerType === 'player'"
-                            class="font-bold text-sm text-purple-light">Residence</span>
-                        <div class="-mx-1">
+                            class="font-bold text-sm text-purple-light ">Residence</span>
+                        <div class="-mx-2">
                             <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
-                            <div v-else class="h-10 w-10 bg-purple-light" :style="{
+                            <div v-else class="h-9 w-9 bg-purple-light m-1" :style="{
                                 mask: `url(/cancel.png) no-repeat center / contain`,
                                 '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
                             }"></div>
