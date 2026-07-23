@@ -16,7 +16,7 @@ const routes = [
     children: [
       {
         // NOTE: child paths have NO leading slash. '/auth' inside children is
-        // treated as absolute and silently breaks the nesting.
+        // trax-h-[60vh]eated as absolute and silently breaks the nesting.
         path: '',
         name: 'landing',
         component: LandingView,
@@ -34,7 +34,8 @@ const routes = [
         path: 'lobby',
         name: 'lobby',
         component: LobbyView,
-        meta: { requiresAuth: true },
+        // this page fits the viewport and scrolls internally; landing must not
+        meta: { requiresAuth: true, fitViewport: true },
       },
     ],
   },

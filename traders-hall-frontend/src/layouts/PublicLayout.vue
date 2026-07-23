@@ -3,31 +3,29 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AmbientBackground from '../Components/AmbientBackground.vue'
 import PoweredByZain from '../Components/PoweredByZain.vue'
-
-/**
- * Wraps every non-game page: optional background, the routed view, then the
- * footer.
- *
- * A LAYOUT ROUTE — the router nests landing/auth/lobby underneath it, so this
- * mounts once and stays mounted while the child swaps. The footer lives here,
- * in one place, instead of being repeated in every view.
- */
 const route = useRoute()
-
-// Opt IN, not out: only a route that explicitly asks for the decorated
-// background gets one. Everything else is plain gray-dark.
 const showAmbient = computed(() => route.meta.ambient === true)
+
+// h-[100dvh] is a DEFINITE height; min-h-[100dvh] is a floor the content can
+// exceed. Percentage heights and flex overflow only work against the former,
+// which is why the lobby list grew instead of scrolling.
+const fitViewport = computed(() => route.meta.fitViewport === true)
 </script>
 
 <template>
-  <div class="relative flex min-h-[100dvh] flex-col overflow-hidden bg-gray-dark">
+  <div
+    class="relative flex flex-col overflow-hidden bg-gray-dark"
+    :class="fitViewport ? 'h-[100dvh]' : 'min-h-[100dvh]'"
+  >
     <AmbientBackground v-if="showAmbient" />
 
-    <!-- z-10 lifts real content above the decorative layers -->
-    <div class="relative z-10 flex min-h-[100dvh] flex-col">
+    <div
+      class="relative z-10 flex flex-col"
+      :class="fitViewport ? 'h-full min-h-0' : 'min-h-[100dvh]'"
+    >
       <RouterView v-slot="{ Component }">
         <Transition name="page" mode="out-in">
-          <component :is="Component" class="flex-1" />
+          <component :is="Component" class="min-h-0 flex-1" />
         </Transition>
       </RouterView>
 

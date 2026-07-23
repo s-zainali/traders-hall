@@ -31,19 +31,25 @@ export const useGamesStore = defineStore('games', () => {
   const myGames = ref([])
   const current = ref(null)        // the game most recently created/fetched
   const loadingMine = ref(false)
+  const hasLoadedMine = ref(false) 
   const busy = ref(false)          // a create/join/start/close is in flight
   const error = ref(null)
 
-  async function fetchMine() {
-    loadingMine.value = true
-    error.value = null
+  async function fetchMine({ silent = false } = {}) {
+    // A background poll must not touch the loading flag: it drives the "loading"
+    // UI, and toggling it every 3s is what makes the panel flicker.
+    if (!silent) loadingMine.value = true
     try {
       const list = await apiJson('/api/v1/games/mine')
       myGames.value = list.map(toGame)
+      hasLoadedMine.value = true
+      if (!silent) error.value = null
     } catch (e) {
-      error.value = e.message
+      // A failed poll should not wipe the list or flash a red error — the next
+      // tick will most likely succeed, and the stale list is better than nothing.
+      if (!silent) error.value = e.message
     } finally {
-      loadingMine.value = false
+      if (!silent) loadingMine.value = false
     }
   }
 
@@ -141,7 +147,7 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   return {
-    myGames, current, loadingMine, busy, error,
+    myGames, current, loadingMine, hasLoadedMine, busy, error,
     fetchMine, createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }
 })
