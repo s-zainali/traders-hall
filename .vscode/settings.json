@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
+        "./traders-hall-backend",
         "./traders-hall-backend"
     ]
 }
