@@ -1,3 +1,9 @@
+"""Lobby-level game shapes.
+
+The richer in-game projection lives in app/schemas/game_state.py — this file is
+only the create/list/detail shapes the lobby needs.
+"""
+
 import uuid
 from datetime import datetime
 
@@ -7,8 +13,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class GameCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # 2–4 enforced here as a shape rule, so a bad value is a 422 with a clear
-    # field error rather than a domain exception from deeper in
+    # 2-4 enforced here as a shape rule, so a bad value comes back as a 422 with
+    # a clear field error rather than as a domain exception from deeper in.
     max_players: int = Field(default=4, ge=2, le=4)
 
 
@@ -28,19 +34,9 @@ class GameOut(BaseModel):
     id: uuid.UUID
     join_code: str
     status: str
+    # the lobby needs this to decide who sees Delete vs Leave
     host_user_id: uuid.UUID
     max_players: int
     created_at: datetime
     started_at: datetime | None
     players: list[GamePlayerOut]
-
-
-class GameSummary(BaseModel):
-    """Lighter shape for lists — no player rows."""
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    join_code: str
-    status: str
-    max_players: int
-    created_at: datetime

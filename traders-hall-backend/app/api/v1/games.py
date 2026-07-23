@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import CurrentUser, Db
-from app.schemas.game import GameCreate, GameOut, GameSummary
+from app.schemas.game import GameCreate, GameOut
+from app.schemas.game_state import GameStateOut
 from app.services import game_service
 from app.services.game_service import GameError
+from app.services.projection import build_game_state
 
 router = APIRouter()
 
@@ -15,9 +17,9 @@ _STATUS = {
     "NOT_HOST": status.HTTP_403_FORBIDDEN,
     "GAME_FULL": status.HTTP_409_CONFLICT,
     "GAME_ALREADY_STARTED": status.HTTP_409_CONFLICT,
+    "GAME_NOT_STARTED": status.HTTP_409_CONFLICT,
     "NOT_ENOUGH_PLAYERS": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "CODE_GENERATION_FAILED": status.HTTP_503_SERVICE_UNAVAILABLE,
-    "GAME_NOT_EMPTY": status.HTTP_409_CONFLICT,
 }
 
 
@@ -36,9 +38,22 @@ async def create_game(body: GameCreate, user: CurrentUser, db: Db):
         raise _http(e)
 
 
+# ── literal paths BEFORE parameterised ones ──────────────────────────
+# FastAPI matches routes in declaration order. "/{code}" declared above would
+# swallow "/mine" and try to look up a game whose code is literally "mine".
 @router.get("/mine", response_model=list[GameOut])
 async def my_games(user: CurrentUser, db: Db):
     return await game_service.list_my_games(db, user=user)
+
+
+# Likewise this must precede "/{code}", or "/ABC123/state" never matches.
+@router.get("/{code}/state", response_model=GameStateOut)
+async def game_state(code: str, user: CurrentUser, db: Db):
+    try:
+        raw = await game_service.get_game_state(db, user=user, code=code)
+    except GameError as e:
+        raise _http(e)
+    return build_game_state(raw)
 
 
 @router.get("/{code}", response_model=GameOut)

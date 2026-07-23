@@ -22,9 +22,24 @@ class Game(Base):
     host_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     max_players: Mapped[int] = mapped_column(Integer, default=4)
 
+    # --- turn state, meaningful only once status is in_progress ---
+    turn_number: Mapped[int] = mapped_column(Integer, default=0)
+    phase: Mapped[str] = mapped_column(String(16), default="lobby")
+
+    # Nullable because a lobby has no active player yet.
+    #
+    # use_alter breaks a circular foreign key: games points at game_players and
+    # game_players points back at games. Postgres cannot create both tables with
+    # both constraints in one statement, so this one is added afterwards with an
+    # ALTER — which is exactly what use_alter tells Alembic to emit.
+    current_player_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("game_players.id", use_alter=True, name="fk_games_current_player"),
+        nullable=True,
+    )
+
     # bumped on every mutation once the game is running; the optimistic
-    # concurrency token from the design doc. Unused this step, but adding it now
-    # avoids a migration later.
+    # concurrency token from the design doc
     state_version: Mapped[int] = mapped_column(default=0)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -35,8 +50,13 @@ class Game(Base):
 
     # ORM convenience: game.players gives the seats without a manual join.
     # cascade delete-orphan means removing a game removes its seats.
+    #
+    # foreign_keys is now REQUIRED: with two FKs between these tables
+    # (game_players.game_id and games.current_player_id) SQLAlchemy can no
+    # longer infer which one this relationship travels along.
     players: Mapped[list["GamePlayer"]] = relationship(
         back_populates="game",
         cascade="all, delete-orphan",
         order_by="GamePlayer.seat_index",
+        foreign_keys="GamePlayer.game_id",
     )
