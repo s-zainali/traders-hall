@@ -114,22 +114,28 @@ async function startGame(code) {
 function ask(code, action) {
   confirming.value = { code, action }
   clearTimeout(confirmTimer)
-  // reverts on its own, so a stray click never leaves a live destructive button
-  confirmTimer = setTimeout(() => (confirming.value = { code: '', action: '' }), 4000)
+  // Long enough to read two options and decide. A short auto-revert is fine for
+  // a one-click confirm but hostile when there is something to weigh up.
+  confirmTimer = setTimeout(() => (confirming.value = { code: '', action: '' }), 12000)
+}
+
+function cancelConfirm() {
+  clearTimeout(confirmTimer)
+  confirming.value = { code: '', action: '' }
 }
 
 function isConfirming(code, action) {
   return confirming.value.code === code && confirming.value.action === action
 }
 
-async function confirmDelete(code) {
+async function doDelete(code) {
   clearTimeout(confirmTimer)
   confirming.value = { code: '', action: '' }
   await games.closeGame(code)
   if (created.value?.joinCode === code) created.value = null
 }
 
-async function confirmLeave(code) {
+async function doLeave(code) {
   clearTimeout(confirmTimer)
   confirming.value = { code: '', action: '' }
   await games.leaveGame(code)
@@ -175,37 +181,42 @@ function primaryAction(game) {
 }
 
 /*
-  The host owns the table and can delete it in any state; everyone else can
-  walk away from it. Exactly one of the two shows, so there is never a question
-  of which destructive button you are looking at.
+  The host owns the table, so leaving is genuinely two different actions with
+  different consequences — hand it over, or bin it. A yes/no confirm cannot
+  express that, so hosts get an explicit choice instead.
 */
 function canDelete(game) {
   return isHost(game)
 }
 
-function canLeave(game) {
-  return !isHost(game)
+/** Who inherits the table if the host walks away: the next human seat. */
+function heirOf(game) {
+  return (
+    game.players
+      .filter((p) => p.displayName !== user.value?.display_name && p.status !== 'resigned')
+      .sort((a, b) => a.seatIndex - b.seatIndex)[0] ?? null
+  )
 }
 
-/** Whether the action affects other people, which is what earns a warning. */
+/** Whether the action reaches other people, which is what earns a warning. */
 function isHighStakes(game) {
   return game.status === 'in_progress' || game.players.length > 1
 }
 
-function destructiveLabel(game) {
-  if (canDelete(game)) return 'Delete'
+function guestLabel(game) {
   return game.status === 'in_progress' ? 'Resign' : 'Leave'
 }
 
-function destructiveWarning(game) {
-  if (canDelete(game)) {
-    if (game.status === 'in_progress') return 'Ends the game for everyone.'
-    if (game.players.length > 1) return `Removes the table for ${game.players.length - 1} other player(s).`
-    return 'Deletes this table.'
-  }
+function guestWarning(game) {
   return game.status === 'in_progress'
     ? 'Resigning forfeits the game.'
     : 'Frees your seat at this table.'
+}
+
+function deleteWarning(game) {
+  if (game.status === 'in_progress') return 'Ends the game for everyone.'
+  if (game.players.length > 1) return `Removes the table for ${game.players.length - 1} other player(s).`
+  return 'Nobody else is seated.'
 }
 
 const STATUS_META = {
@@ -425,28 +436,80 @@ const dangerBtn =
                 @click="primaryAction(game).run()"
               >{{ primaryAction(game).label }}</button>
 
-              <!-- one destructive control: Delete if you own the table, Leave
-                   or Resign if you do not. Both available in any game state. -->
               <button
                 type="button" :disabled="busy"
                 :class="[dangerBtn, isConfirming(game.joinCode, 'destroy')
-                  ? 'border-rose-400 bg-rose-400 text-gray-dark'
+                  ? 'border-rose-400 text-rose-400'
                   : 'border-gray-light text-gray-x-light hover:border-rose-400 hover:text-rose-400']"
                 @click="isConfirming(game.joinCode, 'destroy')
-                  ? (canDelete(game) ? confirmDelete(game.joinCode) : confirmLeave(game.joinCode))
+                  ? cancelConfirm()
                   : ask(game.joinCode, 'destroy')"
-              >{{ isConfirming(game.joinCode, 'destroy') ? 'Confirm' : destructiveLabel(game) }}</button>
+              >{{
+                isConfirming(game.joinCode, 'destroy')
+                  ? 'Cancel'
+                  : canDelete(game) ? 'Leave table' : guestLabel(game)
+              }}</button>
             </div>
 
-            <!-- the warning appears only while confirming, and says what will
-                 actually happen — "are you sure" tells the user nothing -->
-            <p
-              v-if="isConfirming(game.joinCode, 'destroy')"
-              class="flex items-center gap-2 text-xs font-bold"
-              :class="isHighStakes(game) ? 'text-rose-400' : 'text-gray-x-light'"
+            <!--
+              Host: two named outcomes, not a yes/no. "Delete" and "hand over"
+              are different decisions, and a confirm dialog can only ask about
+              one of them — which is how people end up deleting a table they
+              only meant to step away from.
+            -->
+            <div
+              v-if="isConfirming(game.joinCode, 'destroy') && canDelete(game)"
+              class="flex flex-col gap-2 rounded-xl border-2 border-gray-light bg-gray-dark/80 p-3"
             >
-              <span v-if="isHighStakes(game)">⚠</span>{{ destructiveWarning(game) }}
-            </p>
+              <button
+                v-if="heirOf(game)"
+                type="button" :disabled="busy" @click="doLeave(game.joinCode)"
+                class="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-gray-light
+                       p-3 text-left transition duration-200 ease-in-out
+                       hover:border-teal-light hover:bg-teal-dark/20 disabled:opacity-40"
+              >
+                <SeatToken :seat-index="heirOf(game).seatIndex" size="sm" />
+                <span class="flex min-w-0 flex-col">
+                  <span class="text-sm font-bold text-gray-2x-light">Hand over &amp; leave</span>
+                  <span class="text-xs text-gray-x-light">
+                    {{ heirOf(game).displayName }} becomes host. The table carries on.
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button" :disabled="busy" @click="doDelete(game.joinCode)"
+                class="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-gray-light
+                       p-3 text-left transition duration-200 ease-in-out
+                       hover:border-rose-400 hover:bg-rose-400/15 disabled:opacity-40"
+              >
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2
+                             border-rose-400/50 bg-rose-400/15 text-rose-400">🗑</span>
+                <span class="flex min-w-0 flex-col">
+                  <span class="text-sm font-bold text-gray-2x-light">Delete table</span>
+                  <span class="text-xs" :class="isHighStakes(game) ? 'text-rose-400' : 'text-gray-x-light'">
+                    {{ deleteWarning(game) }}
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <!-- Guest: one outcome, so a plain confirm is the right shape -->
+            <div
+              v-else-if="isConfirming(game.joinCode, 'destroy')"
+              class="flex items-center gap-3 rounded-xl border-2 border-gray-light bg-gray-dark/80 p-3"
+            >
+              <span class="flex-1 text-xs font-bold"
+                :class="game.status === 'in_progress' ? 'text-rose-400' : 'text-gray-x-light'">
+                {{ guestWarning(game) }}
+              </span>
+              <button
+                type="button" :disabled="busy" @click="doLeave(game.joinCode)"
+                class="shrink-0 cursor-pointer rounded-lg border-2 border-rose-400 bg-rose-400 px-4 py-2
+                       text-sm font-bold text-gray-dark transition duration-200 ease-in-out
+                       hover:bg-rose-300 hover:border-rose-300 disabled:opacity-40"
+              >{{ guestLabel(game) }}</button>
+            </div>
           </li>
         </ul>
       </div>

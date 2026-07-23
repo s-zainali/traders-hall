@@ -115,16 +115,24 @@ async def leave_game(db: AsyncSession, *, user: User, code: str) -> None:
         await db.delete(player)          # in a lobby, leaving frees the seat
         await db.flush()
         await db.refresh(game, ["players"])
-
-        if not game.players:
-            game.status = "abandoned"    # last one out closes the room
-            game.ended_at = datetime.now(UTC)
-        elif game.host_user_id == user.id:
-            # hand the host role to the next seat rather than orphaning the game
-            game.host_user_id = game.players[0].user_id
     else:
-        player.status = "resigned"       # mid-game, the seat stays for history
+        player.status = "resigned"       # mid-game the seat stays, for history
         player.left_at = datetime.now(UTC)
+
+    # Everyone still holding a live seat, excluding whoever just left. Computed
+    # AFTER the mutation so it is correct in both branches — mid-game the row is
+    # still present, just resigned, so filtering on user_id alone would keep it.
+    remaining = [
+        p for p in game.players
+        if p.user_id != user.id and p.status == "active"
+    ]
+
+    if not remaining:
+        game.status = "abandoned" if game.status == "lobby" else "completed"
+        game.ended_at = datetime.now(UTC)
+    elif game.host_user_id == user.id:
+        # hand the table to the next seat rather than orphaning it
+        game.host_user_id = remaining[0].user_id
 
 
 async def start_game(db: AsyncSession, *, user: User, code: str) -> Game:
