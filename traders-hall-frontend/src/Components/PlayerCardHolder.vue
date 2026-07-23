@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import Card from './Card.vue';
 import CardDeck from './CardDeck.vue';
 import SeatToken from './SeatToken.vue';
@@ -15,6 +15,17 @@ const props = defineProps({
     seatIndex: { type: Number, default: -1 },
     // whose turn it is, for the pulsing ring
     isTurn: { type: Boolean, default: false },
+
+    // ── server state, was hardcoded here ──────────────────────
+    // { cardType: quantity }. Includes zero counts, which is why the template
+    // filters rather than rendering a deck per key.
+    hand: { type: Object, default: () => ({}) },
+    points: { type: Number, default: 0 },
+    foodDue: { type: Number, default: 0 },
+    rentDue: { type: Number, default: 0 },
+    loanDue: { type: Number, default: 0 },
+    residence: { type: String, default: '' },
+    onRent: { type: Boolean, default: false },
 })
 const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction'])
 
@@ -46,6 +57,19 @@ const handState = computed(() => HAND_STATES[props.activeAction] ?? null)
 const seat = computed(() => seatStyle(props.seatIndex))
 
 /*
+  The hand arrives with a row for EVERY card type, most of them zero — the
+  backend keeps zero rows deliberately so a sale can guard on the row's
+  existence. Rendering a deck per key would give a row of empty slots, so the
+  view filters to what is actually held. Points are shown separately, as a
+  balance rather than as cards in hand.
+*/
+const heldTypes = computed(() =>
+    Object.entries(props.hand)
+        .filter(([type, count]) => count > 0 && type !== 'point')
+        .map(([type]) => type)
+)
+
+/*
   Panel border priority, most urgent first:
     1. an open transaction modal (rose / amber)
     2. empty seat (dashed grey — clearly not a player)
@@ -60,28 +84,10 @@ const panelBorder = computed(() => {
     return seat.value.borderSoft
 })
 
-const playerCards = reactive({
-    'house': 2,
-    'mansion': 0,
-    'tower': 0,
-    'invest': 1,
-    'wheat': 0,
-    'rice': 1,
-})
-
 // ONE ref for the card under action. Previously sell wrote `sellingType` and
 // trade wrote `tradingType`, but the modal only ever read `sellingType` — so
 // trading always showed whatever sell had left behind.
 const selectedType = ref('')
-
-const points = ref(2)
-
-const foodDue = ref(0)
-const rentDue = ref(0)
-const loanDue = ref(0)
-
-const onRent = ref(false)
-const residence = ref('')
 
 const activeModal = ref('')
 
@@ -104,12 +110,11 @@ function onConfirm(payload) {
         :style="isTurn && playerActive ? { '--seat': seat.hex } : {}">
 
         <TransactionModal v-if="activeModal !== ''" :transaction-type="activeModal" :card-type="selectedType"
-            :available="playerCards[selectedType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
+            :available="hand[selectedType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
 
         <!--
-            Empty seat. The old version was a bare 50% scrim, which read as
-            "disabled" rather than "nobody here". Now it says so, and the dashed
-            token matches the placeholders used in the lobby list.
+            Empty seat. A bare scrim read as "disabled" rather than "nobody
+            here"; the dashed token matches the placeholders in the lobby list.
         -->
         <div v-if="!playerActive"
             class="absolute inset-0 z-100 flex flex-col items-center justify-center gap-3
@@ -134,9 +139,12 @@ function onConfirm(payload) {
             </div>
             <div class="flex gap-4 items-center"
                 :class="playerType === 'player' ? 'justify-end' : 'w-full justify-between'">
-                <CardDeck :content-small="true">
+                <!-- points are a balance, drawn as a deck. v-if because a deck
+                     of zero cards would otherwise render an empty stub. -->
+                <CardDeck v-if="points > 0" :content-small="true">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
+                <span v-else class="px-2 text-sm font-bold text-gray-light">0 pts</span>
 
                 <div v-if="playerType !== 'player'" class="flex items-center gap-2 px-2 py-2">
                     <h1 class="text-lg font-bold tracking-wide" :class="seat.text">{{ playerName }}</h1>
@@ -177,15 +185,17 @@ function onConfirm(payload) {
                 :class="handState ? handState.well : 'border-gray-light outline-0'">
                 <button v-if="handState" @click="emit('cancelOperation')"
                     class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
-                <div class="flex gap-2">
-                    <!-- :key is required here: without it Vue patches these decks in
-                         place by index, which mixes card types between decks -->
-                    <CardDeck v-for="type in Object.keys(playerCards)" :key="type" :content-small="true">
-                        <Card v-for="n in playerCards[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
+
+                <div v-if="heldTypes.length" class="flex gap-2">
+                    <!-- :key is required here: without it Vue patches these decks
+                         in place by index, which mixes card types between decks -->
+                    <CardDeck v-for="type in heldTypes" :key="type" :content-small="true">
+                        <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
                             :class="handState ? 'cursor-pointer' : ''" :selling="activeAction === 'sell'"
                             :trading="activeAction === 'trade'" @sell="openModal(type)" @trade="openModal(type)" />
                     </CardDeck>
                 </div>
+                <span v-else class="py-3 text-sm text-gray-light">No cards</span>
             </div>
 
             <div v-if="playerType === 'player'" class="flex justify-evenly items-center gap-4">

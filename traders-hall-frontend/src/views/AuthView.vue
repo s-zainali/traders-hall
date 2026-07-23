@@ -180,7 +180,7 @@ const optionalClass = 'normal-case tracking-normal font-normal text-gray-light'
                 <input
                   id="identifier" ref="identifierEl" v-model="identifier" :class="fieldClass" type="text"
                   :autocomplete="isRegister ? 'username' : 'username email'"
-                  :placeholder="isRegister ? 'zain' : 'zain or zain@example.com'"
+                  :placeholder="isRegister ? 'user' : 'user or user@example.com'"
                   spellcheck="false" autocapitalize="none"
                 />
                 <Transition name="hint">
@@ -197,7 +197,7 @@ const optionalClass = 'normal-case tracking-normal font-normal text-gray-light'
                     </label>
                     <input
                       id="email" v-model="email" :class="fieldClass" type="email" autocomplete="email"
-                      placeholder="zain@example.com" spellcheck="false" autocapitalize="none"
+                      placeholder="user@example.com" spellcheck="false" autocapitalize="none"
                     />
                     <Transition name="hint">
                       <p v-if="emailError" class="text-xs font-bold text-amber-400">{{ emailError }}</p>

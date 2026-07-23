@@ -1,29 +1,39 @@
-<script setup lang="ts">
+<script setup>
 import Card from './Card.vue';
-import { reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import BankerModal from './Modals/BankerModal.vue';
 import BankerCard from './Cards/BankerCard.vue';
 import CardDeck from './CardDeck.vue';
 import TransactionModal from './Modals/TransactionModal.vue';
 
-// `buyingActive` had no `type`, so Vue skipped Boolean casting on it
-const props = defineProps({ buyingActive: { type: Boolean, default: false } })
+const props = defineProps({
+    buyingActive: { type: Boolean, default: false },
+    // { cardType: quantity } straight from the projection. Was a hardcoded
+    // `reactive` literal here, which meant every player saw a different bank.
+    pools: { type: Object, default: () => ({}) },
+})
 const emit = defineEmits(['cancel', 'confirm'])
 
-// six near-identical CardDeck blocks collapsed into data
-const bankCards = reactive({
-    'house': 2,
-    'mansion': 2,
-    'tower': 2,
-    'rice': 8,
-    'wheat': 8,
-    'invest': 2,
-})
+// Points are the bank's cash, shown separately from the card grid.
+const pointStock = computed(() => props.pools.point ?? 0)
+
+/*
+  Buyable stock, in a stable order. Object key order follows insertion, which
+  is whatever the server serialised — so an explicit order stops the grid
+  reshuffling between polls.
+*/
+const ORDER = ['house', 'mansion', 'tower', 'rice', 'wheat', 'invest']
+const cardStock = computed(() =>
+    ORDER.filter((type) => (props.pools[type] ?? 0) > 0).map((type) => ({
+        type,
+        count: props.pools[type],
+    }))
+)
 
 const buyingType = ref('')
-const activeModal = ref('')   // was ref('null') — the string, not the value
+const activeModal = ref('')
 
-function openBuy(type: string) {
+function openBuy(type) {
     buyingType.value = type
     activeModal.value = 'buy'
 }
@@ -42,16 +52,19 @@ function onConfirm(payload) {
         <!-- modals sit at the panel root so they overlay the whole section and
              aren't clipped by the cards well's overflow-hidden -->
         <TransactionModal v-if="activeModal === 'buy'" :transaction-type="'buy'" :card-type="buyingType"
-            :available="bankCards[buyingType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
+            :available="pools[buyingType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
         <BankerModal v-if="activeModal === 'bankerModal'" @close-modal="activeModal = ''" />
 
         <div class="flex gap-6 justify-between">
             <div>
                 <h1 class="text-3xl text-gray-2x-light font-bold pb-4 tracking-wide text-center"> Bank </h1>
                 <div class="flex justify-between ml-6">
-                    <CardDeck>
-                        <Card v-for="n in 30" :key="n" :card-type="'point'" />
+                    <!-- CardDeck caps how many it stacks, so a large pool is
+                         cheap to render; v-if avoids an empty stub at zero -->
+                    <CardDeck v-if="pointStock > 0">
+                        <Card v-for="n in pointStock" :key="n" :card-type="'point'" />
                     </CardDeck>
+                    <span v-else class="py-8 text-sm font-bold text-gray-light">Out of points</span>
                 </div>
             </div>
             <BankerCard @activate-modal="activeModal = $event" />
@@ -63,12 +76,14 @@ function onConfirm(payload) {
                 class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
 
             <h1 class="text-gray-2x-light text-2xl pb-4 font-bold tracking-wide text-center">Cards</h1>
-            <div class="grid grid-cols-3 gap-2">
-                <CardDeck v-for="(count, type) in bankCards" :key="type">
-                    <Card v-for="n in count" :key="`${type}-${n}`" :card-type="type" :buying="buyingActive"
-                        @buy="openBuy(type)" />
+
+            <div v-if="cardStock.length" class="grid grid-cols-3 gap-2">
+                <CardDeck v-for="stock in cardStock" :key="stock.type">
+                    <Card v-for="n in stock.count" :key="`${stock.type}-${n}`" :card-type="stock.type"
+                        :buying="buyingActive" @buy="openBuy(stock.type)" />
                 </CardDeck>
             </div>
+            <p v-else class="py-8 text-center text-sm text-gray-light">The bank is empty</p>
         </div>
     </div>
 </template>

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { apiJson } from '../api/client'
 
 /**
- * Games: create, join, start, close, and the list of games you are seated in.
+ * Games: the lobby list, and the live state of one table.
  *
  * The API speaks snake_case; everything converts at this boundary so no
  * component has to know that.
@@ -27,13 +27,55 @@ function toGame(g) {
   }
 }
 
+function toState(s) {
+  return {
+    game: {
+      id: s.game.id,
+      joinCode: s.game.join_code,
+      status: s.game.status,
+      phase: s.game.phase,
+      turnNumber: s.game.turn_number,
+      currentPlayerId: s.game.current_player_id,
+      stateVersion: s.game.state_version,
+      maxPlayers: s.game.max_players,
+      hostUserId: s.game.host_user_id,
+      startedAt: s.game.started_at,
+    },
+    // { cardType: quantity } — already the shape the components want
+    bank: s.bank,
+    you: {
+      playerId: s.you.player_id,
+      seatIndex: s.you.seat_index,
+      points: s.you.points,
+      hand: s.you.hand,
+      foodDue: s.you.food_due,
+      rentDue: s.you.rent_due,
+      isMyTurn: s.you.is_my_turn,
+    },
+    players: s.players.map((p) => ({
+      id: p.id,
+      seatIndex: p.seat_index,
+      displayName: p.display_name,
+      status: p.status,
+      isBot: p.is_bot,
+      points: p.points,
+      foodDue: p.food_due,
+      rentDue: p.rent_due,
+      hand: p.hand,
+    })),
+  }
+}
+
 export const useGamesStore = defineStore('games', () => {
   const myGames = ref([])
-  const current = ref(null)        // the game most recently created/fetched
+  const current = ref(null)        // lobby-level shape, from /games/{code}
+  const state = ref(null)          // full table projection, from /games/{code}/state
   const loadingMine = ref(false)
-  const hasLoadedMine = ref(false) 
+  const hasLoadedMine = ref(false)
+  const hasLoadedState = ref(false)
   const busy = ref(false)          // a create/join/start/close is in flight
   const error = ref(null)
+  const stateError = ref(null)
 
   async function fetchMine({ silent = false } = {}) {
     // A background poll must not touch the loading flag: it drives the "loading"
@@ -46,11 +88,37 @@ export const useGamesStore = defineStore('games', () => {
       if (!silent) error.value = null
     } catch (e) {
       // A failed poll should not wipe the list or flash a red error — the next
-      // tick will most likely succeed, and the stale list is better than nothing.
+      // tick will most likely succeed, and a stale list beats nothing.
       if (!silent) error.value = e.message
     } finally {
       if (!silent) loadingMine.value = false
     }
+  }
+
+  /**
+   * The whole table: bank pools, every hand, your private block.
+   *
+   * This is the ONE function a WebSocket replaces later. Everything downstream
+   * reads `state`, so swapping poll-and-replace for push-and-patch touches this
+   * and nothing else.
+   */
+  async function fetchState(code, { silent = false } = {}) {
+    try {
+      state.value = toState(await apiJson(`/api/v1/games/${code.toUpperCase()}/state`))
+      hasLoadedState.value = true
+      if (!silent) stateError.value = null
+      return state.value
+    } catch (e) {
+      // Same reasoning as fetchMine: a dropped poll must not blank the table.
+      if (!silent) stateError.value = e.message
+      return null
+    }
+  }
+
+  function clearState() {
+    state.value = null
+    hasLoadedState.value = false
+    stateError.value = null
   }
 
   async function createGame(maxPlayers = 4) {
@@ -115,7 +183,7 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
-  /** Host-only, lobby-only, and only when nobody else has joined. */
+  /** Host only; removes the table for everyone. */
   async function closeGame(code) {
     busy.value = true
     error.value = null
@@ -147,7 +215,9 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   return {
-    myGames, current, loadingMine, hasLoadedMine, busy, error,
-    fetchMine, createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
+    myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
+    busy, error, stateError,
+    fetchMine, fetchState, clearState, createGame, joinGame, fetchGame,
+    startGame, closeGame, leaveGame,
   }
 })
