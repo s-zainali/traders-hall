@@ -1,13 +1,14 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const { error } = storeToRefs(auth)
 
-// one component, two modes — the fields overlap heavily and a toggle avoids
-// duplicating the whole form
 const mode = ref('login')          // 'login' | 'register'
 const isRegister = computed(() => mode.value === 'register')
 
@@ -52,8 +53,8 @@ const canSubmit = computed(() =>
     !submitting.value
 )
 
-// A stale "Incorrect username or password" sitting under a field the user is
-// already retyping is just noise — clear it as soon as they change something.
+// A stale "Incorrect username or password" under a field the user is already
+// retyping is just noise — clear it as soon as they change something.
 watch([identifier, email, password], () => {
     if (error.value) auth.error = null
 })
@@ -62,15 +63,16 @@ async function submit() {
     if (!canSubmit.value) return
     submitting.value = true
     try {
-        if (isRegister.value) {
-            await auth.register(identifier.value, password.value, email.value, displayName.value)
-        } else {
-            await auth.login(identifier.value, password.value)
-        }
+        const ok = isRegister.value
+            ? await auth.register(identifier.value, password.value, email.value, displayName.value)
+            : await auth.login(identifier.value, password.value)
+
+        // ?next= is set by the router guard when it bounces an unauthenticated
+        // visitor, so a deep link survives the detour through login.
+        if (ok) router.push(route.query.next || { name: 'lobby' })
     } finally {
         submitting.value = false
     }
-    // on success App swaps this view out; on failure auth.error is set
 }
 
 function switchMode() {
@@ -92,9 +94,11 @@ const optionalClass = 'normal-case tracking-normal font-normal'
     <div class="min-h-[100dvh] bg-gray-dark flex items-center justify-center p-6">
         <div class="w-full max-w-md flex flex-col gap-6">
 
-            <h1 class="text-4xl text-gray-2x-light font-bold tracking-widest text-center">
+            <RouterLink :to="{ name: 'landing' }"
+                class="text-4xl text-gray-2x-light font-bold tracking-widest text-center
+                       hover:text-teal-light transition duration-200 ease-in-out">
                 Traders Hall
-            </h1>
+            </RouterLink>
 
             <div class="flex flex-col gap-5 p-8 bg-gray-x-dark border-2 border-gray-light rounded-[1.5rem]">
 
@@ -107,8 +111,6 @@ const optionalClass = 'normal-case tracking-normal font-normal'
                     </p>
                 </header>
 
-                <!-- a real <form> gives Enter-to-submit and password-manager
-                     support for free; .prevent stops the page reload -->
                 <form class="flex flex-col gap-4" @submit.prevent="submit">
 
                     <div class="flex flex-col gap-2">
@@ -117,7 +119,7 @@ const optionalClass = 'normal-case tracking-normal font-normal'
                         </label>
                         <input id="identifier" v-model="identifier" :class="fieldClass" type="text"
                             :autocomplete="isRegister ? 'username' : 'username email'"
-                            :placeholder="isRegister ? 'user' : 'user or user@example.com'"
+                            :placeholder="isRegister ? 'zain' : 'zain or zain@example.com'"
                             spellcheck="false" autocapitalize="none" />
                         <p v-if="identifierError" class="text-xs text-amber-400">{{ identifierError }}</p>
                     </div>
@@ -127,7 +129,7 @@ const optionalClass = 'normal-case tracking-normal font-normal'
                             Email <span :class="optionalClass">(optional)</span>
                         </label>
                         <input id="email" v-model="email" :class="fieldClass" type="email"
-                            autocomplete="email" placeholder="user@example.com"
+                            autocomplete="email" placeholder="zain@example.com"
                             spellcheck="false" autocapitalize="none" />
                         <p v-if="emailError" class="text-xs text-amber-400">{{ emailError }}</p>
                     </div>
