@@ -21,7 +21,7 @@ const year = new Date().getFullYear()
         ></div>
 
         <div class="flex flex-col items-center gap-2">
-            <span class="text-[8px] font-black uppercase tracking-[0.4em] text-white/25">
+            <span v-if="!compact" class="text-[8px] font-black uppercase tracking-[0.4em] text-white/25">
                 Powered by
             </span>
 

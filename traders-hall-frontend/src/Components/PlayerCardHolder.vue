@@ -2,13 +2,19 @@
 import { computed, reactive, ref } from 'vue';
 import Card from './Card.vue';
 import CardDeck from './CardDeck.vue';
+import SeatToken from './SeatToken.vue';
 import TransactionModal from './Modals/TransactionModal.vue';
+import { seatStyle } from '../seats';
 
 const props = defineProps({
     playerType: { type: String, default: 'player' },
     activeAction: { type: String, default: '' },
     playerName: { type: String, default: 'Player' },
-    playerActive : { type: Boolean, default: false }
+    playerActive: { type: Boolean, default: false },
+    // which chair this panel is; drives the token and the accent colour
+    seatIndex: { type: Number, default: -1 },
+    // whose turn it is, for the pulsing ring
+    isTurn: { type: Boolean, default: false },
 })
 const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction'])
 
@@ -36,6 +42,23 @@ const HAND_STATES = {
     },
 }
 const handState = computed(() => HAND_STATES[props.activeAction] ?? null)
+
+const seat = computed(() => seatStyle(props.seatIndex))
+
+/*
+  Panel border priority, most urgent first:
+    1. an open transaction modal (rose / amber)
+    2. empty seat (dashed grey — clearly not a player)
+    3. this player's turn (their own seat colour, solid)
+    4. otherwise a soft tint of their seat colour
+  Exactly one wins, so the border always means one thing.
+*/
+const panelBorder = computed(() => {
+    if (activeModal.value && handState.value) return handState.value.panel
+    if (!props.playerActive) return 'border-dashed border-gray-light'
+    if (props.isTurn) return seat.value.border
+    return seat.value.borderSoft
+})
 
 const playerCards = reactive({
     'house': 2,
@@ -73,23 +96,40 @@ function onConfirm(payload) {
     activeModal.value = ''
     emit('cancelOperation')
 }
-
 </script>
 
 <template>
-    <div class="relative flex flex-col p-4 gap-2 bg-gray-x-dark border-2 rounded-[1.5rem] overflow-hidden"
-        :class="activeModal && handState ? handState.panel : 'border-gray-light'">
+    <div class="relative flex flex-col p-4 gap-2 bg-gray-x-dark border-2 rounded-[1.5rem] overflow-hidden transition duration-300 ease-in-out"
+        :class="[panelBorder, isTurn && playerActive ? 'turn-ring' : '']"
+        :style="isTurn && playerActive ? { '--seat': seat.hex } : {}">
+
         <TransactionModal v-if="activeModal !== ''" :transaction-type="activeModal" :card-type="selectedType"
             :available="playerCards[selectedType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
-        <div v-if="!playerActive" class="absolute top-0 left-0 w-full h-full bg-gray-dark/50 z-100"></div>
+
+        <!--
+            Empty seat. The old version was a bare 50% scrim, which read as
+            "disabled" rather than "nobody here". Now it says so, and the dashed
+            token matches the placeholders used in the lobby list.
+        -->
+        <div v-if="!playerActive"
+            class="absolute inset-0 z-100 flex flex-col items-center justify-center gap-3
+                   bg-gray-dark/75 backdrop-blur-[2px]">
+            <SeatToken :seat-index="-1" size="lg" />
+            <div class="flex flex-col items-center gap-0.5">
+                <span class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Empty seat</span>
+                <span class="text-xs text-gray-light">Waiting for a player</span>
+            </div>
+        </div>
+
         <div class="flex justify-between items-center" :class="[playerType === 'player' ? 'gap-4' : 'flex-col-reverse']">
-            <div class="flex items-center">
-                <div class="bg-gray-2x-light" :class="playerType === 'player' ? 'h-15 w-15' : 'h-5 w-5'" :style="{
-                    mask: `url(/user.png) no-repeat center / contain`,
-                    '-webkit-mask': `url(/user.png) no-repeat center / contain`,
-                }"></div>
-                <h1 class="text-gray-2x-light font-bold tracking-wide ml-2"
-                    :class="playerType === 'player' ? 'text-2xl' : 'text-md'">{{ playerType === 'player' ? 'Your' : '' }} Cards
+            <div class="flex items-center gap-2">
+                <!-- the seat token replaces the generic user glyph: same slot,
+                     but now it identifies WHICH player rather than just "a" player -->
+                <SeatToken :seat-index="seatIndex" :size="playerType === 'player' ? 'lg' : 'sm'"
+                    :filled="isTurn && playerActive" />
+                <h1 class="text-gray-2x-light font-bold tracking-wide"
+                    :class="playerType === 'player' ? 'text-2xl' : 'text-md'">
+                    {{ playerType === 'player' ? 'Your' : '' }} Cards
                 </h1>
             </div>
             <div class="flex gap-4 items-center"
@@ -97,13 +137,19 @@ function onConfirm(payload) {
                 <CardDeck :content-small="true">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
-                <h1 v-if="playerType !== 'player'"
-                    class="text-lg px-2 py-2 text-gray-2x-light font-bold tracking-wide">{{ playerName }}</h1>
-                <div class="flex px-2  bg-purple-dark border-4 border-purple-light rounded-[1rem]">
+
+                <div v-if="playerType !== 'player'" class="flex items-center gap-2 px-2 py-2">
+                    <h1 class="text-lg font-bold tracking-wide" :class="seat.text">{{ playerName }}</h1>
+                    <span v-if="isTurn"
+                        class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                        :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
+                </div>
+
+                <div class="flex px-2 bg-purple-dark border-4 border-purple-light rounded-[1rem]">
                     <span v-if="onRent">On Rent</span>
                     <div class="flex gap-2 items-center">
                         <span v-if="playerType === 'player'"
-                            class="font-bold text-sm text-purple-light ">Residence</span>
+                            class="font-bold text-sm text-purple-light">Residence</span>
                         <div class="-mx-2">
                             <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                             <div v-else class="h-9 w-9 bg-purple-light m-1" :style="{
@@ -113,17 +159,19 @@ function onConfirm(payload) {
                         </div>
                     </div>
                 </div>
+
                 <div v-if="playerType === 'player'" class="flex gap-4">
                     <button v-for="action in actions" :key="action.key" :class="[
                         buttonClass,
                         action.hover,
                         activeAction === action.key ? action.active : 'text-gray-dark bg-gray-2x-light',
                     ]" @click="activeAction === '' ? $emit(action.key) : ''">{{ action.label }}</button>
-                    <button v-if="playerType === 'player'"
+                    <button
                         class="bg-rose-400/50 w-30 py-3 rounded-xl font-bold hover:bg-rose-500/50 cursor-pointer transition duration-300 ease-in-out hover:scale-110 text-gray-2x-light">End Turn</button>
                 </div>
             </div>
         </div>
+
         <div class="flex justify-between gap-4 items-center">
             <div class="relative p-2 border-1 rounded-[1rem] min-w-[100px] flex justify-between px-4 w-full max-w-md overflow-hidden transition duration-300 ease-in-out"
                 :class="handState ? handState.well : 'border-gray-light outline-0'">
@@ -138,12 +186,6 @@ function onConfirm(payload) {
                             :trading="activeAction === 'trade'" @sell="openModal(type)" @trade="openModal(type)" />
                     </CardDeck>
                 </div>
-                <!-- <button class="w-5 px-4 hover:cursor-pointer">
-                    <div class="h-5 w-5 bg-gray-x-light" :style="{
-                        mask: `url(/up-arrow.png) no-repeat center / contain`,
-                        '-webkit-mask': `url(/up-arrow.png) no-repeat center / contain`,
-                    }"></div>
-                </button> -->
             </div>
 
             <div v-if="playerType === 'player'" class="flex justify-evenly items-center gap-4">
@@ -163,3 +205,26 @@ function onConfirm(payload) {
         </div>
     </div>
 </template>
+
+<style scoped>
+/*
+  Turn indicator. box-shadow rather than an extra element or a border change:
+  it costs no layout, so the panel does not shift when the turn moves, and the
+  --seat variable set inline lets one rule serve all four seat colours.
+*/
+.turn-ring {
+    animation: turn-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes turn-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--seat) 45%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--seat) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .turn-ring {
+        animation: none;
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--seat) 40%, transparent);
+    }
+}
+</style>

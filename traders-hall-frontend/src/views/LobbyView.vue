@@ -1,68 +1,66 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
+import { useGamesStore } from '../stores/games'
+import SeatToken from '../Components/SeatToken.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
-const { user } = storeToRefs(auth)
+const games = useGamesStore()
 
-const creating = ref(false)
-const gameCode = ref('')
+const { user } = storeToRefs(auth)
+const { myGames, loadingMine, busy, error } = storeToRefs(games)
+
+// The created game now comes from the server, not a local generator: it is a
+// real row with a unique code that other players can actually join.
+const created = ref(null)
 const joinCode = ref('')
-const error = ref('')
 const copied = ref(false)
 
-/*
-  PLACEHOLDER. A real join code must come from the server: unique across all
-  games, and corresponding to a row other players can actually join. Generated
-  here it means nothing to anyone else.
-
-  Replaced by POST /api/v1/games once the games table exists.
-*/
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'   // no I/O/0/1 — unreadable aloud
-
-function generatePlaceholderCode() {
-  return Array.from(
-    { length: 6 },
-    () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]
-  ).join('')
-}
+onMounted(() => games.fetchMine())
 
 async function createGame() {
-  creating.value = true
-  error.value = ''
-  try {
-    await new Promise((r) => setTimeout(r, 500))   // stand-in for the request
-    gameCode.value = generatePlaceholderCode()
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    creating.value = false
-  }
+  const game = await games.createGame(4)
+  if (game) created.value = game
 }
 
 async function copyCode() {
-  await navigator.clipboard.writeText(gameCode.value)
+  await navigator.clipboard.writeText(created.value.joinCode)
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
 }
 
-function enterGame() {
-  router.push({ name: 'game', params: { code: gameCode.value } })
+function enterGame(code) {
+  router.push({ name: 'game', params: { code } })
 }
 
 const canJoin = computed(() => joinCode.value.trim().length === 6)
 
-function joinGame() {
+async function joinGame() {
   if (!canJoin.value) return
-  router.push({ name: 'game', params: { code: joinCode.value.trim().toUpperCase() } })
+  const game = await games.joinGame(joinCode.value.trim())
+  if (game) enterGame(game.joinCode)
 }
 
 async function logout() {
   await auth.logout()
   router.push({ name: 'landing' })
+}
+
+// Finished games stay in the list from the API; the lobby only shows live ones.
+const activeGames = computed(() =>
+  myGames.value.filter((g) => g.status === 'lobby' || g.status === 'in_progress')
+)
+
+function mySeat(game) {
+  return game.players.find((p) => p.displayName === user.value?.display_name)?.seatIndex ?? -1
+}
+
+const STATUS_META = {
+  lobby: { label: 'Waiting', class: 'border-amber-400/50 bg-amber-400/15 text-amber-400' },
+  in_progress: { label: 'In progress', class: 'border-emerald-400/50 bg-emerald-400/15 text-emerald-400' },
 }
 
 const panelClass =
@@ -93,13 +91,72 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
       </div>
     </header>
 
-    <!--
-      flex-1 + justify-center centres the panels in whatever space is left
-      between the header and the footer, rather than stacking them at the top.
-    -->
     <div class="flex flex-1 flex-col justify-center gap-6">
 
-      <!-- create -->
+      <!-- ── my games ───────────────────────────────────────── -->
+      <div v-if="loadingMine || activeGames.length" :class="panelClass">
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col gap-1">
+            <h2 class="text-2xl font-bold tracking-wide text-gray-2x-light">Your tables</h2>
+            <p class="text-sm text-gray-x-light">Games you are seated at right now.</p>
+          </div>
+          <button
+            type="button" :disabled="loadingMine" @click="games.fetchMine()"
+            class="cursor-pointer rounded-lg border-2 border-gray-light px-3 py-1.5 text-sm font-bold
+                   text-gray-x-light transition duration-200 ease-in-out hover:border-gray-x-light
+                   hover:text-gray-2x-light disabled:opacity-40"
+          >{{ loadingMine ? '…' : 'Refresh' }}</button>
+        </div>
+
+        <div v-if="loadingMine && !activeGames.length" class="py-6 text-center text-sm text-gray-x-light">
+          Loading your tables…
+        </div>
+
+        <ul v-else class="flex flex-col gap-3">
+          <li
+            v-for="game in activeGames"
+            :key="game.id"
+            class="group flex items-center gap-4 rounded-2xl border-2 border-gray-light bg-gray-dark/60
+                   p-4 transition duration-200 ease-in-out hover:border-gray-x-light/60"
+          >
+            <!-- your own token, so you can tell your tables apart at a glance -->
+            <SeatToken :seat-index="mySeat(game)" size="md" />
+
+            <div class="flex min-w-0 flex-1 flex-col gap-1">
+              <div class="flex items-center gap-3">
+                <span class="font-bold tracking-[0.3em] text-teal-light">{{ game.joinCode }}</span>
+                <span
+                  class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                  :class="STATUS_META[game.status]?.class"
+                >{{ STATUS_META[game.status]?.label ?? game.status }}</span>
+              </div>
+
+              <!-- filled seats as tokens, empty ones as dashed placeholders:
+                   the row shows how full the table is without a count -->
+              <div class="flex items-center gap-1.5">
+                <SeatToken
+                  v-for="i in game.maxPlayers"
+                  :key="i"
+                  :seat-index="game.players.some((p) => p.seatIndex === i - 1) ? i - 1 : -1"
+                  size="sm"
+                />
+                <span class="ml-1 text-xs text-gray-x-light">
+                  {{ game.players.length }} / {{ game.maxPlayers }}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button" @click="enterGame(game.joinCode)"
+              class="shrink-0 cursor-pointer rounded-xl border-2 border-teal-light bg-teal-light px-5 py-2.5
+                     font-bold text-gray-dark transition duration-200 ease-in-out hover:brightness-110
+                     active:scale-[0.99]"
+            >{{ game.status === 'lobby' ? 'Open' : 'Resume' }}</button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- ── create ─────────────────────────────────────────── -->
       <div :class="panelClass">
         <div class="flex flex-col gap-1">
           <h2 class="text-2xl font-bold tracking-wide text-gray-2x-light">Start a game</h2>
@@ -107,18 +164,18 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
         </div>
 
         <button
-          v-if="!gameCode"
-          type="button" :disabled="creating" @click="createGame"
+          v-if="!created"
+          type="button" :disabled="busy" @click="createGame"
           class="w-full cursor-pointer rounded-xl border-2 border-teal-light bg-teal-light py-3.5
                  font-bold text-gray-dark transition duration-200 ease-in-out hover:brightness-110
                  active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <span class="flex items-center justify-center gap-2">
             <span
-              v-if="creating"
+              v-if="busy"
               class="h-4 w-4 animate-spin rounded-full border-2 border-gray-dark/30 border-t-gray-dark"
             ></span>
-            {{ creating ? 'Creating' : 'Create game' }}
+            {{ busy ? 'Creating' : 'Create game' }}
           </span>
         </button>
 
@@ -126,11 +183,10 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
           <div class="flex flex-col gap-2">
             <span :class="labelClass">Game code</span>
             <div class="flex items-center gap-3">
-              <!-- min-w-0 so the oversized tracking cannot stop it shrinking -->
               <div
                 class="min-w-0 flex-1 rounded-xl border-2 border-teal-light/50 bg-gray-dark px-6 py-4
                        text-center text-4xl font-bold tracking-[0.4em] text-teal-light tabular-nums"
-              >{{ gameCode }}</div>
+              >{{ created.joinCode }}</div>
               <button
                 type="button" @click="copyCode"
                 class="h-16 w-24 shrink-0 cursor-pointer rounded-xl border-2 border-gray-light font-bold
@@ -143,13 +199,13 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
 
           <div class="flex gap-3">
             <button
-              type="button" @click="gameCode = ''"
+              type="button" @click="created = null"
               class="shrink-0 cursor-pointer rounded-xl border-2 border-gray-light px-6 py-3 font-bold
                      text-gray-x-light transition duration-200 ease-in-out
                      hover:border-gray-x-light hover:text-gray-2x-light"
-            >Discard</button>
+            >Dismiss</button>
             <button
-              type="button" @click="enterGame"
+              type="button" @click="enterGame(created.joinCode)"
               class="min-w-0 flex-1 cursor-pointer rounded-xl border-2 border-teal-light bg-teal-light
                      py-3 font-bold text-gray-dark transition duration-200 ease-in-out
                      hover:brightness-110 active:scale-[0.99]"
@@ -158,7 +214,7 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
         </template>
       </div>
 
-      <!-- join -->
+      <!-- ── join ───────────────────────────────────────────── -->
       <div :class="panelClass">
         <div class="flex flex-col gap-1">
           <h2 class="text-2xl font-bold tracking-wide text-gray-2x-light">Join a game</h2>
@@ -169,9 +225,8 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
           <!--
             min-w-0 is load bearing. A flex item's default min-width:auto stops
             it shrinking below its content's intrinsic width, and with size=20,
-            text-2xl and tracking-[0.4em] that width is larger than the row —
-            so the input refused to shrink and pushed the button past the edge.
-            size="6" also drops the intrinsic width to what the field holds.
+            text-2xl and tracking-[0.4em] that width exceeds the row — so the
+            input refused to shrink and pushed the button past the edge.
           -->
           <input
             v-model="joinCode" maxlength="6" size="6" spellcheck="false"
@@ -183,7 +238,7 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
                    focus:border-teal-light focus:outline-none"
           />
           <button
-            type="submit" :disabled="!canJoin"
+            type="submit" :disabled="!canJoin || busy"
             class="shrink-0 cursor-pointer rounded-xl border-2 border-gray-light px-8 font-bold
                    text-gray-x-light transition duration-200 ease-in-out
                    hover:border-gray-x-light hover:text-gray-2x-light

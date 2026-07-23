@@ -5,3 +5,5 @@ from app.db.base import Base  # noqa: F401
 from app.models.card_type import CardType 
 from app.models.user import User  # noqa: F401
 from app.models.session import Session
+from app.models.game import Game
+from app.models.game_player import GamePlayer
