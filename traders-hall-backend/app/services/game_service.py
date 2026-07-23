@@ -144,23 +144,17 @@ async def start_game(db: AsyncSession, *, user: User, code: str) -> Game:
     return game
 
 async def close_game(db: AsyncSession, *, user: User, code: str) -> None:
-    """Host deletes a lobby game nobody else has joined."""
+    """Host deletes the table outright, whatever state it is in."""
     game = await _load(db, code=code.upper())
     if game is None:
         raise GameError("GAME_NOT_FOUND", "No game with that code")
     if game.host_user_id != user.id:
-        raise GameError("NOT_HOST", "Only the host can close the game")
-    if game.status != "lobby":
-        raise GameError("GAME_ALREADY_STARTED", "A game in progress cannot be closed")
+        raise GameError("NOT_HOST", "Only the host can delete the table")
 
-    # Only the host seated: closing a table with other players in it would
-    # silently evict them, so that needs to be a different, explicit action.
-    others = [p for p in game.players if p.user_id != user.id]
-    if others:
-        raise GameError("GAME_NOT_EMPTY", "Other players have already joined")
-
-    # game_players has ondelete=CASCADE, so the seats go with it — Postgres
-    # enforces that, not application code remembering to clean up.
+    # No emptiness check any more: the host owns the table and may bin it with
+    # players still seated. The frontend warns before confirming, since this
+    # removes the game for everyone, not just the host.
+    # game_players has ondelete=CASCADE, so seats go with it.
     await db.delete(game)
 
 

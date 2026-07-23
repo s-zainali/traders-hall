@@ -75,7 +75,7 @@ const isCompact = computed(() => props.transactionType !== 'buy')
 // Unlike `scale`, `zoom` participates in layout: the wrapper's measured box
 // shrinks too, so the modal actually gets shorter instead of just drawing
 // smaller inside a full-height box.
-const PREVIEW_ZOOM = 0.8
+const PREVIEW_ZOOM = 0.6
 const previewZoom = computed(() => (isCompact.value ? PREVIEW_ZOOM : 1))
 
 // Card data comes from the store (fetched from /api/v1/config/card-types), so
@@ -149,7 +149,7 @@ const actionButton =
                 : 'flex-col gap-6 p-6 w-max'">
 
             <!-- close, matching the 🗙 on the hand well in PlayerCardHolder -->
-            <button type="button" aria-label="Close" @click="emit('cancel')"
+            <button v-if="transactionType === 'buy'" type="button" aria-label="Close" @click="emit('cancel')"
                 class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
 
             <header class="flex flex-col gap-1" :class="isCompact ? 'justify-center items-start' : ''">
