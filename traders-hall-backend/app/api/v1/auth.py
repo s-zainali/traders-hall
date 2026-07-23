@@ -38,7 +38,7 @@ async def register(body: UserRegister, db: Db):
 async def login(body: UserLogin, db: Db):
     try:
         user = await auth_service.authenticate(
-            db, username=body.username, password=body.password
+        db, identifier=body.identifier, password=body.password
         )
     except AuthError as e:
         raise _fail(e, status.HTTP_401_UNAUTHORIZED)

@@ -127,7 +127,7 @@ const optionalClass = 'normal-case tracking-normal font-normal'
                             Email <span :class="optionalClass">(optional)</span>
                         </label>
                         <input id="email" v-model="email" :class="fieldClass" type="email"
-                            autocomplete="email" placeholder="zain@example.com"
+                            autocomplete="email" placeholder="user@example.com"
                             spellcheck="false" autocapitalize="none" />
                         <p v-if="emailError" class="text-xs text-amber-400">{{ emailError }}</p>
                     </div>

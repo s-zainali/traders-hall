@@ -14,6 +14,9 @@ from app.core.security import (
 )
 from app.models.session import Session
 from app.models.user import User
+from sqlalchemy import or_
+
+_DUMMY_HASH = hash_password("_") 
 
 settings = get_settings()
 
@@ -46,7 +49,6 @@ async def register(db: AsyncSession, *, username: str, password: str,
     return user
 
 
-
 async def authenticate(db: AsyncSession, *, identifier: str, password: str) -> User:
     user = await db.scalar(
         select(User).where(
@@ -54,9 +56,10 @@ async def authenticate(db: AsyncSession, *, identifier: str, password: str) -> U
         )
     )
 
-    # Hash a throwaway even when no user was found, so a missing account takes
-    # the same time as a wrong password. Without this, response timing tells an
-    # attacker which accounts exist — which defeats the identical error message.
+    # Hash against a dummy when no user exists, so a missing account takes the
+    # same time as a wrong password. Argon2 is deliberately slow, so without
+    # this the response timing reveals which accounts are real — which defeats
+    # the point of returning an identical error message.
     if user is None:
         verify_password(password, _DUMMY_HASH)
         raise AuthError("INVALID_CREDENTIALS", "Incorrect username or password")
