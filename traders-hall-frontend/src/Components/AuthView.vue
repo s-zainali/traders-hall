@@ -1,28 +1,39 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const { error } = storeToRefs(auth)
 
-// one component, two modes — the fields are nearly identical and a toggle
-// avoids duplicating the whole form
+// one component, two modes — the fields overlap heavily and a toggle avoids
+// duplicating the whole form
 const mode = ref('login')          // 'login' | 'register'
 const isRegister = computed(() => mode.value === 'register')
 
-const username = ref('')
+// On login this may be a username OR an email, so it is not called `username`.
+const identifier = ref('')
+const email = ref('')
 const password = ref('')
 const displayName = ref('')
 const submitting = ref(false)
 
 // Mirrors the server's Pydantic rules so the user finds out before a round
 // trip. The server still validates — this is convenience, not security.
-const usernameError = computed(() => {
-    if (!username.value) return ''
-    if (username.value.length < 3) return 'At least 3 characters'
-    if (username.value.length > 24) return 'At most 24 characters'
-    if (!/^[a-zA-Z0-9_]+$/.test(username.value)) return 'Letters, numbers and underscores only'
+const identifierError = computed(() => {
+    if (!identifier.value) return ''
+    // On login the field may legitimately be an email, so the username pattern
+    // must not apply. Let the server decide.
+    if (!isRegister.value) return ''
+    if (identifier.value.length < 3) return 'At least 3 characters'
+    if (identifier.value.length > 24) return 'At most 24 characters'
+    if (!/^[a-zA-Z0-9_]+$/.test(identifier.value)) return 'Letters, numbers and underscores only'
+    return ''
+})
+
+const emailError = computed(() => {
+    if (!email.value) return ''
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) return 'Enter a valid email'
     return ''
 })
 
@@ -33,21 +44,28 @@ const passwordError = computed(() => {
 })
 
 const canSubmit = computed(() =>
-    username.value &&
+    identifier.value &&
     password.value &&
-    !usernameError.value &&
+    !identifierError.value &&
+    !emailError.value &&
     !passwordError.value &&
     !submitting.value
 )
+
+// A stale "Incorrect username or password" sitting under a field the user is
+// already retyping is just noise — clear it as soon as they change something.
+watch([identifier, email, password], () => {
+    if (error.value) auth.error = null
+})
 
 async function submit() {
     if (!canSubmit.value) return
     submitting.value = true
     try {
         if (isRegister.value) {
-            await auth.register(username.value, password.value, displayName.value)
+            await auth.register(identifier.value, password.value, email.value, displayName.value)
         } else {
-            await auth.login(username.value, password.value)
+            await auth.login(identifier.value, password.value)
         }
     } finally {
         submitting.value = false
@@ -67,6 +85,7 @@ const fieldClass =
     'focus:outline-none focus:border-teal-light transition duration-200 ease-in-out'
 
 const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-light'
+const optionalClass = 'normal-case tracking-normal font-normal'
 </script>
 
 <template>
@@ -88,19 +107,35 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
                     </p>
                 </header>
 
-                <!-- @submit.prevent: a real <form> gives Enter-to-submit and
-                     password-manager support for free; .prevent stops the reload -->
+                <!-- a real <form> gives Enter-to-submit and password-manager
+                     support for free; .prevent stops the page reload -->
                 <form class="flex flex-col gap-4" @submit.prevent="submit">
 
                     <div class="flex flex-col gap-2">
-                        <label :class="labelClass" for="username">Username</label>
-                        <input id="username" v-model="username" :class="fieldClass" type="text"
-                            autocomplete="username" placeholder="zain" spellcheck="false" />
-                        <p v-if="usernameError" class="text-xs text-amber-400">{{ usernameError }}</p>
+                        <label :class="labelClass" for="identifier">
+                            {{ isRegister ? 'Username' : 'Username or email' }}
+                        </label>
+                        <input id="identifier" v-model="identifier" :class="fieldClass" type="text"
+                            :autocomplete="isRegister ? 'username' : 'username email'"
+                            :placeholder="isRegister ? 'user' : 'user or user@example.com'"
+                            spellcheck="false" autocapitalize="none" />
+                        <p v-if="identifierError" class="text-xs text-amber-400">{{ identifierError }}</p>
                     </div>
 
                     <div v-if="isRegister" class="flex flex-col gap-2">
-                        <label :class="labelClass" for="displayName">Display name <span class="normal-case tracking-normal font-normal">(optional)</span></label>
+                        <label :class="labelClass" for="email">
+                            Email <span :class="optionalClass">(optional)</span>
+                        </label>
+                        <input id="email" v-model="email" :class="fieldClass" type="email"
+                            autocomplete="email" placeholder="zain@example.com"
+                            spellcheck="false" autocapitalize="none" />
+                        <p v-if="emailError" class="text-xs text-amber-400">{{ emailError }}</p>
+                    </div>
+
+                    <div v-if="isRegister" class="flex flex-col gap-2">
+                        <label :class="labelClass" for="displayName">
+                            Display name <span :class="optionalClass">(optional)</span>
+                        </label>
                         <input id="displayName" v-model="displayName" :class="fieldClass" type="text"
                             autocomplete="nickname" placeholder="Defaults to your username" />
                     </div>
@@ -113,7 +148,8 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
                         <p v-if="passwordError" class="text-xs text-amber-400">{{ passwordError }}</p>
                     </div>
 
-                    <p v-if="error" class="px-4 py-3 rounded-xl bg-rose-400/20 border-2 border-rose-400/50 text-rose-400 font-bold text-sm">
+                    <p v-if="error"
+                        class="px-4 py-3 rounded-xl bg-rose-400/20 border-2 border-rose-400/50 text-rose-400 font-bold text-sm">
                         {{ error }}
                     </p>
 
@@ -129,7 +165,7 @@ const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-ligh
                 <div class="pt-2 border-t-1 border-gray-light text-center">
                     <button type="button" @click="switchMode"
                         class="text-sm text-gray-x-light hover:text-teal-light cursor-pointer transition duration-200 ease-in-out">
-                        {{ isRegister ? 'Already have an account? Sign in' : "No account? Create one" }}
+                        {{ isRegister ? 'Already have an account? Sign in' : 'No account? Create one' }}
                     </button>
                 </div>
             </div>

@@ -14,7 +14,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    username: str
+    identifier: str          # username or email
     password: str
 
 

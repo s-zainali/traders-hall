@@ -48,12 +48,10 @@ export const useAuthStore = defineStore('auth', () => {
     return response.status === 204 ? null : response.json()
   }
 
-  async function register(username, password, displayName) {
+  async function login(identifier, password) {
     error.value = null
     try {
-      const tokens = await post('/api/v1/auth/register', {
-        username, password, display_name: displayName || null,
-      })
+      const tokens = await post('/api/v1/auth/login', { identifier, password })
       setTokens(tokens.access_token, tokens.refresh_token)
       await fetchMe()
       return true
@@ -62,11 +60,16 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
   }
-
-  async function login(username, password) {
+  
+  async function register(username, password, email, displayName) {
     error.value = null
     try {
-      const tokens = await post('/api/v1/auth/login', { username, password })
+      const tokens = await post('/api/v1/auth/register', {
+        username,
+        password,
+        email: email || null,        // '' would fail EmailStr validation
+        display_name: displayName || null,
+      })
       setTokens(tokens.access_token, tokens.refresh_token)
       await fetchMe()
       return true

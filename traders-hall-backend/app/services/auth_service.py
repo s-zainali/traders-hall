@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -46,12 +46,22 @@ async def register(db: AsyncSession, *, username: str, password: str,
     return user
 
 
-async def authenticate(db: AsyncSession, *, username: str, password: str) -> User:
-    user = await db.scalar(select(User).where(User.username == username))
 
-    # Same error whether the user is missing or the password is wrong — telling
-    # them apart lets an attacker enumerate valid usernames.
-    if user is None or not verify_password(password, user.password_hash):
+async def authenticate(db: AsyncSession, *, identifier: str, password: str) -> User:
+    user = await db.scalar(
+        select(User).where(
+            or_(User.username == identifier, User.email == identifier)
+        )
+    )
+
+    # Hash a throwaway even when no user was found, so a missing account takes
+    # the same time as a wrong password. Without this, response timing tells an
+    # attacker which accounts exist — which defeats the identical error message.
+    if user is None:
+        verify_password(password, _DUMMY_HASH)
+        raise AuthError("INVALID_CREDENTIALS", "Incorrect username or password")
+
+    if not verify_password(password, user.password_hash):
         raise AuthError("INVALID_CREDENTIALS", "Incorrect username or password")
 
     if user.status != "active":
