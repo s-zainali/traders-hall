@@ -1,203 +1,359 @@
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 
-// Decorative cards drifting behind the content. Declared as data so the
-// positions are readable and tweakable rather than buried in markup.
-// Colours reference the same theme tokens the real cards use.
-const floaters = [
-  { top: '12%', left: '8%',  size: 'lg', color: 'purple', rotate: -14, delay: '0s',   duration: '19s' },
-  { top: '62%', left: '4%',  size: 'md', color: 'cream',  rotate: 9,   delay: '-4s',  duration: '23s' },
-  { top: '22%', left: '78%', size: 'lg', color: 'teal',   rotate: 12,  delay: '-8s',  duration: '21s' },
-  { top: '68%', left: '85%', size: 'md', color: 'purple', rotate: -8,  delay: '-2s',  duration: '25s' },
-  { top: '44%', left: '90%', size: 'sm', color: 'cream',  rotate: 18,  delay: '-11s', duration: '17s' },
-  { top: '80%', left: '46%', size: 'sm', color: 'teal',   rotate: -20, delay: '-6s',  duration: '27s' },
-  { top: '6%',  left: '52%', size: 'sm', color: 'purple', rotate: 22,  delay: '-14s', duration: '20s' },
+/*
+  The hero fan. Built from plain divs rather than <Card>, deliberately: the
+  landing page must render before the card catalogue has been fetched (and for
+  visitors who are not signed in at all), so it cannot depend on the store.
+  Same masked-icon technique, no data dependency.
+*/
+const heroCards = [
+  { icon: '/wheat.png',     accent: 'cream-dark',  bg: 'cream-light',  rotate: -22, x: -170, y: 28,  z: 1 },
+  { icon: '/home.png',     accent: 'purple-dark', bg: 'purple-light', rotate: -11, x: -88,  y: 6,   z: 2 },
+  { icon: '/star.png',     accent: 'teal-dark',   bg: 'teal-light',   rotate: 0,   x: 0,    y: -8,  z: 3 },
+  { icon: '/mansion.png',  accent: 'purple-dark', bg: 'purple-light', rotate: 11,  x: 88,   y: 6,   z: 2 },
+  { icon: '/investor.png', accent: 'blue-dark',   bg: 'blue-light',   rotate: 22,  x: 170,  y: 28,  z: 1 },
 ]
-
-const sizes = {
-  sm: 'w-16 h-22',
-  md: 'w-24 h-32',
-  lg: 'w-32 h-44',
-}
-
-// Full literal class strings — Tailwind's scanner cannot see interpolated ones.
-const palettes = {
-  purple: 'bg-purple-dark/40 border-purple-light/40',
-  cream: 'bg-cream-dark/25 border-cream-light/30',
-  teal: 'bg-teal-dark/35 border-teal-light/40',
-}
 
 const features = [
   {
     title: 'Build an estate',
     body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Acquire houses, mansions and towers, then invest to turn them into income.',
     accent: 'text-purple-light',
+    border: 'hover:border-purple-light/60',
+    glow: 'group-hover:shadow-purple-light/20',
+    step: '01',
   },
   {
     title: 'Trade or starve',
     body: 'Sed do eiusmod tempor incididunt ut labore. Rice and wheat keep you alive. Run out and you are out of the game.',
     accent: 'text-cream-light',
+    border: 'hover:border-cream-light/60',
+    glow: 'group-hover:shadow-cream-light/20',
+    step: '02',
   },
   {
     title: 'Outlast everyone',
     body: 'Ut enim ad minim veniam, quis nostrud exercitation. There is no points target. The last trader still standing takes the hall.',
     accent: 'text-teal-light',
+    border: 'hover:border-teal-light/60',
+    glow: 'group-hover:shadow-teal-light/20',
+    step: '03',
   },
 ]
+
+const stats = [
+  { value: '2–4', label: 'Players' },
+  { value: '7', label: 'Card types' },
+  { value: '∞', label: 'Ways to go broke' },
+]
+
+/*
+  Scroll reveal. One IntersectionObserver for every [data-reveal] element rather
+  than one per element — cheaper, and it lets the stagger be computed from the
+  element's index inside its own group.
+*/
+const observer = ref(null)
+
+onMounted(() => {
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const targets = document.querySelectorAll('[data-reveal]')
+
+  if (reduced) {
+    targets.forEach((el) => el.classList.add('revealed'))
+    return
+  }
+
+  observer.value = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return
+        entry.target.classList.add('revealed')
+        observer.value.unobserve(entry.target)   // reveal once, then stop watching
+      })
+    },
+    { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
+  )
+
+  targets.forEach((el) => observer.value.observe(el))
+})
+
+onUnmounted(() => observer.value?.disconnect())
 </script>
 
 <template>
-  <div class="landing relative min-h-[100dvh] overflow-hidden bg-gray-dark">
+  <div class="flex flex-col">
 
-    <!-- ── background layers, back to front ── -->
+    <header class="flex items-center justify-between p-6">
+      <span class="font-bold tracking-widest text-gray-2x-light ml-4">TRADERS HALL</span>
+      <RouterLink
+        :to="{ name: 'auth' }"
+        class="rounded-xl border-2 border-gray-light px-5 py-2 font-bold text-gray-x-light
+               transition duration-200 ease-in-out hover:border-gray-x-light hover:text-gray-2x-light"
+      >Sign in</RouterLink>
+    </header>
 
-    <!-- coloured glows -->
-    <div class="pointer-events-none absolute inset-0 glow-layer" aria-hidden="true"></div>
+    <main class="flex flex-col items-center gap-12 px-6 pt-10 pb-20 text-center">
 
-    <!-- drifting cards -->
-    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-      <div
-        v-for="(f, i) in floaters"
-        :key="i"
-        class="floater absolute rounded-2xl border-4 backdrop-blur-[2px]"
-        :class="[sizes[f.size], palettes[f.color]]"
-        :style="{
-          top: f.top,
-          left: f.left,
-          '--rot': `${f.rotate}deg`,
-          animationDelay: f.delay,
-          animationDuration: f.duration,
-        }"
-      ></div>
-    </div>
-
-    <!-- grain, and a vignette so the edges fall away and the centre reads -->
-    <div class="pointer-events-none absolute inset-0 grain" aria-hidden="true"></div>
-    <div class="pointer-events-none absolute inset-0 vignette" aria-hidden="true"></div>
-
-    <!-- ── content ── -->
-    <div class="relative z-10 flex min-h-[100dvh] flex-col">
-
-      <header class="flex items-center justify-between p-6">
-        <span class="font-bold tracking-widest text-gray-2x-light">TRADERS HALL</span>
-        <RouterLink
-          :to="{ name: 'auth' }"
-          class="rounded-xl border-2 border-gray-light px-5 py-2 font-bold text-gray-x-light
-                 transition duration-200 ease-in-out hover:border-gray-x-light hover:text-gray-2x-light hover:bg-gray-light"
-        >Sign in</RouterLink>
-      </header>
-
-      <main class="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16 text-center">
-
-        <div class="flex flex-col items-center gap-6">
-          <span
-            class="rounded-full border-2 border-teal-light/40 bg-teal-dark/20 px-4 py-1.5
-                   text-xs font-bold uppercase tracking-widest text-teal-light"
-          >Now in development</span>
-
-          <h1 class="max-w-4xl text-6xl font-bold tracking-widest text-gray-2x-light sm:text-7xl">
-            Traders Hall
-          </h1>
-
-          <p class="max-w-xl text-lg leading-relaxed text-gray-x-light">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-            incididunt ut labore et dolore magna aliqua. Buy, sell, trade and invest — and
-            make sure you can still pay the rent when the turn comes around.
-          </p>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-center gap-4">
-          <RouterLink
-            :to="{ name: 'auth' }"
-            class="rounded-xl border-2 border-teal-light bg-teal-light px-8 py-3.5 font-bold text-gray-dark
-                   transition duration-200 ease-in-out hover:brightness-110
-                   focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
-          >Start playing</RouterLink>
-
-          <a
-            href="#how-it-works"
-            class="rounded-xl border-2 border-gray-light px-8 py-3.5 font-bold text-gray-x-light
-                   transition duration-200 ease-in-out hover:border-gray-x-light hover:text-gray-2x-light"
-          >How it works</a>
-        </div>
-      </main>
-
-      <section id="how-it-works" class="px-6 pb-20">
-        <div class="mx-auto grid max-w-5xl gap-4 sm:grid-cols-3">
+      <!-- hero fan: each card deals in with its own delay -->
+      <div class="relative h-56 w-full max-w-2xl">
+        <!--
+          Two elements on purpose. The SLOT runs the deal-in animation; the CARD
+          owns the hover transition. Sharing one element makes them fight: an
+          animation with fill-mode:forwards keeps its final value applied, and
+          animated values outrank transitions in the cascade, so the hover could
+          not interpolate — it snapped.
+        -->
+        <div
+          v-for="(c, i) in heroCards"
+          :key="i"
+          class="hero-slot absolute left-1/2 top-6"
+          :style="{
+            '--x': `${c.x}px`,
+            '--y': `${c.y}px`,
+            zIndex: c.z,
+            animationDelay: `${i * 90}ms`,
+          }"
+        >
           <div
-            v-for="feature in features"
-            :key="feature.title"
-            class="flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 p-6
-                   backdrop-blur-sm transition duration-300 ease-in-out hover:border-gray-x-light"
+            class="hero-card h-40 w-28 rounded-2xl border-4 shadow-2xl shadow-black/50"
+            :style="{
+              '--rot': `${c.rotate}deg`,
+              backgroundColor: `var(--color-${c.bg})`,
+              borderColor: `var(--color-${c.accent})`,
+            }"
           >
-            <h2 class="text-xl font-bold tracking-wide" :class="feature.accent">{{ feature.title }}</h2>
-            <p class="text-sm leading-relaxed text-gray-x-light">{{ feature.body }}</p>
+            <div class="flex h-full w-full items-center justify-center p-5">
+              <div
+                class="h-full w-full"
+                :style="{
+                  backgroundColor: `var(--color-${c.accent})`,
+                  mask: `url(${c.icon}) no-repeat center / contain`,
+                  '-webkit-mask': `url(${c.icon}) no-repeat center / contain`,
+                }"
+              ></div>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <footer class="border-t-1 border-gray-light/50 px-6 py-6 text-center text-xs text-gray-x-light">
-        Lorem ipsum · A game about property, food and staying solvent
-      </footer>
-    </div>
+      <div class="flex flex-col items-center gap-6">
+        <span
+          class="intro intro-1 rounded-full border-2 border-teal-light/40 bg-teal-dark/20 px-4 py-1.5
+                 text-xs font-bold uppercase tracking-widest text-teal-light"
+        >Now in development</span>
+
+        <h1 class="intro intro-2 max-w-4xl text-6xl font-bold tracking-widest sm:text-7xl">
+          <span class="title-shimmer">Traders Hall</span>
+        </h1>
+
+        <p class="intro intro-3 max-w-xl text-lg leading-relaxed text-gray-x-light">
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+          incididunt ut labore et dolore magna aliqua. Buy, sell, trade and invest — and
+          make sure you can still pay the rent when the turn comes around.
+        </p>
+      </div>
+
+      <div class="intro intro-4 flex flex-wrap items-center justify-center gap-4">
+        <RouterLink
+          :to="{ name: 'auth' }"
+          class="cta group relative overflow-hidden rounded-xl border-2 border-teal-light bg-teal-light
+                 px-8 py-3.5 font-bold text-gray-dark transition duration-300 ease-in-out
+                 hover:brightness-130 hover:scale-101 active:scale-[0.99]
+                 focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
+        >
+          <span class="relative z-10">Start playing</span>
+          <!-- a light sweep that crosses the button on hover -->
+          <span class="sweep pointer-events-none absolute inset-0 z-0" aria-hidden="true"></span>
+        </RouterLink>
+
+        <a
+          href="#how-it-works"
+          class="rounded-xl border-2 border-gray-light px-8 py-3.5 font-bold text-gray-x-light
+                 transition duration-200 ease-in-out hover:border-gray-x-light hover:text-gray-2x-light"
+        >How it works</a>
+      </div>
+
+      <!-- stats strip -->
+      <div class="intro intro-5 grid grid-cols-3 items-center justify-center gap-px overflow-hidden
+                  rounded-2xl border-2 border-gray-light bg-gray-light">
+        <div
+          v-for="stat in stats"
+          :key="stat.label"
+          class="flex min-w-36 flex-col items-center gap-1 bg-gray-x-dark/90 px-8 py-5 backdrop-blur-sm"
+        >
+          <span class="text-3xl font-bold text-gray-2x-light">{{ stat.value }}</span>
+          <span class="text-xs font-bold uppercase tracking-widest text-gray-x-light">{{ stat.label }}</span>
+        </div>
+      </div>
+    </main>
+
+    <section id="how-it-works" class="px-6 pb-16">
+      <h2
+        data-reveal
+        class="reveal mb-8 text-center text-xs font-bold uppercase tracking-[0.4em] text-gray-x-light"
+      >How it works</h2>
+
+      <div class="mx-auto grid max-w-5xl gap-4 sm:grid-cols-3">
+        <div
+          v-for="(feature, i) in features"
+          :key="feature.title"
+          data-reveal
+          class="reveal group flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light
+                 bg-gray-x-dark/80 p-6 backdrop-blur-sm transition duration-300 ease-in-out
+                 hover:-translate-y-1 hover:shadow-2xl"
+          :class="[feature.border, feature.glow]"
+          :style="{ transitionDelay: `${i * 80}ms` }"
+        >
+          <span class="text-xs font-bold tracking-widest text-gray-light">{{ feature.step }}</span>
+          <h3 class="text-xl font-bold tracking-wide" :class="feature.accent">{{ feature.title }}</h3>
+          <p class="text-sm leading-relaxed text-gray-x-light">{{ feature.body }}</p>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-/*
-  Two stacked radial gradients rather than one flat colour: the eye reads the
-  centre as lit and the corners as falling away, which gives the page depth
-  without any images to download.
-*/
-.glow-layer {
-  background:
-    radial-gradient(60rem 40rem at 15% 20%, color-mix(in oklab, var(--color-purple-light) 22%, transparent), transparent 70%),
-    radial-gradient(50rem 35rem at 85% 25%, color-mix(in oklab, var(--color-teal-light) 20%, transparent), transparent 70%),
-    radial-gradient(70rem 45rem at 50% 100%, color-mix(in oklab, var(--color-cream-dark) 12%, transparent), transparent 70%);
-  animation: glow-drift 24s ease-in-out infinite alternate;
-}
-
-@keyframes glow-drift {
-  from { transform: translate3d(-1.5%, -1%, 0) scale(1); }
-  to   { transform: translate3d(1.5%, 1%, 0) scale(1.06); }
-}
+/* ── entrance ─────────────────────────────────────────────── */
 
 /*
-  The rotation lives in a CSS variable so each card keeps its own tilt while
-  sharing one keyframe animation — otherwise every card would need its own.
+  SLOT: owns the deal-in. Each card starts stacked at the centre and slides out
+  to its position in the fan, staggered by index so it reads as dealing rather
+  than a group fade. Only translate here — no rotation, no hover.
 */
-.floater {
+.hero-slot {
+  transform: translate(-50%, 40px) scale(0.85);
+  opacity: 0;
+  animation: deal 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes deal {
+  from {
+    transform: translate(-50%, 40px) scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: translate(calc(-50% + var(--x)), var(--y)) scale(1);
+    opacity: 1;
+  }
+}
+
+/*
+  CARD: owns tilt and hover. The transition lives on the base rule, not inside
+  :hover, so it runs in BOTH directions — declaring it only under :hover gives
+  a smooth lift and an instant drop.
+*/
+.hero-card {
   transform: rotate(var(--rot));
-  animation-name: float;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
-  opacity: 0.55;
+  transform-origin: 50% 90%;
+  transition:
+    transform 350ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 350ms ease,
+    filter 350ms ease;
 }
 
-@keyframes float {
-  from { transform: rotate(var(--rot)) translateY(-14px); }
-  to   { transform: rotate(var(--rot)) translateY(14px); }
+.hero-slot:hover {
+  z-index: 20;
 }
+
+.hero-slot:hover .hero-card {
+  transform: rotate(var(--rot)) translateY(-22px) scale(1.07);
+  filter: brightness(1.08);
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.7);
+}
+
+/* text and controls follow the cards in */
+.intro {
+  opacity: 0;
+  animation: rise 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.intro-1 { animation-delay: 550ms; }
+.intro-2 { animation-delay: 650ms; }
+.intro-3 { animation-delay: 750ms; }
+.intro-4 { animation-delay: 850ms; }
+.intro-5 { animation-delay: 950ms; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── title ────────────────────────────────────────────────── */
 
 /*
-  An inline SVG turbulence filter: a few hundred bytes of noise that stops the
-  large flat gradients from banding on cheaper displays.
+  background-clip: text paints the gradient through the glyphs. The oversized
+  background plus an animated position is what makes the sheen travel across
+  the word instead of sitting still.
 */
-.grain {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-  opacity: 0.035;
-  mix-blend-mode: overlay;
+.title-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--color-gray-2x-light) 0%,
+    var(--color-gray-2x-light) 35%,
+    var(--color-teal-light) 50%,
+    var(--color-gray-2x-light) 65%,
+    var(--color-gray-2x-light) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: title-sheen 6s ease-in-out infinite;
 }
 
-.vignette {
-  background: radial-gradient(85% 70% at 50% 45%, transparent 40%, var(--color-gray-dark) 100%);
+@keyframes title-sheen {
+  0%, 100% { background-position: 120% 50%; }
+  50%      { background-position: -20% 50%; }
+}
+
+/* ── CTA sweep ────────────────────────────────────────────── */
+
+.sweep {
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.45) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+}
+.cta:hover .sweep {
+  animation: sweep 700ms ease-out;
+}
+
+@keyframes sweep {
+  to { transform: translateX(100%); }
+}
+
+/* ── scroll reveal ────────────────────────────────────────── */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 500ms ease, transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glow-layer,
-  .floater {
+  .hero-slot,
+  .intro,
+  .title-shimmer {
     animation: none;
+    opacity: 1;
   }
+  .hero-slot {
+    transform: translate(calc(-50% + var(--x)), var(--y));
+  }
+  .hero-card { transition: none; }
+  .title-shimmer {
+    color: var(--color-gray-2x-light);
+    background: none;
+  }
+  .reveal { transition: none; }
 }
 </style>

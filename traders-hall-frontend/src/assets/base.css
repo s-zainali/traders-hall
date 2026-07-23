@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme static{
+@theme static {
     /* Single named colors */
     --color-gray-dark: #222831;
     --color-gray-x-dark: #161A20;
@@ -17,10 +17,28 @@
     --color-blue-dark: #3E7CA9;
     --color-green-dark: #398A7B;
     --color-green-light: #64B8A9;
-  
+
     /* Color scale shades */
     --color-chocolate-50: #fbf7f5;
     --color-chocolate-500: #7c2d12;
     --color-chocolate-900: #431407;
-  }
-  
+
+}
+
+html,
+body,
+#app {
+    background-color: var(--color-gray-dark);
+    min-height: 100dvh;
+}
+
+body {
+    color: var(--color-gray-2x-light);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Dark scrollbars, so they do not read as a bright seam on a dark page. */
+* {
+    scrollbar-color: var(--color-gray-light) transparent;
+}

@@ -75,7 +75,7 @@ const isCompact = computed(() => props.transactionType !== 'buy')
 // Unlike `scale`, `zoom` participates in layout: the wrapper's measured box
 // shrinks too, so the modal actually gets shorter instead of just drawing
 // smaller inside a full-height box.
-const PREVIEW_ZOOM = 0.85
+const PREVIEW_ZOOM = 0.8
 const previewZoom = computed(() => (isCompact.value ? PREVIEW_ZOOM : 1))
 
 // Card data comes from the store (fetched from /api/v1/config/card-types), so
@@ -160,7 +160,7 @@ const actionButton =
             </header>
 
             <!-- ── trade: two columns, each card sitting above its own quantity ── -->
-            <div v-if="isTrade" class="flex items-start gap-4">
+            <div v-if="isTrade" class="flex items-center gap-4">
 
                 <section class="flex flex-col items-center gap-2">
                     <h3 :class="labelClass">You give</h3>

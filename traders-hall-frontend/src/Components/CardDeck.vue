@@ -43,8 +43,8 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div v-if="total !== 0" class="inline-flex items-center gap-2" :class="isSmallPoint ? 'flex-row-reverse' : 'flex-col'">
-    <span class="font-bold text-gray-x-light">
+  <div v-if="total !== 0" class="inline-flex items-center" :class="[(isSmallPoint ? 'flex-row-reverse' : 'flex-col'), (contentSmall? 'gap-1' : 'gap-2')]">
+    <span class="font-bold text-gray-x-light" :class="contentSmall? 'text-xs' : ''">
       {{ total }} {{ contentSmall ? '' : total === 1 ? 'card' : 'cards' }}
     </span>
     <div class="relative" :style="deckPadding">
