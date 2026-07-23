@@ -8,6 +8,7 @@ const props = defineProps({
     playerType: { type: String, default: 'player' },
     activeAction: { type: String, default: '' },
     playerName: { type: String, default: 'Player' },
+    playerActive : { type: Boolean, default: false }
 })
 const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction'])
 
@@ -80,14 +81,15 @@ function onConfirm(payload) {
         :class="activeModal && handState ? handState.panel : 'border-gray-light'">
         <TransactionModal v-if="activeModal !== ''" :transaction-type="activeModal" :card-type="selectedType"
             :available="playerCards[selectedType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
-        <div class="flex justify-between items-center gap-4" :class="playerType === 'player' ? '' : 'flex-col-reverse'">
+        <div v-if="!playerActive" class="absolute top-0 left-0 w-full h-full bg-gray-dark/50 z-100"></div>
+        <div class="flex justify-between items-center" :class="[playerType === 'player' ? 'gap-4' : 'flex-col-reverse']">
             <div class="flex items-center">
                 <div class="bg-gray-2x-light" :class="playerType === 'player' ? 'h-15 w-15' : 'h-5 w-5'" :style="{
                     mask: `url(/user.png) no-repeat center / contain`,
                     '-webkit-mask': `url(/user.png) no-repeat center / contain`,
                 }"></div>
-                <h1 class="text-2xl text-gray-2x-light font-bold tracking-wide ml-2"
-                    :class="playerType === 'player' ? '' : 'text-xl'">{{ playerType === 'player' ? 'Your' : '' }} Cards
+                <h1 class="text-gray-2x-light font-bold tracking-wide ml-2"
+                    :class="playerType === 'player' ? 'text-2xl' : 'text-md'">{{ playerType === 'player' ? 'Your' : '' }} Cards
                 </h1>
             </div>
             <div class="flex gap-4 items-center"

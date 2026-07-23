@@ -43,6 +43,7 @@ const cancelAction = () => (activeAction.value = '')
 
       <PlayerCardHolder
         :active-action="activeAction"
+        :player-active="true"
         @buy="startAction('buy')"
         @sell="startAction('sell')"
         @trade="startAction('trade')"
