@@ -51,7 +51,7 @@ async function confirmLogout() {
                     <h2 class="text-2xl font-bold tracking-wide text-gray-2x-light">Log out?</h2>
                     <p class="text-sm text-gray-x-light">You will need to sign in again to keep playing.</p>
                 </div>
-                <div class="flex justify-end gap-3">
+                <div class="flex justify-center gap-3">
                     <button type="button" @click="confirming = false"
                         class="px-6 py-3 rounded-xl font-bold cursor-pointer text-gray-x-light
                                border-2 border-gray-light hover:border-gray-x-light hover:text-gray-2x-light

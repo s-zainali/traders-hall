@@ -15,21 +15,29 @@ const cardTypes = useCardTypesStore()
 const { ready, isAuthenticated } = storeToRefs(auth)
 const { loaded, error: cardError } = storeToRefs(cardTypes)
 
-// Startup: settle whether a stored token is still good. Only then do we know
-// which of the three views to show.
+// Startup: settle whether a stored token is still good, so we know which view
+// to show.
 onMounted(() => auth.init())
 
-// Card types are only fetched once signed in — the endpoint will require auth
-// soon, and there is no reason to load a catalogue for a logged-out visitor.
-// A watcher rather than an onMounted call, because authentication can happen
-// later (after a login) as well as at startup.
+// Card types load once signed in. A watcher rather than an onMounted call,
+// because authentication can happen later (a login) as well as at startup;
+// immediate:true covers the already-authenticated case.
 watch(isAuthenticated, (value) => {
     if (value) cardTypes.fetchAll()
 }, { immediate: true })
 
-const buyingActive = ref(false)
-const sellActive = ref(false)
-const tradeActive = ref(false)
+// ONE ref for the current mode: '' | 'buy' | 'sell' | 'trade'.
+// Three separate booleans could all be true at once, and nothing kept them in
+// sync — that is what broke sell/trade and left the buy ring stuck on.
+const activeAction = ref('')
+
+function startAction(action) {
+    activeAction.value = action
+}
+
+function cancelAction() {
+    activeAction.value = ''
+}
 </script>
 
 <template>
@@ -39,7 +47,7 @@ const tradeActive = ref(false)
     <!-- 2. no session: sign in or register -->
     <AuthView v-else-if="!isAuthenticated" />
 
-    <!-- 3. signed in, but the catalogue has not arrived yet -->
+    <!-- 3. signed in, catalogue not here yet -->
     <LoadingScreen v-else-if="!loaded" message="Loading card catalogue…" :error="cardError ?? ''"
         @retry="cardTypes.fetchAll()" />
 
@@ -54,10 +62,30 @@ const tradeActive = ref(false)
                     <PlayerCardHolder :player-type="'opponent'" class="flex-1 min-w-0" />
                 </div>
             </div>
-            <PlayerCardHolder @buy="buyingActive = true" @sell="sellActive = true"
-                @trade="tradeActive = true" />
+
+            <!--
+                active-action drives the hand ring, the 🗙, and whether cards are
+                clickable at all. Without it the cards emit `details` instead of
+                `sell`/`trade`, so the modal never opens.
+            -->
+            <PlayerCardHolder
+                :active-action="activeAction"
+                @buy="startAction('buy')"
+                @sell="startAction('sell')"
+                @trade="startAction('trade')"
+                @cancel-operation="cancelAction"
+            />
         </div>
-        <BankSection v-model:buying-active="buyingActive" />
+
+        <!--
+            BankSection emits `cancel` from its 🗙, not `update:buyingActive`, so
+            v-model never heard it and the ring stayed on. Plain prop + explicit
+            handler instead.
+        -->
+        <BankSection
+            :buying-active="activeAction === 'buy'"
+            @cancel="cancelAction"
+        />
     </div>
 </template>
 
