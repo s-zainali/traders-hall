@@ -71,20 +71,38 @@ function onConfirm(quantity) {
 </script>
 
 <template>
-    <!-- relative so the modals can cover the whole section, rail included -->
-    <div class="relative flex shrink-0 items-stretch gap-2">
+    <!--
+        Only the rail sits in the layout. The panel is absolutely positioned and
+        slides OVER the table rather than pushing it, so opening the bank does
+        not reflow anything to its left — which is what was squeezing the player
+        panel and the opponent cards down to unusable widths.
+
+        right-full puts the panel's right edge at the rail's left edge; mr-2 is
+        the gap. h-full ties it to the rail's height, which is the row height.
+    -->
+    <div class="relative flex shrink-0 items-stretch">
 
         <!--
-            The expanding panel.
+            Slide and fade, NOT the grid-column width trick used elsewhere in
+            this app. `1fr` resolves against a definite container width, and an
+            absolutely positioned box with only `right` set is shrink-to-fit —
+            its width depends on its content, which would depend on the
+            fraction. That circularity collapses the panel to nothing.
 
-            grid-template-columns 0fr -> 1fr animates to AUTO width, which
-            plain width/max-width cannot do without hardcoding a pixel guess
-            that is wrong at some zoom level. The inner wrapper needs
-            overflow-hidden and min-w-0 or the content refuses to be clipped.
+            Overlaying removes the need for a width animation anyway: the panel
+            keeps its natural size and simply moves into place.
+
+            w-max is REQUIRED, not decorative. With `right` set and `left: auto`
+            the width is shrink-to-fit, and shrink-to-fit clamps to the space
+            available inside the containing block — which is zero here, because
+            the element's right edge sits exactly at that block's left edge. An
+            explicit max-content width is definite, so the clamp never applies.
         -->
-        <div class="grid transition-[grid-template-columns] duration-300 ease-out"
-            :class="expanded ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'">
-            <div class="min-w-0 overflow-hidden">
+        <div class="absolute top-0 right-full bottom-0 z-150 mr-2 w-max transition-all duration-300 ease-out"
+            :class="expanded
+                ? 'translate-x-0 opacity-100'
+                : 'pointer-events-none translate-x-6 opacity-0'">
+            <div>
                 <!--
                     flex-col with the cards well as flex-1 min-h-0, rather than
                     justify-between: a flex item defaults to min-height:auto and
@@ -92,24 +110,11 @@ function onConfirm(quantity) {
                     the panel taller instead of scrolling inside it.
                 -->
                 <div
-                    class="flex h-full w-max min-h-0 flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4">
+                    class="flex h-full max-h-full w-max min-h-0 flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4 shadow-2xl shadow-black/60">
 
                     <div class="flex shrink-0 justify-between gap-6">
                         <div>
-                            <div class="flex gap-4">
-                                <button type="button" :aria-label="expanded ? 'Collapse the bank' : 'Expand the bank'"
-                                    :title="buyingActive ? 'Open while buying' : expanded ? 'Collapse' : 'Expand'"
-                                    :disabled="buyingActive" @click="pinnedOpen = !pinnedOpen"
-                                    class="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-gray-light text-lg font-bold text-gray-x-light transition duration-200 ease-in-out"
-                                    :class="buyingActive
-                                        ? 'opacity-40 cursor-not-allowed'
-                                        : 'cursor-pointer hover:border-teal-light hover:text-teal-light'">
-                                    <span class="transition-transform duration-300"
-                                        :class="expanded ? '' : 'rotate-180'">›</span>
-                                </button>
-                                <h1 class="pb-4 text-center text-3xl font-bold tracking-wide text-gray-2x-light">Bank
-                                </h1>
-                            </div>
+                            <h1 class="pb-4 text-center text-3xl font-bold tracking-wide text-gray-2x-light">Bank</h1>
                             <div class="ml-6 flex justify-between">
                                 <CardDeck v-if="pointStock > 0" :key="`point-${pointStock}`">
                                     <Card v-for="n in pointStock" :key="n" :card-type="'point'" />
@@ -120,7 +125,7 @@ function onConfirm(quantity) {
                         <BankerCard @activate-modal="activeModal = $event" />
                     </div>
 
-                    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border-1 p-4 outline-teal-light transition duration-200 ease-in-out h-full"
+                    <div class="relative mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border-1 p-4 outline-teal-light transition duration-200 ease-in-out"
                         :class="buyingActive ? 'border-teal-light outline-4 -outline-offset-4 bg-gray-light/30' : 'border-gray-light outline-0'">
                         <button v-if="buyingActive" @click="emit('cancel')"
                             class="absolute top-0 right-0 z-50 flex items-center justify-center p-4 leading-none text-gray-x-light transition duration-200 ease-in-out hover:cursor-pointer hover:text-rose-400">🗙</button>
@@ -130,13 +135,18 @@ function onConfirm(quantity) {
                             Cards</h1>
 
                         <!--
-                            auto-rows-min stops the rows stretching to fill the
-                            track when there are fewer than three of them, which
-                            would leave the decks floating in the middle of a
-                            tall cell.
+                            grid-cols-3 compiles to repeat(3, minmax(0, 1fr)),
+                            and that 0 minimum is what let the columns squeeze
+                            the decks when the panel opened on a narrower screen.
+                            max-content columns never compress: the cards stay
+                            the size they are at xl and the well scrolls instead.
+
+                            auto-rows-min stops rows stretching to fill the track
+                            when there are fewer than three, which would leave
+                            the decks floating in the middle of a tall cell.
                         -->
                         <div v-if="cardStock.length"
-                            class="scroll-slim grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto pr-2">
+                            class="scroll-slim grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(3,max-content)] gap-2 overflow-auto pr-2">
                             <CardDeck v-for="stock in cardStock" :key="`${stock.type}-${stock.count}`">
                                 <Card v-for="n in stock.count" :key="`${stock.type}-${n}`" :card-type="stock.type"
                                     :buying="buyingActive" @buy="openBuy(stock.type)" />
@@ -152,12 +162,13 @@ function onConfirm(quantity) {
             The rail. Always mounted, so the stock counts stay readable while
             collapsed — which is the point of collapsing rather than hiding.
         -->
-        <div v-if="!expanded"
-            class="flex w-16 shrink-0 flex-col items-center gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark py-4">
+        <div
+            class="relative z-50 flex w-16 shrink-0 flex-col items-center gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark py-4">
 
-            <button type="button" :aria-label="expanded ? 'Collapse the bank' : 'Expand the bank'"
-                :title="buyingActive ? 'Open while buying' : expanded ? 'Collapse' : 'Expand'" :disabled="buyingActive"
-                @click="pinnedOpen = !pinnedOpen"
+            <button type="button"
+                :aria-label="expanded ? 'Collapse the bank' : 'Expand the bank'"
+                :title="buyingActive ? 'Open while buying' : expanded ? 'Collapse' : 'Expand'"
+                :disabled="buyingActive" @click="pinnedOpen = !pinnedOpen"
                 class="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-gray-light text-lg font-bold text-gray-x-light transition duration-200 ease-in-out"
                 :class="buyingActive
                     ? 'opacity-40 cursor-not-allowed'
@@ -179,7 +190,8 @@ function onConfirm(quantity) {
             <div class="flex flex-col items-center gap-2">
                 <div v-for="stock in railStock" :key="stock.type"
                     class="flex flex-col items-center gap-0.5 transition duration-200"
-                    :class="stock.count === 0 ? 'opacity-30' : ''" :title="`${stock.count} ${stock.type}`">
+                    :class="stock.count === 0 ? 'opacity-30' : ''"
+                    :title="`${stock.count} ${stock.type}`">
                     <Card :card-type="stock.type" :large="false" :selected="stock.count > 0" />
                     <span class="text-xs font-bold tabular-nums"
                         :class="stock.count === 0 ? 'text-gray-light' : 'text-gray-2x-light'">
@@ -232,7 +244,6 @@ function onConfirm(quantity) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
     .grid,
     .transition-transform {
         transition: none;

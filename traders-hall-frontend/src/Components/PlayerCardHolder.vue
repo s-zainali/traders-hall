@@ -43,9 +43,34 @@ const buttonClass =
     'min-w-0 flex-1 rounded-lg py-1.5 text-sm font-bold cursor-pointer transition duration-300 ease-in-out ' +
     'hover:scale-105 hover:text-gray-2x-light xl:flex-none xl:w-18 xl:py-2 xl:text-base'
 
-const indicatorClass =
-    'flex flex-col justify-between rounded-xl border-4 px-3 py-1.5 text-sm font-bold ' +
-    'xl:w-30 xl:px-4 xl:py-2 xl:text-base'
+/*
+  Label OUTSIDE the box, value inside. Pulling the caption out lets the box
+  shrink to just the number, which is the height and width this reclaims — and
+  the caption reads as a column header rather than as part of the readout.
+*/
+const statLabel = 'text-[10px] font-bold uppercase tracking-widest'
+const statBox =
+    'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base font-bold tabular-nums'
+
+// `caption` is the -dark token, so the label sits back against the panel while
+// the box keeps the fuller -light treatment.
+const stats = computed(() => [
+    {
+        key: 'food', label: 'Food', value: props.foodDue,
+        caption: 'text-cream-dark',
+        tone: 'border-cream-light bg-cream-dark text-cream-light',
+    },
+    {
+        key: 'rent', label: 'Rent', value: props.rentDue,
+        caption: 'text-purple-dark',
+        tone: 'border-purple-light bg-purple-dark text-purple-light',
+    },
+    {
+        key: 'loan', label: 'Loan', value: props.loanDue,
+        caption: 'text-teal-dark',
+        tone: 'border-teal-light bg-teal-dark text-teal-light',
+    },
+])
 
 const actions = [
     { key: 'buy', label: 'Buy', hover: 'hover:bg-emerald-400/50', active: 'bg-emerald-400/60 text-gray-2x-light' },
@@ -125,8 +150,8 @@ function onConfirm(payload) {
 </script>
 
 <template>
-    <div class="relative flex flex-col gap-2 overflow-hidden rounded-[1.5rem] border-2 bg-gray-x-dark p-3 transition duration-300 ease-in-out xl:p-4 w-full"
-        :class="[panelBorder, isTurn && playerActive ? 'turn-ring' : '', isOwn? '`max-w-sm xl:max-w-auto' : '']"
+    <div class="relative flex flex-col gap-2 overflow-hidden rounded-[1.5rem] border-2 bg-gray-x-dark p-3 transition duration-300 ease-in-out xl:px-4 xl:py-3"
+        :class="[panelBorder, isTurn && playerActive ? 'turn-ring' : '']"
         :style="isTurn && playerActive ? { '--seat': seat.hex } : {}">
 
         <TransactionModal v-if="activeModal !== ''" :transaction-type="activeModal" :card-type="selectedType"
@@ -146,90 +171,63 @@ function onConfirm(payload) {
             </div>
         </div>
 
-        <!-- ── top area ───────────────────────────────────────────────
-             ONE wrapping row. At xl it is flex-nowrap, so title on the left and
-             points / residence / buttons on the right — the original two-row
-             panel, which keeps the table short.
+        <!-- ══ own panel ══════════════════════════════════════════════
+            ONE wrapping row. At xl it is flex-nowrap, so identity, hand,
+            residence, stats and buttons all sit on a single line — now that the
+            bank overlays rather than pushes, the panel has the full table width
+            and does not need two rows.
 
-             Below xl it wraps: the buttons carry w-full, so they are forced
-             onto their own line while everything else stays on the first. No
-             restructuring, just a wrap point.
+            Below xl the w-full items wrap onto their own lines. xl:order-* only
+            reorders the single-row layout, so the stacked order still reads top
+            to bottom as written.
         -->
-        <div class="flex flex-wrap items-center gap-2"
-            :class="isOwn ? 'xl:flex-nowrap xl:gap-4' : 'flex-col-reverse gap-1'">
+        <div v-if="isOwn" class="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:gap-3">
 
-            <div class="flex min-w-0 items-center gap-2">
-                <!-- the seat token identifies WHICH player, not just "a" player -->
-                <SeatToken :seat-index="seatIndex" :size="isOwn ? 'md' : 'sm'" :filled="isTurn && playerActive" />
-                <h1 class="truncate font-bold tracking-wide text-gray-2x-light"
-                    :class="isOwn ? 'text-lg xl:text-2xl' : 'text-sm'">
-                    <!-- nowrap: a two-word wrap costs more vertical space in a
-                         tight panel than truncation costs in legibility -->
-                    <span class="whitespace-nowrap">{{ isOwn ? 'Your Cards' : 'Cards' }}</span>
+            <div class="flex min-w-0 shrink-0 items-center gap-2 xl:order-1">
+                <SeatToken :seat-index="seatIndex" size="md" :filled="isTurn && playerActive" />
+                <h1 class="truncate text-lg font-bold tracking-wide text-gray-2x-light xl:text-xl">
+                    <span class="whitespace-nowrap">Your Cards</span>
                 </h1>
-                <span v-if="!isOwn && isTurn"
-                    class="shrink-0 rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
-                    :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
             </div>
 
-            <!-- ml-auto groups this against the right edge on both layouts -->
-            <div class="flex min-w-0 items-center gap-2"
-                :class="isOwn ? 'ml-auto xl:gap-4' : 'w-full justify-between'">
+            <!--
+                Points are their OWN flex item, not a child of the identity
+                group. Nested inside it they would render wherever that group
+                sits — which is always first — so no amount of reordering within
+                the group could move them next to the residence badge. Only a
+                sibling can carry its own order.
+            -->
+            <div class="flex shrink-0 items-center xl:order-3">
                 <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
                 <span v-else class="px-1 text-sm font-bold text-gray-light">0 pts</span>
+            </div>
 
-                <h1 v-if="!isOwn" class="truncate text-base font-bold tracking-wide" :class="seat.text">
-                    {{ playerName }}
-                </h1>
-
-                <div
-                    class="flex shrink-0 items-center gap-1 rounded-[1rem] border-4 border-purple-light bg-purple-dark px-2">
-                    <span v-if="isOwn" class="text-xs font-bold text-purple-light xl:text-sm">Residence</span>
-                    <div class="-mx-1">
-                        <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
-                        <div v-else class="m-1 h-8 w-8 bg-purple-light" :style="{
-                            mask: `url(/cancel.png) no-repeat center / contain`,
-                            '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
-                        }"></div>
-                    </div>
+            <!-- residence keeps its own badge: it holds a card, not a number,
+                 so it does not belong in a row of numeric readouts -->
+            <div
+                class="flex shrink-0 items-center gap-1 rounded-[1rem] border-4 border-purple-light bg-purple-dark px-2 xl:order-4">
+                <span class="text-xs font-bold text-purple-light">Residence</span>
+                <div class="-mx-1">
+                    <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
+                    <div v-else class="m-1 h-7 w-7 bg-purple-light" :style="{
+                        mask: `url(/cancel.png) no-repeat center / contain`,
+                        '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
+                    }"></div>
                 </div>
             </div>
 
-            <!-- w-full is the wrap trigger below xl; w-auto puts them back on
-                 the same line from xl -->
-            <div v-if="isOwn" class="flex w-full gap-2 xl:w-auto xl:gap-4">
-                <button v-for="action in actions" :key="action.key" :disabled="!canAct" :class="[
-                    buttonClass,
-                    canAct ? action.hover : '',
-                    activeAction === action.key ? action.active : 'text-gray-dark bg-gray-2x-light',
-                    !canAct ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
-                ]" @click="activeAction === '' ? $emit(action.key) : ''">{{ action.label }}</button>
-
-                <button :disabled="!canAct" @click="$emit('endTurn')" :class="[
-                    buttonClass,
-                    'bg-rose-400/50 text-gray-2x-light xl:w-30',
-                    canAct ? 'hover:bg-rose-500/50' : 'opacity-40 cursor-not-allowed hover:scale-100',
-                ]">
-                    {{ busy ? '…' : 'End Turn' }}
-                </button>
-            </div>
-        </div>
-
-        <!-- ── hand + indicators ───────────────────────────────────────
-             Stacked below xl, side by side from xl. Three indicators plus a
-             hand well need about 900px in a row; the tablet panel has ~640. -->
-        <div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
-
-            <div class="relative flex min-w-0 flex-1 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-2 transition duration-300 ease-in-out xl:max-w-md xl:px-4"
+            <!-- hand: w-full wraps it below xl; flex-1 absorbs the slack on the
+                 single row -->
+            <div class="relative flex w-full min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition duration-300 ease-in-out xl:order-2 xl:w-auto xl:flex-1"
                 :class="handState ? handState.well : 'border-gray-light outline-0'">
                 <button v-if="handState" @click="emit('cancelOperation')"
-                    class="absolute top-0 right-0 z-50 flex items-center justify-center p-3 leading-none text-gray-x-light transition duration-200 ease-in-out hover:cursor-pointer hover:text-rose-400">🗙</button>
+                    class="absolute top-0 right-0 z-50 flex items-center justify-center p-2 leading-none text-gray-x-light transition duration-200 ease-in-out hover:cursor-pointer hover:text-rose-400">🗙</button>
 
                 <!-- overflow-x-auto: a full hand of six types would otherwise
                      widen the panel instead of scrolling -->
-                <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto pb-1">
+                <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                     <!-- :key is required: without it Vue patches these decks in
                          place by index, which mixes card types between decks -->
                     <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
@@ -241,23 +239,73 @@ function onConfirm(payload) {
                 <span v-else class="py-2 text-sm text-gray-light">No cards</span>
             </div>
 
-            <!-- grid below xl so the three sit evenly across the full width;
-                 a flex row would leave them ragged -->
-            <div v-if="isOwn" class="grid shrink-0 grid-cols-3 gap-2 xl:flex xl:gap-4">
-                <div :class="indicatorClass" class="border-cream-light bg-cream-dark text-cream-light">
-                    <span>Food Due</span>
-                    <span>{{ foodDue }} turns</span>
-                </div>
-                <div :class="indicatorClass" class="border-purple-light bg-purple-dark text-purple-light">
-                    <span>Rent Due</span>
-                    <span>{{ rentDue }} turns</span>
-                </div>
-                <div :class="indicatorClass" class="border-teal-light bg-teal-dark text-teal-light">
-                    <span>Loan Due</span>
-                    <span>{{ loanDue }} turns</span>
+            <!-- caption above, number in the box -->
+            <div class="grid w-full shrink-0 grid-cols-3 gap-2 xl:order-5 xl:flex xl:w-auto">
+                <div v-for="stat in stats" :key="stat.key" class="flex flex-col items-center gap-0.5">
+                    <span :class="[statLabel, stat.caption]">{{ stat.label }}</span>
+                    <div :class="[statBox, stat.tone]">{{ stat.value }}</div>
                 </div>
             </div>
+
+            <div class="flex w-full gap-2 xl:order-6 xl:w-auto">
+                <button v-for="action in actions" :key="action.key" :disabled="!canAct" :class="[
+                    buttonClass,
+                    canAct ? action.hover : '',
+                    activeAction === action.key ? action.active : 'text-gray-dark bg-gray-2x-light',
+                    !canAct ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
+                ]" @click="activeAction === '' ? $emit(action.key) : ''">{{ action.label }}</button>
+
+                <button :disabled="!canAct" @click="$emit('endTurn')" :class="[
+                    buttonClass,
+                    'bg-rose-400/50 text-gray-2x-light xl:w-24',
+                    canAct ? 'hover:bg-rose-500/50' : 'opacity-40 cursor-not-allowed hover:scale-100',
+                ]">
+                    {{ busy ? '…' : 'End Turn' }}
+                </button>
+            </div>
         </div>
+
+        <!-- ══ opponent panel ═════════════════════════════════════════
+            A separate block, not the same markup with different wrap points.
+            The two shapes genuinely diverged once the own panel became a single
+            wide row: an opponent card is narrow, has no controls and no timers,
+            so forcing it through the same wrap logic is what scrambled it.
+        -->
+        <template v-else>
+            <div class="flex min-w-0 items-center gap-2">
+                <SeatToken :seat-index="seatIndex" size="sm" :filled="isTurn && playerActive" />
+                <h1 class="truncate text-sm font-bold tracking-wide" :class="seat.text">{{ playerName }}</h1>
+                <span v-if="isTurn"
+                    class="shrink-0 rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                    :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
+
+                <div class="ml-auto flex shrink-0 items-center gap-2">
+                    <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
+                        <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
+                    </CardDeck>
+                    <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
+
+                    <div class="flex items-center rounded-lg border-2 border-purple-light bg-purple-dark px-1">
+                        <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
+                        <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
+                            mask: `url(/cancel.png) no-repeat center / contain`,
+                            '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
+                        }"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="relative flex min-w-0 overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+                <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
+                    <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
+                        <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
+                    </CardDeck>
+                </div>
+                <span v-else class="py-2 text-sm text-gray-light">No cards</span>
+            </div>
+        </template>
+
     </div>
 </template>
 
