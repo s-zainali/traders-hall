@@ -2,12 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiJson } from '../api/client'
 
-/**
- * Games: the lobby list, and the live state of one table.
- *
- * The API speaks snake_case; everything converts at this boundary so no
- * component has to know that.
- */
 function toGame(g) {
   return {
     id: g.id,
@@ -67,16 +61,21 @@ function toState(s) {
 
 export const useGamesStore = defineStore('games', () => {
   const myGames = ref([])
-  const current = ref(null)        // lobby-level shape, from /games/{code}
-  const state = ref(null)          // full table projection
+  const current = ref(null)
+  const state = ref(null)
   const loadingMine = ref(false)
   const hasLoadedMine = ref(false)
   const hasLoadedState = ref(false)
   const busy = ref(false)
-  const acting = ref(false)        // a player action is in flight
+  const acting = ref(false)
   const error = ref(null)
   const stateError = ref(null)
-  const actionError = ref(null)    // shown at the table, cleared on next action
+  const actionError = ref(null)
+
+  const events = ref([])
+  const lastSeq = ref(0)
+  const feedCode = ref('')
+  const sendingChat = ref(false)
 
   async function fetchMine({ silent = false } = {}) {
     if (!silent) loadingMine.value = true
@@ -86,34 +85,16 @@ export const useGamesStore = defineStore('games', () => {
       hasLoadedMine.value = true
       if (!silent) error.value = null
     } catch (e) {
-      // A failed poll should not wipe the list or flash a red error — the next
-      // tick will most likely succeed, and a stale list beats nothing.
       if (!silent) error.value = e.message
     } finally {
       if (!silent) loadingMine.value = false
     }
   }
 
-  /**
-   * The whole table. This is the ONE function a WebSocket replaces later:
-   * everything downstream reads `state`, so swapping poll-and-replace for
-   * push-and-patch touches this and nothing else.
-   */
   async function fetchState(code, { silent = false } = {}) {
     try {
       const fresh = await apiJson(`/api/v1/games/${code.toUpperCase()}/state`)
 
-      /*
-        Skip the write when nothing changed.
-
-        Every mutation bumps state_version, so an equal version means an
-        identical table. Reassigning anyway would hand every component brand
-        new prop objects twice a second and make Vue re-patch the whole panel —
-        including whatever button the cursor happens to be over. A replaced
-        element never receives mouseleave, so its hover state sticks until the
-        next patch, which is why it lingered for a multiple of the poll
-        interval and why the action buttons felt unreliable.
-      */
       if (state.value && fresh.game.state_version === state.value.game.stateVersion) {
         hasLoadedState.value = true
         if (!silent) stateError.value = null
@@ -130,24 +111,57 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
+  async function fetchEvents(code) {
+    const key = code.toUpperCase()
+
+    if (feedCode.value !== key) {
+      feedCode.value = key
+      events.value = []
+      lastSeq.value = 0
+    }
+
+    try {
+      const fresh = await apiJson(`/api/v1/games/${key}/events?since=${lastSeq.value}`)
+      if (fresh.length) {
+        events.value = [...events.value, ...fresh]
+        lastSeq.value = fresh[fresh.length - 1].seq
+      }
+      return fresh
+    } catch {
+      return []
+    }
+  }
+
+  async function sendChat(code, text) {
+    sendingChat.value = true
+    try {
+      const event = await apiJson(`/api/v1/games/${code.toUpperCase()}/chat`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      })
+      if (event.seq > lastSeq.value) {
+        events.value = [...events.value, event]
+        lastSeq.value = event.seq
+      }
+      return true
+    } catch (e) {
+      actionError.value = e.message
+      return false
+    } finally {
+      sendingChat.value = false
+    }
+  }
+
   function clearState() {
     state.value = null
     hasLoadedState.value = false
     stateError.value = null
     actionError.value = null
+    events.value = []
+    lastSeq.value = 0
+    feedCode.value = ''
   }
 
-  /**
-   * Every player action goes through here.
-   *
-   * Two things it centralises. It sends expected_state_version, so the server
-   * rejects an action decided against a stale view rather than applying it to
-   * a world that moved. And it treats a 409 as routine — refetch and tell the
-   * player to look again, never retry blindly, since the action they chose may
-   * no longer be the one they want.
-   *
-   * Actions return the refreshed projection, so there is no second round trip.
-   */
   async function act(code, action, body = {}) {
     acting.value = true
     actionError.value = null
@@ -261,6 +275,7 @@ export const useGamesStore = defineStore('games', () => {
     error.value = null
     try {
       await apiJson(`/api/v1/games/${code.toUpperCase()}/leave`, { method: 'POST' })
+      myGames.value = myGames.value.filter((g) => g.joinCode !== code.toUpperCase())
       await fetchMine()
       return true
     } catch (e) {
@@ -272,7 +287,9 @@ export const useGamesStore = defineStore('games', () => {
   return {
     myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
     busy, acting, error, stateError, actionError,
-    fetchMine, fetchState, clearState, act, buyFromBank, sellToBank, endTurn,
+    events, lastSeq, sendingChat,
+    fetchMine, fetchState, fetchEvents, sendChat, clearState, act,
+    buyFromBank, sellToBank, endTurn,
     createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }
 })

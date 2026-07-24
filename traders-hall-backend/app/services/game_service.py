@@ -236,7 +236,10 @@ async def list_my_games(db: AsyncSession, *, user: User) -> list[Game]:
     stmt = (
         select(Game)
         .join(GamePlayer, GamePlayer.game_id == Game.id)
-        .where(GamePlayer.user_id == user.id)
+        .where(
+            GamePlayer.user_id == user.id,
+            GamePlayer.status == "active",
+        )
         .options(selectinload(Game.players))
         .order_by(Game.created_at.desc())
     )
