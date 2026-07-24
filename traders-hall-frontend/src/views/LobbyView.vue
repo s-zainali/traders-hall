@@ -23,6 +23,10 @@ const copied = ref(false)
 const confirming = ref({ code: '', action: '' })
 let confirmTimer = null
 
+// Which seat inherits the table when the host hands it over. Reset every time
+// the panel opens so a stale pick from a previous game can never be submitted.
+const heir = ref('')
+
 /* ── live-ish updates ──────────────────────────────────────────
    Polling, not a WebSocket. Three seconds of staleness on "has anyone joined"
    is imperceptible, and a socket's real value is latency on the game table —
@@ -109,17 +113,21 @@ async function startGame(code) {
     if (game) enterGame(code)
 }
 
-function ask(code, action) {
-    confirming.value = { code, action }
+function ask(game, action) {
+    confirming.value = { code: game.joinCode, action }
+    // Preselect the lowest free seat so the common case is one click. The
+    // picker only appears when there is genuinely a choice to make.
+    heir.value = defaultHeir(game)?.id ?? ''
     clearTimeout(confirmTimer)
     // Long enough to read two options and decide. A short auto-revert is fine for
     // a one-click confirm but hostile when there is something to weigh up.
-    confirmTimer = setTimeout(() => (confirming.value = { code: '', action: '' }), 12000)
+    confirmTimer = setTimeout(() => cancelConfirm(), 12000)
 }
 
 function cancelConfirm() {
     clearTimeout(confirmTimer)
     confirming.value = { code: '', action: '' }
+    heir.value = ''
 }
 
 function isConfirming(code, action) {
@@ -127,16 +135,14 @@ function isConfirming(code, action) {
 }
 
 async function doDelete(code) {
-    clearTimeout(confirmTimer)
-    confirming.value = { code: '', action: '' }
+    cancelConfirm()
     await games.closeGame(code)
     if (created.value?.joinCode === code) created.value = null
 }
 
-async function doLeave(code) {
-    clearTimeout(confirmTimer)
-    confirming.value = { code: '', action: '' }
-    await games.leaveGame(code)
+async function doLeave(code, heirId = '') {
+    cancelConfirm()
+    await games.leaveGame(code, heirId)
     if (created.value?.joinCode === code) created.value = null
 }
 
@@ -187,13 +193,22 @@ function canDelete(game) {
     return isHost(game)
 }
 
-/** Who inherits the table if the host walks away: the next human seat. */
-function heirOf(game) {
-    return (
-        game.players
-            .filter((p) => p.displayName !== user.value?.display_name && p.status !== 'resigned')
-            .sort((a, b) => a.seatIndex - b.seatIndex)[0] ?? null
-    )
+/** Everyone who could take the table over: any live seat that is not yours. */
+function eligibleHeirs(game) {
+    return game.players
+        .filter((p) => p.displayName !== user.value?.display_name && p.status !== 'resigned')
+        .sort((a, b) => a.seatIndex - b.seatIndex)
+}
+
+/** The lowest free seat, which is also what the server falls back to. */
+function defaultHeir(game) {
+    return eligibleHeirs(game)[0] ?? null
+}
+
+/** The seat currently picked in the panel, or the default if none. */
+function chosenHeir(game) {
+    const list = eligibleHeirs(game)
+    return list.find((p) => p.id === heir.value) ?? list[0] ?? null
 }
 
 /** Whether the action reaches other people, which is what earns a warning. */
@@ -288,7 +303,7 @@ const dangerBtn =
                             <div class="flex items-center gap-3">
                                 <div class="min-w-0 flex-1 rounded-xl border-2 border-teal-light/50 bg-gray-dark px-4 py-3
                          text-center text-3xl font-bold tracking-[0.3em] text-teal-light tabular-nums">{{
-                                    created.joinCode }}</div>
+                                        created.joinCode }}</div>
                                 <button type="button" @click="copyCode" class="h-14 w-20 shrink-0 cursor-pointer rounded-xl border-2 border-gray-light font-bold
                          text-gray-x-light transition duration-200 ease-in-out
                          hover:border-gray-x-light hover:text-gray-2x-light">{{ copied ? 'Copied' : 'Copy' }}</button>
@@ -373,14 +388,13 @@ const dangerBtn =
                                     <span
                                         class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
                                         :class="STATUS_META[game.status]?.class">{{ STATUS_META[game.status]?.label ??
-                                        game.status
+                                            game.status
                                         }}</span>
                                     <span v-if="isHost(game)"
                                         class="text-[10px] font-bold uppercase tracking-widest text-gray-light">
                                         Host
                                     </span>
                                 </div>
-
                                 <!-- filled tokens for taken seats, dashed for empty: occupancy
                      at a glance, and the thing that visibly changes on poll -->
                                 <div class="flex items-center gap-1.5">
@@ -398,17 +412,18 @@ const dangerBtn =
                             <button type="button" :disabled="primaryAction(game).disabled || busy"
                                 :class="primaryAction(game).primary ? primaryBtn : mutedBtn"
                                 @click="primaryAction(game).run()">{{
-                                primaryAction(game).label }}</button>
+                                    primaryAction(game).label }}</button>
 
                             <button type="button" :disabled="busy" :class="[dangerBtn, isConfirming(game.joinCode, 'destroy')
                                 ? 'border-rose-400 text-rose-400'
-                                : 'border-gray-light text-gray-x-light hover:border-rose-400 hover:text-rose-400']" @click="isConfirming(game.joinCode, 'destroy')
-                    ? cancelConfirm()
-                    : ask(game.joinCode, 'destroy')">{{
-                    isConfirming(game.joinCode, 'destroy')
-                        ? 'Cancel'
-                        : canDelete(game) ? 'Leave table' : guestLabel(game)
-                                }}</button>
+                                : 'border-gray-light text-gray-x-light hover:border-rose-400 hover:text-rose-400']"
+                                @click="isConfirming(game.joinCode, 'destroy')
+                                    ? cancelConfirm()
+                                    : ask(game, 'destroy')">{{
+                                        isConfirming(game.joinCode, 'destroy')
+                                            ? 'Cancel'
+                                            : canDelete(game) ? 'Leave table' : guestLabel(game)
+                                    }}</button>
                         </div>
 
                         <!--
@@ -419,15 +434,34 @@ const dangerBtn =
             -->
                         <div v-if="isConfirming(game.joinCode, 'destroy') && canDelete(game)"
                             class="flex flex-col gap-2 rounded-xl border-2 border-gray-light bg-gray-dark/80 p-3">
-                            <button v-if="heirOf(game)" type="button" :disabled="busy" @click="doLeave(game.joinCode)"
-                                class="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-gray-light
+
+                            <!-- Only shown when there is a real choice: with one
+                                 eligible seat the pick is forced, and a picker
+                                 that cannot change anything is just noise. -->
+                            <div v-if="eligibleHeirs(game).length > 1"
+                                class="flex flex-wrap items-center gap-2 rounded-lg border-2 border-gray-light p-2">
+                                <span class="px-1 text-xs font-bold uppercase tracking-widest text-gray-x-light">
+                                    Hand to
+                                </span>
+                                <button v-for="p in eligibleHeirs(game)" :key="p.id" type="button" @click="heir = p.id"
+                                    class="flex cursor-pointer items-center gap-2 rounded-lg border-2 px-2 py-1 transition duration-200 ease-in-out"
+                                    :class="chosenHeir(game)?.id === p.id
+                                        ? 'border-teal-light bg-teal-light/15'
+                                        : 'border-gray-light opacity-60 hover:opacity-100'">
+                                    <SeatToken :seat-index="p.seatIndex" size="sm" />
+                                    <span class="text-xs font-bold text-gray-2x-light">{{ p.displayName }}</span>
+                                </button>
+                            </div>
+
+                            <button v-if="chosenHeir(game)" type="button" :disabled="busy"
+                                @click="doLeave(game.joinCode, chosenHeir(game).id)" class="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-gray-light
                        p-3 text-left transition duration-200 ease-in-out
                        hover:border-teal-light hover:bg-teal-dark/20 disabled:opacity-40">
-                                <SeatToken :seat-index="heirOf(game).seatIndex" size="sm" />
+                                <SeatToken :seat-index="chosenHeir(game).seatIndex" size="sm" />
                                 <span class="flex min-w-0 flex-col">
                                     <span class="text-sm font-bold text-gray-2x-light">Hand over &amp; leave</span>
                                     <span class="text-xs text-gray-x-light">
-                                        {{ heirOf(game).displayName }} becomes host. The table carries on.
+                                        {{ chosenHeir(game).displayName }} becomes host. The table carries on.
                                     </span>
                                 </span>
                             </button>
@@ -494,16 +528,16 @@ const dangerBtn =
   everything yet.
 */
 .scroll-slim {
-  scrollbar-width: 5px;
-  scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;
 }
 
 .scroll-slim::-webkit-scrollbar {
-  width: 10px;
+    width: 10px;
 }
 
 .scroll-slim::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 /*
@@ -512,14 +546,14 @@ const dangerBtn =
   background does not paint into.
 */
 .scroll-slim::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--color-gray-x-light) 28%, transparent);
-  background-clip: content-box;
-  border: 3px solid transparent;
-  border-radius: 999px;
+    background: color-mix(in oklab, var(--color-gray-x-light) 28%, transparent);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
 }
 
 .scroll-slim::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--color-teal-light) 55%, transparent);
-  background-clip: content-box;
+    background: color-mix(in oklab, var(--color-teal-light) 55%, transparent);
+    background-clip: content-box;
 }
 </style>

@@ -105,7 +105,13 @@ async def join_game(db: AsyncSession, *, user: User, code: str) -> Game:
     return game
 
 
-async def leave_game(db: AsyncSession, *, user: User, code: str) -> None:
+async def leave_game(
+    db: AsyncSession,
+    *,
+    user: User,
+    code: str,
+    heir_player_id: uuid.UUID | None = None,
+) -> None:
     game = await _load(db, code=code.upper())
     if game is None:
         raise GameError("GAME_NOT_FOUND", "No game with that code")
@@ -117,16 +123,13 @@ async def leave_game(db: AsyncSession, *, user: User, code: str) -> None:
     was_current = game.current_player_id == player.id
 
     if game.status == "lobby":
-        await db.delete(player)          # in a lobby, leaving frees the seat
+        await db.delete(player)
         await db.flush()
         await db.refresh(game, ["players"])
     else:
-        player.status = "resigned"       # mid-game the seat stays, for history
+        player.status = "resigned"
         player.left_at = datetime.now(UTC)
 
-    # Everyone still holding a live seat, excluding whoever just left. Computed
-    # AFTER the mutation so it is correct in both branches — mid-game the row is
-    # still present, just resigned, so filtering on user_id alone would keep it.
     remaining = [
         p for p in game.players
         if p.user_id != user.id and p.status == "active"
@@ -136,15 +139,18 @@ async def leave_game(db: AsyncSession, *, user: User, code: str) -> None:
         game.status = "abandoned" if game.status == "lobby" else "completed"
         game.ended_at = datetime.now(UTC)
         game.current_player_id = None
-    else:
-        if game.host_user_id == user.id:
-            # hand the table to the next seat rather than orphaning it
-            game.host_user_id = remaining[0].user_id
-        # Someone resigning on their own turn would otherwise leave the game
-        # pointing at a player who can no longer act — a permanent stall.
-        if was_current:
-            game.current_player_id = remaining[0].id
+        return
 
+    if game.host_user_id == user.id:
+        # An explicit choice wins; the lowest live seat is the fallback. The id
+        # is validated against `remaining` rather than trusted, so a stale or
+        # forged pick cannot hand the table to a seat that has since left.
+        heir = next((p for p in remaining if p.id == heir_player_id), None) or remaining[0]
+        game.host_user_id = heir.user_id
+
+    if was_current:
+        game.current_player_id = remaining[0].id
+        
 
 async def start_game(db: AsyncSession, *, user: User, code: str) -> Game:
     game = await _load(db, code=code.upper())

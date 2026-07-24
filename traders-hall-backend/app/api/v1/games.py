@@ -71,14 +71,16 @@ async def join_game(code: str, user: CurrentUser, db: Db):
     except GameError as e:
         raise _http(e)
 
+from app.schemas.game import GameCreate, GameOut, LeaveRequest
 
 @router.post("/{code}/leave", status_code=status.HTTP_204_NO_CONTENT)
-async def leave_game(code: str, user: CurrentUser, db: Db):
+async def leave_game(code: str, body: LeaveRequest, user: CurrentUser, db: Db):
     try:
-        await game_service.leave_game(db, user=user, code=code)
+        await game_service.leave_game(
+            db, user=user, code=code, heir_player_id=body.heir_player_id
+        )
     except GameError as e:
         raise _http(e)
-
 
 @router.post("/{code}/start", response_model=GameOut)
 async def start_game(code: str, user: CurrentUser, db: Db):

@@ -27,6 +27,10 @@ class GamePlayerOut(BaseModel):
     is_bot: bool
     status: str
 
+class LeaveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    heir_player_id: uuid.UUID | None = None
 
 class GameOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
