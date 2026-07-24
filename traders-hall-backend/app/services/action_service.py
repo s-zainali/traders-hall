@@ -9,6 +9,10 @@ The lock is what makes it safe. `SELECT ... FOR UPDATE` on `games` serialises
 every mutation for that game; games are independent, so this scales by game with
 no distributed locking. It is a DATABASE lock, not an asyncio one — an in-process
 lock is worthless the moment you run a second uvicorn worker.
+
+The helpers below with a leading underscore are the shared kernel: offer_service,
+loan_service and upkeep_service all import them rather than reimplementing the
+lifecycle. They are private to the service layer, not to this module.
 """
 
 import uuid
@@ -215,12 +219,16 @@ async def buy_from_bank(
             f"The bank has only {pool.quantity} left",
             available=pool.quantity,
         )
-    if seat.points < total:
+
+    # Spend against the FREE balance: reserved points are already promised to an
+    # open market claim, and a debt does not get to jump that queue.
+    available = seat.points - seat.reserved_points
+    if available < total:
         raise ActionError(
             "INSUFFICIENT_POINTS",
-            f"That costs {total} points; you have {seat.points}",
+            f"That costs {total} points; you have {available} free",
             required=total,
-            available=seat.points,
+            available=available,
         )
 
     hand = await _hand_row(db, game, seat, card_type)
@@ -276,8 +284,7 @@ async def sell_to_bank(
 
     hand = await _hand_row(db, game, seat, card_type)
     # available, not raw quantity: reserved cards are already promised to an
-    # open market offer. The column is unused today but the check is free now
-    # and easy to forget later.
+    # open market offer, or held as collateral against a mortgage.
     available = hand.quantity - hand.reserved_quantity
     if available < quantity:
         raise ActionError(
@@ -327,16 +334,21 @@ async def end_turn(
     code: str,
     expected_state_version: int | None,
 ) -> Game:
-    """Pass to the next active seat.
-
-    No upkeep yet — food, rent, interest and elimination all land in a later
-    step. This exists now because turn-gating buy and sell makes the game
-    unplayable without it: seat 0 would act forever and nobody else ever could.
-    """
+    """Run upkeep for the player finishing, then pass to the next active seat."""
     game = await _lock_game(db, code)
     seat = await _seat_of(db, game, user)
     _check_version(game, expected_state_version)
     _require_turn(game, seat)
+
+    # Imported inside the function on purpose. upkeep_service imports the shared
+    # kernel from this module, so a module-level import here would be a cycle.
+    # The long-term fix is extracting the kernel into its own module; until then
+    # this keeps the dependency one-directional at import time.
+    from app.services.upkeep_service import run_upkeep
+
+    # Before the baton passes, so the events land under the turn they belong to
+    # and every ledger row carries the right turn_number.
+    await run_upkeep(db, game, seat)
 
     seats = list(await db.scalars(
         select(GamePlayer)

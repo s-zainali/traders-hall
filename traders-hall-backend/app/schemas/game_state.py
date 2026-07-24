@@ -25,7 +25,11 @@ class GameInfo(BaseModel):
 
 
 class PlayerPublic(BaseModel):
-    """Hands are public in this game, so this is genuinely the full picture."""
+    """Hands are public in this game, so this is genuinely the full picture.
+
+    Debt is public too, deliberately: knowing an opponent has three rounds left
+    on a loan is exactly the kind of thing the table should be able to trade on.
+    """
 
     id: uuid.UUID
     seat_index: int
@@ -36,6 +40,13 @@ class PlayerPublic(BaseModel):
     food_due: int
     rent_due: int
     hand: dict[str, int]
+
+    # --- credit ---
+    loan_outstanding: int
+    loan_due: int
+    mortgage_card_type: str | None
+    mortgage_outstanding: int
+    mortgage_due: int
 
 
 class YouBlock(BaseModel):
@@ -53,6 +64,18 @@ class YouBlock(BaseModel):
     food_due: int
     rent_due: int
     is_my_turn: bool
+
+    # --- credit ---
+    loan_outstanding: int
+    loan_due: int
+    mortgage_card_type: str | None
+    mortgage_outstanding: int
+    mortgage_due: int
+
+    # Spendable balance: points minus anything reserved against an open market
+    # claim. The client needs this to disable controls correctly — showing the
+    # raw total invites a purchase the server will refuse.
+    available_points: int
 
 
 class GameStateOut(BaseModel):

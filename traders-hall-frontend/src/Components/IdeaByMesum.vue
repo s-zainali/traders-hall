@@ -15,7 +15,7 @@ defineProps({
             </span>
 
             <div class="flex items-center gap-3">
-                <span class="h-px w-14 bg-gradient-to-l from-transparent to-white/15"></span>
+                <span class="h-px w-14 bg-gradient-to-l to-transparent from-white/15"></span>
                 <span class="w-1 h-1 rotate-45 bg-white/20"></span>
 
                 <span

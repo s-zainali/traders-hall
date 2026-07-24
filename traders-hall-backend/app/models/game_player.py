@@ -28,6 +28,19 @@ class GamePlayer(Base):
         CheckConstraint("points >= 0", name="ck_player_points_non_negative"),
         CheckConstraint("reserved_points >= 0", name="ck_player_reserved_non_negative"),
         CheckConstraint("reserved_points <= points", name="ck_player_reserved_le_points"),
+        CheckConstraint("loan_outstanding >= 0", name="ck_player_loan_non_negative"),
+        CheckConstraint("mortgage_outstanding >= 0", name="ck_player_mortgage_non_negative"),
+        # A mortgage is a debt against a NAMED card, so the two are meaningless
+        # apart. Enforcing the pairing here means no code path can leave a
+        # dangling card reference or a debt with no collateral behind it.
+        #
+        # Deliberately NOT the same for loans: the settle path decrements
+        # loan_due to zero while loan_outstanding is still positive, which a
+        # matching constraint would reject mid-transaction.
+        CheckConstraint(
+            "(mortgage_card_type IS NULL) = (mortgage_outstanding = 0)",
+            name="ck_player_mortgage_shape",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -56,6 +69,22 @@ class GamePlayer(Base):
     # --- upkeep countdowns, in turns; at zero the obligation falls due ---
     food_due: Mapped[int] = mapped_column(Integer, default=0)
     rent_due: Mapped[int] = mapped_column(Integer, default=0)
+
+    # --- credit ---
+    # At most one live loan per player, so this is two columns rather than a
+    # table. Zero outstanding means no loan; loan_due is then meaningless.
+    loan_outstanding: Mapped[int] = mapped_column(Integer, default=0)
+    loan_due: Mapped[int] = mapped_column(Integer, default=0)
+
+    # At most one live mortgage, against exactly one property card. The card
+    # itself stays in the player's hand and is held there by
+    # player_hands.reserved_quantity — which is what makes it unsellable and
+    # untradeable without touching any of those code paths.
+    mortgage_card_type: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("card_types.code"), nullable=True, default=None
+    )
+    mortgage_outstanding: Mapped[int] = mapped_column(Integer, default=0)
+    mortgage_due: Mapped[int] = mapped_column(Integer, default=0)
 
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -37,7 +37,7 @@ async function confirmLogout() {
 
         <div class="flex"> 
             <IdeaByMesum compact />
-            <h1 class="text-3xl text-gray-2x-light tracking-widest font-bold text-center">Traders Hall</h1>
+            <h1 class="text-3xl text-gray-2x-light tracking-widest font-bold text-center uppercase">Traders Hall</h1>
             <PoweredByZain compact/>
         </div>
         <div class="w-48 flex items-center justify-end gap-3">

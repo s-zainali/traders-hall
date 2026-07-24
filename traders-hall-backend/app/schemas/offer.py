@@ -11,6 +11,9 @@ class OfferCreate(BaseModel):
     offer_card_type: str = Field(min_length=1, max_length=32)
     offer_quantity: int = Field(ge=1, le=99)
 
+    # PER UNIT. The claimant pays price_points * offer_quantity for the lot —
+    # the service multiplies, so the client sends exactly what the poster typed
+    # into "price each" and never has to do the arithmetic itself.
     price_points: int | None = Field(default=None, ge=1, le=999)
     want_card_type: str | None = Field(default=None, min_length=1, max_length=32)
     want_quantity: int | None = Field(default=None, ge=1, le=99)
@@ -50,7 +53,13 @@ class OfferOut(BaseModel):
     kind: str
     offer_card_type: str
     offer_quantity: int
+
+    # price_points is per unit; total_price_points is what the claimant actually
+    # pays. Both are sent so the UI can show "3 each — 6 total" without
+    # multiplying, and so "can I afford it" is one comparison.
     price_points: int | None
+    total_price_points: int | None = None
+
     want_card_type: str | None
     want_quantity: int | None
     status: str

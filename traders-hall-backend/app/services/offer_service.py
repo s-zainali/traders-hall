@@ -22,6 +22,18 @@ from app.services.action_service import (
 MAX_OPEN_PER_PLAYER = 5
 
 
+def _total_price(offer: TradeOffer) -> int:
+    """What the claimant actually pays for the whole lot.
+
+    price_points is PER UNIT — that is what the poster types into "price each",
+    and it is what the offer list shows next to the card. The buyer pays it for
+    every card in the offer, so every reservation, transfer and unreserve has to
+    go through this function rather than reading the column directly. Reading it
+    raw is how a 2-card offer at 3 each silently settled for 3.
+    """
+    return (offer.price_points or 0) * offer.offer_quantity
+
+
 async def _offer(db: AsyncSession, game: Game, offer_id: uuid.UUID) -> TradeOffer:
     offer = await db.get(TradeOffer, offer_id)
     if offer is None or offer.game_id != game.id:
@@ -37,7 +49,7 @@ async def _release_claim(db: AsyncSession, game: Game, offer: TradeOffer) -> Non
     if claimant is not None:
         if offer.kind == "sell":
             claimant.reserved_points = max(
-                0, claimant.reserved_points - offer.price_points
+                0, claimant.reserved_points - _total_price(offer)
             )
         else:
             want = await db.scalar(
@@ -94,6 +106,9 @@ async def list_offers(db: AsyncSession, *, user: User, code: str) -> list[dict]:
             "offer_card_type": offer.offer_card_type,
             "offer_quantity": offer.offer_quantity,
             "price_points": offer.price_points,
+            # Sent alongside the unit price so the client never has to multiply
+            # — and so "can I afford this" is a comparison against one number.
+            "total_price_points": _total_price(offer) if offer.kind == "sell" else None,
             "want_card_type": offer.want_card_type,
             "want_quantity": offer.want_quantity,
             "status": offer.status,
@@ -139,6 +154,8 @@ async def create_offer(
         raise ActionError("TOO_MANY_OFFERS", f"You already have {open_count} live offers")
 
     hand = await _hand_row(db, game, seat, offer_card_type)
+    # Free cards only: the rest are backing another offer, or held as collateral
+    # against a mortgage.
     available = hand.quantity - hand.reserved_quantity
     if available < offer_quantity:
         raise ActionError(
@@ -173,6 +190,7 @@ async def create_offer(
             "card_type": offer_card_type,
             "quantity": offer_quantity,
             "price_points": price_points,
+            "total_price_points": _total_price(offer) if kind == "sell" else None,
             "want_card_type": want_card_type,
             "want_quantity": want_quantity,
         },
@@ -195,15 +213,16 @@ async def claim_offer(
         raise ActionError("CANNOT_CLAIM_OWN_OFFER", "That is your own offer")
 
     if offer.kind == "sell":
+        total = _total_price(offer)
         available = claimant.points - claimant.reserved_points
-        if available < offer.price_points:
+        if available < total:
             raise ActionError(
                 "INSUFFICIENT_POINTS",
-                f"That costs {offer.price_points} points; you have {available} free",
-                required=offer.price_points,
+                f"That costs {total} points; you have {available} free",
+                required=total,
                 available=available,
             )
-        claimant.reserved_points += offer.price_points
+        claimant.reserved_points += total
     else:
         want = await _hand_row(db, game, claimant, offer.want_card_type)
         available = want.quantity - want.reserved_quantity
@@ -308,7 +327,7 @@ async def confirm_offer(
     buyer_hand.quantity += offer.offer_quantity
 
     if offer.kind == "sell":
-        price = offer.price_points
+        price = _total_price(offer)
         if buyer.points < price:
             raise ActionError("INSUFFICIENT_POINTS", "The buyer can no longer pay")
 
@@ -326,7 +345,8 @@ async def confirm_offer(
                 "with_player_id": str(buyer.id),
                 "card_type": offer.offer_card_type,
                 "quantity": offer.offer_quantity,
-                "price_points": price,
+                "price_points": offer.price_points,
+                "total_price_points": price,
             },
         )
         _ledger(db, game, event, player_id=buyer.id, entry_type="trade",

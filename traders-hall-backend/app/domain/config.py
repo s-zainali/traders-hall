@@ -32,8 +32,38 @@ BANK_POOL_PER_PLAYER = {
 }
 
 # --- upkeep timers, in turns ---
+#
+# How long a fed player stays fed, and how long between rent demands. The FOOD
+# figure is the opening grace period only: after the first meal the counter is
+# set from the card eaten, via card_types.nutrition_turns (rice 2, wheat 5).
 FOOD_INTERVAL_TURNS = 3
 RENT_INTERVAL_TURNS = 5
+
+# --- credit -----------------------------------------------------------------
+#
+# A "round" is one lap of the table from the borrower's point of view: every
+# obligation counter ticks down by one when its owner ends a turn, so a term of
+# 5 means five of that player's own turns, not five turns of play.
+#
+# Interest is zero for now. It is a named constant rather than an absent concept
+# so that turning it on is a value change plus one multiplication, not a reshape
+# of the settle path.
+
+LOAN_MAX_PRINCIPAL = 5
+LOAN_TERM_ROUNDS = 5
+LOAN_INTEREST_PER_ROUND = 0
+
+# One property, advanced at its sell_value and redeemed for the same. The bank
+# seizes the card outright if the debt is not cleared by the due date.
+MORTGAGE_TERM_ROUNDS = 5
+MORTGAGE_INTEREST_PER_ROUND = 0
+
+# Which card category can back a mortgage, and — separately — which category the
+# bank may seize to settle a defaulted unsecured loan. The same value today;
+# named twice because they answer different questions and will not necessarily
+# move together.
+MORTGAGEABLE_CATEGORY = "property"
+SEIZABLE_CATEGORY = "property"
 
 
 def bank_pool_for(player_count: int) -> dict[str, int]:

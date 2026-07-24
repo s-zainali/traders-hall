@@ -20,6 +20,11 @@ def build_game_state(raw: dict) -> GameStateOut:
             food_due=p.food_due,
             rent_due=p.rent_due,
             hand=hands.get(p.id, {}),
+            loan_outstanding=p.loan_outstanding,
+            loan_due=p.loan_due,
+            mortgage_card_type=p.mortgage_card_type,
+            mortgage_outstanding=p.mortgage_outstanding,
+            mortgage_due=p.mortgage_due,
         )
         for p in sorted(game.players, key=lambda p: p.seat_index)
     ]
@@ -46,6 +51,12 @@ def build_game_state(raw: dict) -> GameStateOut:
             food_due=me.food_due,
             rent_due=me.rent_due,
             is_my_turn=game.current_player_id == me.id,
+            loan_outstanding=me.loan_outstanding,
+            loan_due=me.loan_due,
+            mortgage_card_type=me.mortgage_card_type,
+            mortgage_outstanding=me.mortgage_outstanding,
+            mortgage_due=me.mortgage_due,
+            available_points=me.points - me.reserved_points,
         ),
         players=players,
     )
