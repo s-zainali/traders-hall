@@ -119,6 +119,7 @@ async function onBuy({ type, quantity }) {
 
 async function onTransaction(payload) {
     let ok = false
+    payload = payload.payload
 
     if (payload.kind === 'sell-to-bank') {
         ok = await games.sellToBank(props.code, payload.cardType, payload.quantity)

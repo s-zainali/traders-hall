@@ -199,7 +199,7 @@ function onEndTurn() {
         <div v-if="activeModal !== ''" class="absolute top-1/2 left-full z-[120] ml-2 w-max max-w-[calc(100vw-3rem)] -translate-y-1/2
                    xl:top-auto xl:bottom-full xl:left-1/2 xl:ml-0 xl:-translate-x-1/2 xl:translate-y-0">
             <TransactionModal :transaction-type="activeModal" :card-type="selectedType"
-                :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true" @confirm="onConfirm"
+                :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true" @confirm="onConfirm($event)"
                 @cancel="closeModal" />
             <div class="mx-auto -mt-0.5 hidden h-1 w-16 rounded-b bg-gray-light xl:block"></div>
         </div>
@@ -262,7 +262,7 @@ function onEndTurn() {
                 </div>
             </div>
             <div class="flex">
-                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold">cards</span>
+                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div class="a-hand relative flex min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
                     :class="handState ? handState.well : 'border-gray-light outline-0'">
                     <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
@@ -346,7 +346,7 @@ function onEndTurn() {
                 </div>
             </div>
             <div class="flex">
-                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold">cards</span>
+                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div
                     class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
