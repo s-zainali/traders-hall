@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { useGamesStore } from '../stores/games'
 import SeatToken from '../Components/SeatToken.vue'
+import IdeaByMesum from '../Components/IdeaByMesum.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -261,10 +262,11 @@ const dangerBtn =
       its own panel. The vertical twin of min-w-0.
     -->
 
-        <header class="flex shrink-0 items-center justify-between rounded-[1.5rem] border-2 border-gray-light
+        <header class="grid shrink-0 items-center grid-cols-3 rounded-[1.5rem] border-2 border-gray-light
              bg-gray-x-dark/85 p-4 backdrop-blur-xl">
             <h1 class="text-2xl font-bold tracking-widest text-gray-2x-light">TRADERS HALL</h1>
-            <div class="flex items-center gap-3">
+            <IdeaByMesum compact/>
+            <div class="flex items-center gap-3 justify-self-end">
                 <div class="flex flex-col items-end leading-tight">
                     <span class="font-bold text-gray-2x-light">{{ user?.display_name }}</span>
                     <span class="text-xs text-gray-x-light">@{{ user?.username }}</span>

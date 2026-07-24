@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import PoweredByZain from './PoweredByZain.vue'
+import IdeaByMesum from './IdeaByMesum.vue'
 
 defineProps({ gameCode: { type: String, default: '' } })
 
@@ -34,7 +35,8 @@ async function confirmLogout() {
             <span v-if="gameCode" class="font-bold tracking-[0.2em] text-teal-light">{{ gameCode }}</span>
         </div>
 
-        <div>
+        <div class="flex"> 
+            <IdeaByMesum compact />
             <h1 class="text-3xl text-gray-2x-light tracking-widest font-bold text-center">Traders Hall</h1>
             <PoweredByZain compact/>
         </div>

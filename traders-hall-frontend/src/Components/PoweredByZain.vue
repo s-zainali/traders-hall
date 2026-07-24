@@ -12,7 +12,7 @@ const year = new Date().getFullYear()
     <footer
         class="relative select-none group bg-transparent"
         :class="compact ? 'mt-0 pb-0' : 'mt-14 pb-6'"
-        :style="compact ? { zoom: 0.5 } : {}"
+        :style="compact ? { zoom: 0.7 } : {}"
     >
         <!-- hairline divider -->
         <div
@@ -21,7 +21,7 @@ const year = new Date().getFullYear()
         ></div>
 
         <div class="flex flex-col items-center gap-2">
-            <span v-if="!compact" class="text-[8px] font-black uppercase tracking-[0.4em] text-white/25">
+            <span class="text-[8px] font-black uppercase tracking-[0.4em] text-white/25">
                 Powered by
             </span>
 
