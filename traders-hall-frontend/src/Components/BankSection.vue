@@ -298,3 +298,44 @@ const debtTone = computed(() => {
 
     </div>
 </template>
+
+<style scoped>
+.scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;
+}
+
+.scroll-slim::-webkit-scrollbar {
+    width: 10px;
+}
+
+.scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* content-box clip plus a transparent border is what makes the thumb read as
+   inset and pill-shaped: the border reserves padding the background skips */
+.scroll-slim::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--color-gray-x-light) 28%, transparent);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+}
+
+.scroll-slim::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--color-teal-light) 55%, transparent);
+    background-clip: content-box;
+}
+
+.bank-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .grid,
+    .transition-transform {
+        transition: none;
+    }
+}
+</style>

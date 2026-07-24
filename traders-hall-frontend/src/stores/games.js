@@ -68,7 +68,12 @@ function toState(s) {
       // Spendable balance: points minus anything reserved against an open
       // market claim. Controls should gate on this, not on `points`, or the
       // UI offers purchases the server will refuse.
-      availablePoints: s.you.available_points,
+      //
+      // Falls back to the raw total when the field is absent, so a backend
+      // that predates app/schemas/game_state.py shows the real balance rather
+      // than a silent 0 — which reads as "you are broke" and disables every
+      // control on the page.
+      availablePoints: s.you.available_points ?? s.you.points,
       hand: s.you.hand,
       foodDue: s.you.food_due,
       rentDue: s.you.rent_due,

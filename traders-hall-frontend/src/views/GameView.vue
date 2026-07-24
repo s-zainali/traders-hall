@@ -161,11 +161,33 @@ const onCancelOffer = (id) => games.cancelOffer(props.code, id)
   Credit. These deliberately do NOT cancelAction(): the desk lives inside the
   bank panel and stays open after each one, so the player can watch the balance
   move and repay again without reopening it.
+
+  Every one runs through `runCredit`, which exists because a click that does
+  NOTHING is the worst possible failure. If the store method is missing — a
+  stale stores/games.js after a partial file update — calling it throws a
+  TypeError that dies inside the event handler: no request, no message, no
+  clue. Routing through here turns any such failure into the same toast the
+  server errors use, naming the cause.
 */
-const onBorrow = (amount) => games.borrow(props.code, amount)
-const onRepay = (amount) => games.repayLoan(props.code, amount)
-const onMortgage = (cardType) => games.openMortgage(props.code, cardType)
-const onRedeem = () => games.redeemMortgage(props.code)
+async function runCredit(label, call) {
+    try {
+        if (typeof call !== 'function') {
+            throw new Error(`${label} is unavailable — stores/games.js looks out of date`)
+        }
+        await call()
+    } catch (e) {
+        games.actionError = e?.message ?? `${label} failed`
+    }
+}
+
+const onBorrow = (amount) =>
+    runCredit('borrow', games.borrow && (() => games.borrow(props.code, amount)))
+const onRepay = (amount) =>
+    runCredit('repay', games.repayLoan && (() => games.repayLoan(props.code, amount)))
+const onMortgage = (cardType) =>
+    runCredit('mortgage', games.openMortgage && (() => games.openMortgage(props.code, cardType)))
+const onRedeem = () =>
+    runCredit('redeem', games.redeemMortgage && (() => games.redeemMortgage(props.code)))
 
 async function onEndTurn() {
     cancelAction()
