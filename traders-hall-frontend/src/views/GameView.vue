@@ -187,40 +187,51 @@ watch(isMyTurn, (mine) => {
             <Header :game-code="code" />
 
             <!--
-                Opponents. Three panels side by side need roughly 900px, so
-                below lg they become a horizontal strip at a fixed width and
-                scroll sideways — legible panels you swipe beats three panels
-                squeezed to illegibility.
+                Opponents. From lg they share the row evenly at auto width, the
+                same as desktop. Below lg three panels side by side would be
+                ~250px each — not enough for a token, name, points and hand —
+                so they become a fixed-width strip you scroll sideways instead.
+                Legible panels you swipe beat three squeezed to illegibility.
+
+                lg, not xl: the panels fit at 1024px, and only the log/panel
+                split needs the wider breakpoint.
             -->
             <div class="scroll-slim flex w-full shrink-0 gap-2 overflow-x-auto pb-1 md:gap-3
-                        xl:gap-4 xl:overflow-visible xl:pb-0">
+                        lg:overflow-visible lg:pb-0 xl:gap-4">
                 <PlayerCardHolder v-for="seat in opponentSeats" :key="seat.seatIndex" :player-type="'opponent'"
                     :seat-index="seat.seatIndex" :player-name="seat.name" :player-active="seat.occupied"
                     :is-turn="seat.isTurn" :hand="seat.hand" :points="seat.points" :food-due="seat.foodDue"
-                    :rent-due="seat.rentDue" class="w-[17rem] shrink-0 md:w-[19rem] xl:w-auto xl:min-w-0 xl:flex-1" />
+                    :rent-due="seat.rentDue" class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1" />
             </div>
 
             <div class="flex min-h-0 flex-1 flex-row gap-2 md:gap-3 xl:flex-col xl:gap-4">
                 <!--
-                    Below xl the log is a fixed-width sidebar so the player
-                    panel keeps the room it needs; from xl it takes a full row
-                    and grows into the leftover height.
+                    Side by side below xl: the player panel sits LEFT at a fixed
+                    width and the log takes what is left.
 
-                    min-h-0 on both axes matters: a flex item defaults to
-                    min-height/min-width auto and refuses to shrink below its
-                    content, which would make the log push the layout rather
-                    than scroll inside itself.
+                    That split is the right way round because their needs differ.
+                    The panel's contents are fixed — four buttons, three
+                    indicators, a hand well — so extra width only stretches them.
+                    The log is prose, and narrow columns wrap it into three-line
+                    fragments, so it is the one that should absorb the slack.
+
+                    order-* swaps them at xl, where the log goes back above the
+                    panel and takes the full row.
                 -->
-                <EventLog class="w-64 min-h-0 shrink-0 md:w-72 xl:w-full xl:flex-1" :events="events"
+                <PlayerCardHolder
+                    class="order-1 w-[30rem] shrink-0 md:w-[32rem] xl:order-2 xl:w-full"
+                    :active-action="activeAction" :seat-index="mine?.seatIndex ?? -1"
+                    :player-name="mine?.name ?? ''" :player-active="mine !== null" :is-turn="isMyTurn"
+                    :hand="mine?.hand ?? {}" :points="mine?.points ?? 0" :food-due="mine?.foodDue ?? 0"
+                    :rent-due="mine?.rentDue ?? 0" :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')"
+                    @trade="startAction('trade')" @cancel-operation="cancelAction" @transaction="onSell"
+                    @end-turn="onEndTurn" />
+
+                <!-- min-w-0 lets it shrink below its content; without it the
+                     longest log line would set the width and push the panel out -->
+                <EventLog class="order-2 min-h-0 min-w-0 flex-1 xl:order-1" :events="events"
                     :seat-by-player="seatByPlayer" :name-by-player="nameByPlayer" :sending="sendingChat"
                     @send="(text) => games.sendChat(code, text)" />
-
-                <PlayerCardHolder class="min-w-0 flex-1 xl:w-full xl:flex-none" :active-action="activeAction"
-                    :seat-index="mine?.seatIndex ?? -1" :player-name="mine?.name ?? ''" :player-active="mine !== null"
-                    :is-turn="isMyTurn" :hand="mine?.hand ?? {}" :points="mine?.points ?? 0"
-                    :food-due="mine?.foodDue ?? 0" :rent-due="mine?.rentDue ?? 0" :busy="acting"
-                    @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
-                    @cancel-operation="cancelAction" @transaction="onSell" @end-turn="onEndTurn" />
             </div>
         </div>
 
