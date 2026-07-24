@@ -12,6 +12,12 @@ const props = defineProps({
     busy: { type: Boolean, default: false },
     // buy only: what the player can actually afford
     points: { type: Number, default: 0 },
+    /*
+      Popover mode: no backdrop, no centring, content only. The parent anchors
+      it above the panel. Used for sell and trade, which now render inside a
+      card holder far narrower than a centred dialog wants to be.
+    */
+    popover: { type: Boolean, default: false },
 })
 
 /*
@@ -75,22 +81,31 @@ const isTrade = computed(() => props.transactionType === 'trade')
 
 // Layout keys on how much room the host has, not on the action: buy renders in
 // the roomy BankSection, sell and trade inside the cramped PlayerCardHolder.
-const isCompact = computed(() => props.transactionType !== 'buy')
+// compact = anything that is not the roomy bank dialog
+const isCompact = computed(() => props.popover || props.transactionType !== 'buy')
 
 // Unlike `scale`, `zoom` participates in layout: the wrapper's measured box
 // shrinks too, so the modal actually gets shorter instead of just drawing
 // smaller inside a full-height box.
-const PREVIEW_ZOOM = 0.6
-const previewZoom = computed(() => (isCompact.value ? PREVIEW_ZOOM : 1))
+/*
+  The card preview scales with the shell. The bank dialog has room for a
+  full-size card; the popover sits above a slim panel, so it takes a middle
+  size rather than the tiny one the old inline sell modal used.
+*/
+const previewZoom = computed(() => {
+    if (props.popover) return 0.85
+    return isCompact.value ? 0.6 : 1
+})
+
 
 // Card data comes from the store (fetched from /api/v1/config/card-types), so
 // the price shown here is the same number the server charges.
 const isBuy = computed(() => props.transactionType === 'buy')
 const isSell = computed(() => props.transactionType === 'sell')
 
-// Buying charges base_cost; selling pays sell_value. They are equal today, but
-// reading the right column now means changing the spread is a migration rather
-// than a frontend hunt.
+// Buying charges base_cost; selling pays sell_value. Equal today, but reading
+// the right column now means changing the spread is a migration rather than a
+// frontend hunt.
 const unitPoints = computed(() => {
     const card = cardTypes.get(props.cardType)
     if (!card) return 0
@@ -108,7 +123,6 @@ const affordable = computed(() => {
     if (!isBuy.value || unitPoints.value === 0) return props.available
     return Math.min(props.available, Math.floor(props.points / unitPoints.value))
 })
-
 const maxQuantity = computed(() => Math.max(1, affordable.value))
 const cannotAfford = computed(() => isBuy.value && totalPoints.value > props.points)
 
@@ -164,106 +178,155 @@ const stepButtonSm =
 const countClass =
     'flex items-center justify-center font-bold text-gray-2x-light bg-gray-dark tabular-nums'
 
+// popover matches the bank dialog's control sizing, not the cramped inline one.
+// Declared AFTER both button strings: a const is in the temporal dead zone
+// until its own line executes, so referencing them earlier throws at setup.
+const stepper = computed(() => (props.popover ? stepButton : stepButtonSm))
+
+/**
+ * The deal in words. A trade has four moving parts spread across two columns —
+ * a one-line restatement is how the player checks they built what they meant
+ * before committing, and it is the only place both sides appear together.
+ */
+const tradeSummary = computed(() => {
+    if (!getType.value) return null
+    return {
+        give: `${quantity.value}× ${titleOf(props.cardType)}`,
+        get: `${getQuantity.value}× ${titleOf(getType.value)}`,
+    }
+})
+
 const actionButton =
-    'w-25 py-3 rounded-xl font-bold cursor-pointer transition duration-200 ease-in-out ' +
+    'min-w-24 px-5 py-2.5 rounded-xl font-bold cursor-pointer transition duration-200 ease-in-out ' +
     'disabled:opacity-40 disabled:cursor-not-allowed ' +
     'focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2'
 </script>
 
 <template>
-    <!-- backdrop: click outside to dismiss -->
-    <div class="absolute inset-0 z-[100] flex items-center justify-center bg-gray-dark/90 backdrop-blur-sm"
-        :class="isCompact ? 'p-3' : 'p-6'" @click.self="emit('cancel')">
+    <div :class="popover
+            ? ''
+            : 'absolute inset-0 z-[100] flex items-center justify-center bg-gray-dark/90 backdrop-blur-sm ' + (isCompact ? 'p-3' : 'p-6')"
+        @click.self="popover || emit('cancel')">
 
-        <div role="dialog" aria-modal="true" aria-labelledby="transaction-title" class="relative flex max-w-full"
-            :class="isCompact
-                ? 'gap-4 p-4 w-full justify-between items-center'
-                : 'flex-col gap-6 p-6 w-max'">
+        <div role="dialog" aria-modal="true" aria-labelledby="transaction-title"
+            class="relative flex max-w-full flex-col"
+            :class="popover
+                ? 'gap-5 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-6 shadow-2xl shadow-black/60'
+                : (isCompact ? 'gap-4 p-4 w-full' : 'gap-6 p-6 w-max')">
 
-            <!-- close, matching the 🗙 on the hand well in PlayerCardHolder -->
-            <button v-if="transactionType === 'buy'" type="button" aria-label="Close" @click="emit('cancel')"
-                class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
+            <button type="button" aria-label="Close" @click="emit('cancel')"
+                class="absolute top-3 right-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-x-light transition-colors duration-200 hover:bg-gray-light/40 hover:text-gray-2x-light">✕</button>
 
-            <header class="flex flex-col gap-1" :class="isCompact ? 'justify-center items-start' : ''">
+            <header class="flex flex-col gap-0.5 pr-10">
                 <h2 id="transaction-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
                     {{ type.heading }}
                 </h2>
                 <p class="text-sm text-gray-x-light">{{ type.subheading }}</p>
             </header>
 
-            <!-- ── trade: two columns, each card sitting above its own quantity ── -->
-            <div v-if="isTrade" class="flex items-center gap-4">
+            <!-- ══ trade ═══════════════════════════════════════════════
+                Two self-contained columns of equal width.
 
-                <section class="flex flex-col items-center gap-2">
+                Each side owns its OWN stepper, directly under the thing it
+                counts. The previous version put both steppers in a detached row
+                beneath the columns, so neither was visibly tied to a side and
+                you had to guess which number you were changing.
+
+                Equal widths matter too: an exchange should look symmetrical, so
+                neither side reads as the more important one.
+            -->
+            <div v-if="isTrade" class="flex items-stretch justify-center gap-3">
+
+                <section class="flex w-[10.5rem] flex-col items-center gap-2">
                     <h3 :class="labelClass">You give</h3>
-                    <div :class="[wellClass, 'p-2']">
+
+                    <div class="flex h-[7.5rem] w-full items-center justify-center rounded-2xl border-2 border-gray-light bg-gray-dark">
                         <!-- zoom shrinks the layout box, not just the pixels -->
-                        <div :style="{ zoom: previewZoom }">
+                        <div :style="{ zoom: 0.62 }">
                             <Card :card-type="cardType" :selected="true" />
                         </div>
                     </div>
+
                     <div :class="stepperClass">
-                        <button type="button" :class="stepButtonSm" :disabled="quantity <= 1"
+                        <button type="button" :class="stepper" :disabled="quantity <= 1"
                             aria-label="Decrease quantity given" @click="step(-1)">−</button>
                         <div :class="[countClass, 'w-12 text-lg']">{{ quantity }}</div>
-                        <button type="button" :class="stepButtonSm" :disabled="quantity >= available"
+                        <button type="button" :class="stepper" :disabled="quantity >= available"
                             aria-label="Increase quantity given" @click="step(1)">+</button>
                     </div>
+
                     <p class="text-xs text-gray-x-light">{{ available }} available</p>
                 </section>
 
-                <div class="text-3xl font-bold text-amber-400 self-center px-1 select-none">⇄</div>
+                <!-- self-center rather than a fixed offset: the columns can grow
+                     independently and the arrow stays on their midline -->
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-amber-400 select-none" aria-hidden="true">⇄</span>
+                </div>
 
-                <section class="flex flex-col items-center gap-2">
+                <section class="flex w-[10.5rem] flex-col items-center gap-2">
                     <h3 :class="labelClass">You get</h3>
-                    <!-- horizontal chip row: nowrap keeps it on one line -->
-                    <div :class="[wellClass, 'p-2 gap-2 flex-nowrap']">
-                        <!-- selection ring uses `outline`, which doesn't affect layout,
-                             so picking a chip never nudges the row -->
+
+                    <!-- a 3-column grid, not a nowrap row: five chips in a row
+                         set the dialog's width, and a sixth card type would have
+                         widened it again -->
+                    <div class="grid h-[7.5rem] w-full grid-cols-3 content-center justify-items-center gap-1.5 rounded-2xl border-2 border-gray-light bg-gray-dark p-2">
                         <button v-for="t in tradeableTypes" :key="t" type="button"
                             :aria-label="`Trade for ${titleOf(t)}`" :aria-pressed="getType === t" @click="getType = t"
-                            class="rounded-xl cursor-pointer outline-amber-400 transition duration-200 ease-in-out hover:scale-110"
-                            :class="getType === t ? 'outline-3' : 'outline-0 opacity-60 hover:opacity-100'">
+                            class="cursor-pointer rounded-xl outline-amber-400 transition duration-200 ease-in-out"
+                            :class="getType === t
+                                ? 'outline-3 scale-110'
+                                : 'outline-0 opacity-45 hover:opacity-90'">
                             <Card :card-type="t" :selected="true" :large="false" />
                         </button>
                     </div>
+
                     <div :class="stepperClass">
-                        <button type="button" :class="stepButtonSm" :disabled="getQuantity <= 1"
+                        <button type="button" :class="stepper" :disabled="getQuantity <= 1 || !getType"
                             aria-label="Decrease quantity wanted" @click="stepGet(-1)">−</button>
                         <div :class="[countClass, 'w-12 text-lg']">{{ getQuantity }}</div>
-                        <button type="button" :class="stepButtonSm" aria-label="Increase quantity wanted"
-                            @click="stepGet(1)">+</button>
+                        <button type="button" :class="stepper" :disabled="!getType"
+                            aria-label="Increase quantity wanted" @click="stepGet(1)">+</button>
                     </div>
-                    <p class="text-xs text-gray-x-light">
+
+                    <p class="text-xs font-bold" :class="getType ? 'text-amber-400' : 'text-gray-light'">
                         {{ getType ? titleOf(getType) : 'Pick a card' }}
                     </p>
                 </section>
-
             </div>
 
-            <!-- ── buy / sell ── -->
-            <div v-else class="flex items-center" :class="isCompact ? 'gap-4' : 'gap-6'">
+            <!-- the deal restated in one line: the only place both sides appear
+                 together, so it is where a mistake is actually visible -->
+            <p v-if="isTrade && tradeSummary"
+                class="rounded-xl border-2 border-amber-400/40 bg-amber-400/10 px-4 py-2 text-center text-sm font-bold text-gray-2x-light">
+                {{ tradeSummary.give }}
+                <span class="px-2 text-amber-400">→</span>
+                {{ tradeSummary.get }}
+            </p>
+
+            <!-- ══ buy / sell ══════════════════════════════════════════ -->
+            <div v-if="!isTrade" class="flex items-center" :class="popover ? 'gap-5' : (isCompact ? 'gap-4' : 'gap-6')">
 
                 <section class="flex flex-col gap-2">
-                    <h3 :class="labelClass">Selected card</h3>
-                    <div :class="[wellClass, isCompact ? 'p-2' : 'p-4']">
+                    <h3 :class="labelClass">Card</h3>
+                    <div :class="[wellClass, popover ? 'p-4' : (isCompact ? 'p-2' : 'p-4')]">
                         <div :style="{ zoom: previewZoom }">
                             <Card :card-type="cardType" :selected="true" />
                         </div>
                     </div>
                 </section>
 
-                <div class="flex gap-2" :class="isCompact ? 'flex-row' : 'flex-col'">
+                <div class="flex flex-col gap-2">
                     <section class="flex flex-col gap-2">
                         <h3 :class="labelClass">Quantity</h3>
                         <div :class="stepperClass">
-                            <button type="button" :class="stepButton" :disabled="quantity <= 1"
+                            <button type="button" :class="stepper" :disabled="quantity <= 1"
                                 aria-label="Decrease quantity" @click="step(-1)">−</button>
-                            <div :class="[countClass, 'w-20 text-xl']">{{ quantity }}</div>
-                            <button type="button" :class="stepButton" :disabled="quantity >= maxQuantity"
+                            <div :class="[countClass, 'w-14 text-lg']">{{ quantity }}</div>
+                            <button type="button" :class="stepper" :disabled="quantity >= maxQuantity"
                                 aria-label="Increase quantity" @click="step(1)">+</button>
                         </div>
-                        <p class="text-sm text-gray-x-light">{{ available }} available</p>
+                        <p class="text-xs text-gray-x-light">{{ available }} available</p>
                         <!-- says WHY the stepper stopped, rather than letting it
                              silently refuse to go higher -->
                         <p v-if="isBuy && affordable < available" class="text-xs font-bold text-amber-400">
@@ -273,19 +336,22 @@ const actionButton =
 
                     <section v-if="showPoints" class="flex flex-col gap-2">
                         <h3 :class="labelClass">{{ type.pointsLabel }}</h3>
-                        <div :class="[wellClass, isCompact ? 'p-2 gap-2' : 'p-4 gap-3']">
+                        <div :class="[wellClass, 'gap-2 p-2']">
                             <Card :card-type="'point'" :selected="true" :large="false" />
-                            <span class="font-bold text-teal-light tabular-nums text-xl">{{ totalPoints }}</span>
+                            <span class="text-lg font-bold tabular-nums text-teal-light">{{ totalPoints }}</span>
                         </div>
                     </section>
                 </div>
-
             </div>
 
-            <footer class="flex justify-center gap-3"
-                :class="isCompact ? 'flex-col-reverse pl-4 border-l-1 border-gray-light' : 'pt-2 border-t-1 border-gray-light'">
+            <footer class="flex items-center justify-end gap-2 border-t-1 border-gray-light pt-4">
+                <!-- names the blocker instead of leaving a dead button -->
+                <p v-if="isTrade && !getType" class="mr-auto text-xs font-bold text-gray-light">
+                    Choose a card to receive
+                </p>
+
                 <button type="button" :class="actionButton"
-                    class="text-gray-x-light border-2 border-gray-light hover:border-gray-x-light hover:text-gray-2x-light"
+                    class="border-2 border-gray-light text-gray-x-light hover:border-gray-x-light hover:text-gray-2x-light"
                     @click="emit('cancel')">Cancel</button>
 
                 <button type="button" :class="[actionButton, type.confirmClass]" :disabled="!canConfirm"

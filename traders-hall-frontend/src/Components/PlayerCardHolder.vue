@@ -1,24 +1,23 @@
 <script setup>
-import { computed, ref } from 'vue';
-import Card from './Card.vue';
-import CardDeck from './CardDeck.vue';
-import SeatToken from './SeatToken.vue';
-import TransactionModal from './Modals/TransactionModal.vue';
-import { seatStyle } from '../seats';
+import { computed, ref } from 'vue'
+import Card from './Card.vue'
+import CardDeck from './CardDeck.vue'
+import SeatToken from './SeatToken.vue'
+import TransactionModal from './Modals/TransactionModal.vue'
+import { seatStyle } from '../seats'
 
 const props = defineProps({
     playerType: { type: String, default: 'player' },
     activeAction: { type: String, default: '' },
     playerName: { type: String, default: 'Player' },
     playerActive: { type: Boolean, default: false },
-    // which chair this panel is; drives the token and the accent colour
+    /** which chair this panel is; drives the token and the accent colour */
     seatIndex: { type: Number, default: -1 },
-    // whose turn it is, for the pulsing ring
+    /** whose turn it is, for the pulsing ring */
     isTurn: { type: Boolean, default: false },
 
-    // ── server state ──────────────────────────────────────────
-    // { cardType: quantity }. Includes zero counts, which is why the template
-    // filters rather than rendering a deck per key.
+    // ── server state ──────────────────────────────────────────────
+    /** { cardType: quantity } — includes zero counts, hence heldTypes below */
     hand: { type: Object, default: () => ({}) },
     points: { type: Number, default: 0 },
     foodDue: { type: Number, default: 0 },
@@ -26,60 +25,63 @@ const props = defineProps({
     loanDue: { type: Number, default: 0 },
     residence: { type: String, default: '' },
     onRent: { type: Boolean, default: false },
-    // an action is in flight; controls lock so a double-click cannot fire twice
+    /** an action is in flight; controls lock so a double-click cannot fire twice */
     busy: { type: Boolean, default: false },
 })
-const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction', 'endTurn'])
 
-const isOwn = computed(() => props.playerType === 'player')
-
-/*
-  Sizes step down below xl. The panel shares its row with the event-log sidebar
-  on a tablet, so it gets roughly 640px rather than the ~1000px a laptop gives
-  it — the header alone does not fit at desktop sizing, which is why End Turn
-  was being clipped.
-*/
-const buttonClass =
-    'min-w-0 flex-1 rounded-lg py-1.5 text-sm font-bold cursor-pointer transition duration-300 ease-in-out ' +
-    'hover:scale-105 hover:text-gray-2x-light xl:flex-none xl:w-18 xl:py-2 xl:text-base'
-
-/*
-  Label OUTSIDE the box, value inside. Pulling the caption out lets the box
-  shrink to just the number, which is the height and width this reclaims — and
-  the caption reads as a column header rather than as part of the readout.
-*/
-const statLabel = 'text-[10px] font-bold uppercase tracking-widest'
-const statBox =
-    'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base font-bold tabular-nums'
-
-// `caption` is the -dark token, so the label sits back against the panel while
-// the box keeps the fuller -light treatment.
-const stats = computed(() => [
-    {
-        key: 'food', label: 'Food', value: props.foodDue,
-        caption: 'text-cream-dark',
-        tone: 'border-cream-light bg-cream-dark text-cream-light',
-    },
-    {
-        key: 'rent', label: 'Rent', value: props.rentDue,
-        caption: 'text-purple-dark',
-        tone: 'border-purple-light bg-purple-dark text-purple-light',
-    },
-    {
-        key: 'loan', label: 'Loan', value: props.loanDue,
-        caption: 'text-teal-dark',
-        tone: 'border-teal-light bg-teal-dark text-teal-light',
-    },
+const emit = defineEmits([
+    'buy', 'sell', 'trade', 'cancelOperation', 'transaction', 'endTurn',
 ])
 
-const actions = [
-    { key: 'buy', label: 'Buy', hover: 'hover:bg-emerald-400/50', active: 'bg-emerald-400/60 text-gray-2x-light' },
-    { key: 'sell', label: 'Sell', hover: 'hover:bg-rose-400/70', active: 'bg-rose-400/60 text-gray-2x-light' },
-    { key: 'trade', label: 'Trade', hover: 'hover:bg-amber-300/70', active: 'bg-amber-300/60 text-gray-2x-light' },
-]
+/* ── local state ──────────────────────────────────────────────────
+   ONE ref for the card under action. Sell and trade previously wrote to
+   separate refs while the modal read only one of them, so trading always
+   showed whatever sell had left behind.
+────────────────────────────────────────────────────────────────── */
+const selectedType = ref('')
+const activeModal = ref('')
 
-// per-action chrome for the hand well and the panel border; full literal class
-// strings so Tailwind generates them
+/* ── derived ─────────────────────────────────────────────────────── */
+
+const isOwn = computed(() => props.playerType === 'player')
+const seat = computed(() => seatStyle(props.seatIndex))
+
+/**
+ * Buy, sell and trade are turn-gated on the server. Disabling them off-turn is
+ * not the enforcement — it is so the player can see whose turn it is from the
+ * controls rather than from a rejected request.
+ */
+const canAct = computed(() => props.isTurn && !props.busy && props.playerActive)
+
+/**
+ * The hand arrives with a row for EVERY card type, most of them zero: the
+ * backend keeps zero rows so a sale can guard on the row's existence. Rendering
+ * a deck per key would give a row of empty slots, so filter to what is held.
+ * Points are a balance, shown separately rather than as cards in hand.
+ */
+const heldTypes = computed(() =>
+    Object.entries(props.hand)
+        .filter(([type, count]) => count > 0 && type !== 'point')
+        .map(([type]) => type)
+)
+
+/**
+ * Border priority, most urgent first:
+ *   1. an open transaction  2. empty seat  3. this player's turn  4. resting
+ * Exactly one wins, so the border always means one thing.
+ */
+const panelBorder = computed(() => {
+    if (activeModal.value && handState.value) return handState.value.panel
+    if (!props.playerActive) return 'border-dashed border-gray-light'
+    if (props.isTurn) return seat.value.border
+    return seat.value.borderSoft
+})
+
+/* ── static class maps ────────────────────────────────────────────
+   Full literal strings throughout: Tailwind's scanner cannot see an
+   interpolated class name, so `bg-${x}` would never be generated.
+────────────────────────────────────────────────────────────────── */
+
 const HAND_STATES = {
     sell: {
         well: 'outline-rose-400/50 border-rose-400/5 outline-4 -outline-offset-4 bg-gray-light/30',
@@ -92,50 +94,43 @@ const HAND_STATES = {
 }
 const handState = computed(() => HAND_STATES[props.activeAction] ?? null)
 
-const seat = computed(() => seatStyle(props.seatIndex))
+const ACTIONS = [
+    { key: 'buy', label: 'Buy', hover: 'hover:bg-emerald-400/50', active: 'bg-emerald-400/60 text-gray-2x-light' },
+    { key: 'sell', label: 'Sell', hover: 'hover:bg-rose-400/70', active: 'bg-rose-400/60 text-gray-2x-light' },
+    { key: 'trade', label: 'Trade', hover: 'hover:bg-amber-300/70', active: 'bg-amber-300/60 text-gray-2x-light' },
+]
 
 /*
-  Buy, sell and trade are turn-gated on the server. Disabling them off-turn is
-  not the enforcement — it is so the player can see whose turn it is from the
-  controls, rather than finding out from a rejected request.
+  Button classes are split base / enabled / disabled so exactly ONE cursor
+  utility and ONE hover rule ever reach the element.
+
+  Emitting `cursor-pointer` and `cursor-not-allowed` together — as an earlier
+  version did — leaves the winner to Tailwind's stylesheet order rather than to
+  the order of this array, which is why the pointer cursor stuck on disabled
+  buttons. `:disabled` also does NOT suppress `:hover` in CSS, so a disabled
+  button keeps matching hover rules unless none are attached at all.
 */
-const canAct = computed(() => props.isTurn && !props.busy)
+const BTN_BASE =
+    'rounded-lg px-3 py-1.5 text-sm font-bold whitespace-nowrap select-none ' +
+    'xl:px-4 xl:py-2 xl:text-base'
+const BTN_ENABLED =
+    'cursor-pointer transition-colors duration-200 ease-in-out hover:text-gray-2x-light ' +
+    'focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2'
+const BTN_DISABLED = 'cursor-not-allowed opacity-40'
 
-/*
-  The hand arrives with a row for EVERY card type, most of them zero — the
-  backend keeps zero rows deliberately so a sale can guard on the row's
-  existence. Rendering a deck per key would give a row of empty slots, so the
-  view filters to what is actually held. Points are shown separately, as a
-  balance rather than as cards in hand.
-*/
-const heldTypes = computed(() =>
-    Object.entries(props.hand)
-        .filter(([type, count]) => count > 0 && type !== 'point')
-        .map(([type]) => type)
-)
+const statLabel = 'text-[10px] font-bold uppercase tracking-widest'
+const statBox = 'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base font-bold tabular-nums'
 
-/*
-  Panel border priority, most urgent first:
-    1. an open transaction modal (rose / amber)
-    2. empty seat (dashed grey — clearly not a player)
-    3. this player's turn (their own seat colour, solid)
-    4. otherwise a soft tint of their seat colour
-  Exactly one wins, so the border always means one thing.
-*/
-const panelBorder = computed(() => {
-    if (activeModal.value && handState.value) return handState.value.panel
-    if (!props.playerActive) return 'border-dashed border-gray-light'
-    if (props.isTurn) return seat.value.border
-    return seat.value.borderSoft
-})
+// `caption` is the -dark token so the label sits back against the panel while
+// the box keeps the fuller -light treatment.
+const stats = computed(() => [
+    { key: 'food', label: 'Food', value: props.foodDue, caption: 'text-cream-dark', tone: 'border-cream-light bg-cream-dark text-cream-light' },
+    { key: 'rent', label: 'Rent', value: props.rentDue, caption: 'text-purple-dark', tone: 'border-purple-light bg-purple-dark text-purple-light' },
+    { key: 'loan', label: 'Loan', value: props.loanDue, caption: 'text-teal-dark', tone: 'border-teal-light bg-teal-dark text-teal-light' },
+])
 
-// ONE ref for the card under action. Previously sell wrote `sellingType` and
-// trade wrote `tradingType`, but the modal only ever read `sellingType` — so
-// trading always showed whatever sell had left behind.
-const selectedType = ref('')
-const activeModal = ref('')
+/* ── behaviour ────────────────────────────────────────────────────── */
 
-// the action already says whether this is a sell or a trade
 function openModal(type) {
     selectedType.value = type
     activeModal.value = props.activeAction
@@ -147,23 +142,62 @@ function onConfirm(payload) {
     emit('transaction', { action: activeModal.value, type: selectedType.value, payload })
     activeModal.value = ''
 }
+
+/**
+ * Closing the popover MUST also clear the parent's activeAction, or the parent
+ * still believes a sell is in progress and every later action click is ignored.
+ */
+function closeModal() {
+    activeModal.value = ''
+    emit('cancelOperation')
+}
+
+/** Clicking the button for the running action cancels it, rather than doing nothing. */
+function onAction(key) {
+    if (!canAct.value) return
+    if (props.activeAction === key) emit('cancelOperation')
+    else if (props.activeAction === '') emit(key)
+}
+
+function onEndTurn() {
+    if (!canAct.value) return
+    emit('endTurn')
+}
 </script>
 
 <template>
-    <div class="relative flex flex-col gap-2 overflow-hidden rounded-[1.5rem] border-2 bg-gray-x-dark p-3 transition duration-300 ease-in-out xl:px-4 xl:py-3"
+    <!--
+        No overflow-hidden: the sell/trade popover is anchored outside this box
+        and would be clipped. The empty-seat overlay carries its own rounding,
+        which is all that clipping was doing.
+
+        transition-colors, not transition: a blanket transition animates every
+        animatable property, so any re-layout tweens widths for 300ms and drags
+        controls around under the cursor.
+    -->
+    <section
+        class="relative flex flex-col gap-2 rounded-[1.5rem] border-2 bg-gray-x-dark p-3 transition-colors duration-300 ease-in-out xl:px-4 xl:py-3"
         :class="[panelBorder, isTurn && playerActive ? 'turn-ring' : '']"
         :style="isTurn && playerActive ? { '--seat': seat.hex } : {}">
 
-        <TransactionModal v-if="activeModal !== ''" :transaction-type="activeModal" :card-type="selectedType"
-            :available="hand[selectedType] ?? 1" :points="points" :busy="busy" @confirm="onConfirm"
-            @cancel="activeModal = ''" />
-
         <!--
-            Empty seat. A bare scrim read as "disabled" rather than "nobody
-            here"; the dashed token matches the placeholders in the lobby list.
+            Anchored popover. It follows the panel's own position: to the RIGHT
+            below xl, where the panel is a tall left column; ABOVE from xl, where
+            it spans the full width at the bottom.
         -->
+        <div v-if="activeModal !== ''"
+            class="absolute top-1/2 left-full z-[120] ml-2 w-max max-w-[calc(100vw-3rem)] -translate-y-1/2
+                   xl:top-auto xl:bottom-full xl:left-1/2 xl:ml-0 xl:-translate-x-1/2 xl:translate-y-0">
+            <TransactionModal :transaction-type="activeModal" :card-type="selectedType"
+                :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true"
+                @confirm="onConfirm" @cancel="closeModal" />
+            <div class="mx-auto -mt-0.5 hidden h-1 w-16 rounded-b bg-gray-light xl:block"></div>
+        </div>
+
+        <!-- Empty seat. A bare scrim read as "disabled" rather than "nobody
+             here"; the dashed token matches the lobby placeholders. -->
         <div v-if="!playerActive"
-            class="absolute inset-0 z-100 flex flex-col items-center justify-center gap-3 bg-gray-dark/75 backdrop-blur-[2px]">
+            class="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-[1.5rem] bg-gray-dark/75 backdrop-blur-[2px]">
             <SeatToken :seat-index="-1" size="lg" />
             <div class="flex flex-col items-center gap-0.5">
                 <span class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Empty seat</span>
@@ -172,61 +206,51 @@ function onConfirm(payload) {
         </div>
 
         <!-- ══ own panel ══════════════════════════════════════════════
-            ONE wrapping row. At xl it is flex-nowrap, so identity, hand,
-            residence, stats and buttons all sit on a single line — now that the
-            bank overlays rather than pushes, the panel has the full table width
-            and does not need two rows.
+            CSS Grid with named areas, NOT flex-wrap plus order.
 
-            Below xl the w-full items wrap onto their own lines. xl:order-* only
-            reorders the single-row layout, so the stacked order still reads top
-            to bottom as written.
+            The wrap-and-reorder version put six items on one nowrap line at xl,
+            each with its own flex-basis and shrink behaviour, and the controls
+            were last in that chain — so whenever the row was tight they were
+            the ones squeezed, moved or overlapped. Grid gives every group a
+            declared cell that cannot be pushed by a sibling, and the same DOM
+            serves both arrangements with no order juggling.
         -->
-        <div v-if="isOwn" class="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:gap-3">
+        <div v-if="isOwn" class="own-grid">
 
-            <div class="flex min-w-0 shrink-0 items-center gap-2 xl:order-1">
+            <div class="a-id flex min-w-0 items-center gap-2">
                 <SeatToken :seat-index="seatIndex" size="md" :filled="isTurn && playerActive" />
-                <h1 class="truncate text-lg font-bold tracking-wide text-gray-2x-light xl:text-xl">
-                    <span class="whitespace-nowrap">Your Cards</span>
+                <h1 class="truncate text-lg font-bold tracking-wide whitespace-nowrap text-gray-2x-light xl:text-xl">
+                    Your Cards
                 </h1>
             </div>
 
-            <!--
-                Points are their OWN flex item, not a child of the identity
-                group. Nested inside it they would render wherever that group
-                sits — which is always first — so no amount of reordering within
-                the group could move them next to the residence badge. Only a
-                sibling can carry its own order.
-            -->
-            <div class="flex shrink-0 items-center xl:order-3">
+            <!-- points and residence travel together in both layouts -->
+            <div class="a-meta flex items-center justify-end gap-2">
                 <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
                 <span v-else class="px-1 text-sm font-bold text-gray-light">0 pts</span>
-            </div>
 
-            <!-- residence keeps its own badge: it holds a card, not a number,
-                 so it does not belong in a row of numeric readouts -->
-            <div
-                class="flex shrink-0 items-center gap-1 rounded-[1rem] border-4 border-purple-light bg-purple-dark px-2 xl:order-4">
-                <span class="text-xs font-bold text-purple-light">Residence</span>
-                <div class="-mx-1">
-                    <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
-                    <div v-else class="m-1 h-7 w-7 bg-purple-light" :style="{
-                        mask: `url(/cancel.png) no-repeat center / contain`,
-                        '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
-                    }"></div>
+                <div
+                    class="flex shrink-0 items-center gap-1 rounded-[1rem] border-4 border-purple-light bg-purple-dark px-2">
+                    <span class="text-xs font-bold text-purple-light">Residence</span>
+                    <div class="-mx-1">
+                        <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
+                        <div v-else class="m-1 h-7 w-7 bg-purple-light" :style="{
+                            mask: `url(/cancel.png) no-repeat center / contain`,
+                            '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
+                        }"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- hand: w-full wraps it below xl; flex-1 absorbs the slack on the
-                 single row -->
-            <div class="relative flex w-full min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition duration-300 ease-in-out xl:order-2 xl:w-auto xl:flex-1"
+            <div class="a-hand relative flex min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
                 :class="handState ? handState.well : 'border-gray-light outline-0'">
-                <button v-if="handState" @click="emit('cancelOperation')"
-                    class="absolute top-0 right-0 z-50 flex items-center justify-center p-2 leading-none text-gray-x-light transition duration-200 ease-in-out hover:cursor-pointer hover:text-rose-400">🗙</button>
+                <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
+                    class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
 
                 <!-- overflow-x-auto: a full hand of six types would otherwise
-                     widen the panel instead of scrolling -->
+                     widen the cell instead of scrolling -->
                 <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                     <!-- :key is required: without it Vue patches these decks in
                          place by index, which mixes card types between decks -->
@@ -239,37 +263,43 @@ function onConfirm(payload) {
                 <span v-else class="py-2 text-sm text-gray-light">No cards</span>
             </div>
 
-            <!-- caption above, number in the box -->
-            <div class="grid w-full shrink-0 grid-cols-3 gap-2 xl:order-5 xl:flex xl:w-auto">
+            <!-- caption above, number in the box: the box then shrinks to the
+                 number, which is the width this reclaims -->
+            <div class="a-stats grid grid-cols-3 gap-2 xl:flex">
                 <div v-for="stat in stats" :key="stat.key" class="flex flex-col items-center gap-0.5">
                     <span :class="[statLabel, stat.caption]">{{ stat.label }}</span>
                     <div :class="[statBox, stat.tone]">{{ stat.value }}</div>
                 </div>
             </div>
 
-            <div class="flex w-full gap-2 xl:order-6 xl:w-auto">
-                <button v-for="action in actions" :key="action.key" :disabled="!canAct" :class="[
-                    buttonClass,
-                    canAct ? action.hover : '',
+            <!--
+                z-10 so the controls sit above anything that might bleed into
+                this cell, and their own stacking context is explicit rather
+                than implied by document order.
+            -->
+            <div class="a-actions relative z-10 flex gap-2">
+                <button v-for="action in ACTIONS" :key="action.key" type="button" :disabled="!canAct" :class="[
+                    BTN_BASE,
+                    'flex-1 xl:flex-none',
+                    canAct ? [BTN_ENABLED, action.hover] : BTN_DISABLED,
                     activeAction === action.key ? action.active : 'text-gray-dark bg-gray-2x-light',
-                    !canAct ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
-                ]" @click="activeAction === '' ? $emit(action.key) : ''">{{ action.label }}</button>
+                ]" @click="onAction(action.key)">{{ action.label }}</button>
 
-                <button :disabled="!canAct" @click="$emit('endTurn')" :class="[
-                    buttonClass,
-                    'bg-rose-400/50 text-gray-2x-light xl:w-24',
-                    canAct ? 'hover:bg-rose-500/50' : 'opacity-40 cursor-not-allowed hover:scale-100',
-                ]">
+                <button type="button" :disabled="!canAct" :class="[
+                    BTN_BASE,
+                    'flex-1 bg-rose-400/50 text-gray-2x-light xl:flex-none',
+                    canAct ? [BTN_ENABLED, 'hover:bg-rose-500/50'] : BTN_DISABLED,
+                ]" @click="onEndTurn">
                     {{ busy ? '…' : 'End Turn' }}
                 </button>
             </div>
         </div>
 
         <!-- ══ opponent panel ═════════════════════════════════════════
-            A separate block, not the same markup with different wrap points.
-            The two shapes genuinely diverged once the own panel became a single
-            wide row: an opponent card is narrow, has no controls and no timers,
-            so forcing it through the same wrap logic is what scrambled it.
+            A separate block. The two shapes genuinely diverged once the own
+            panel became a single wide row: an opponent card is narrow, has no
+            controls and no timers, so forcing it through the same layout logic
+            is what scrambled it.
         -->
         <template v-else>
             <div class="flex min-w-0 items-center gap-2">
@@ -295,8 +325,7 @@ function onConfirm(payload) {
                 </div>
             </div>
 
-            <div
-                class="relative flex min-w-0 overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+            <div class="relative flex min-w-0 overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                 <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                     <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
                         <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
@@ -305,16 +334,50 @@ function onConfirm(payload) {
                 <span v-else class="py-2 text-sm text-gray-light">No cards</span>
             </div>
         </template>
-
-    </div>
+    </section>
 </template>
 
 <style scoped>
-/*
-  Turn indicator. box-shadow rather than an extra element or a border change:
-  it costs no layout, so the panel does not shift when the turn moves, and the
-  --seat variable set inline lets one rule serve all four seat colours.
-*/
+/* ── own-panel layout ──────────────────────────────────────────────
+   Five groups, two arrangements. Every group has a declared cell, so none can
+   be squeezed or displaced by a sibling the way flex items can.
+
+   minmax(0, 1fr) rather than a bare 1fr on the hand column: 1fr carries an
+   implicit min-content floor, so a wide hand would push the track past its
+   share and steal room from the controls. The 0 minimum is the grid equivalent
+   of min-w-0 on a flex item.
+────────────────────────────────────────────────────────────────── */
+.own-grid {
+    display: grid;
+    gap: 0.5rem;
+    align-items: center;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+        "id      meta"
+        "hand    hand"
+        "stats   stats"
+        "actions actions";
+}
+
+@media (min-width: 1280px) {
+    .own-grid {
+        gap: 0.75rem;
+        grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+        grid-template-areas: "id hand meta stats actions";
+    }
+}
+
+.a-id { grid-area: id; }
+.a-meta { grid-area: meta; }
+.a-hand { grid-area: hand; }
+.a-stats { grid-area: stats; }
+.a-actions { grid-area: actions; }
+
+/* ── turn indicator ───────────────────────────────────────────────
+   box-shadow rather than an extra element or a border change: it costs no
+   layout, so the panel does not shift when the turn moves, and the --seat
+   variable set inline lets one rule serve all four seat colours.
+────────────────────────────────────────────────────────────────── */
 .turn-ring {
     animation: turn-pulse 2.4s ease-in-out infinite;
 }
@@ -331,6 +394,7 @@ function onConfirm(payload) {
     }
 }
 
+/* ── scrollbar ────────────────────────────────────────────────────── */
 .scroll-slim {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;

@@ -9,302 +9,270 @@ import { apiJson } from '../api/client'
  * component has to know that.
  */
 function toGame(g) {
-    return {
-        id: g.id,
-        joinCode: g.join_code,
-        status: g.status,
-        hostUserId: g.host_user_id,
-        maxPlayers: g.max_players,
-        createdAt: g.created_at,
-        startedAt: g.started_at,
-        players: (g.players ?? []).map((p) => ({
-            id: p.id,
-            seatIndex: p.seat_index,
-            displayName: p.display_name,
-            isBot: p.is_bot,
-            status: p.status,
-        })),
-    }
+  return {
+    id: g.id,
+    joinCode: g.join_code,
+    status: g.status,
+    hostUserId: g.host_user_id,
+    maxPlayers: g.max_players,
+    createdAt: g.created_at,
+    startedAt: g.started_at,
+    players: (g.players ?? []).map((p) => ({
+      id: p.id,
+      seatIndex: p.seat_index,
+      displayName: p.display_name,
+      isBot: p.is_bot,
+      status: p.status,
+    })),
+  }
 }
 
 function toState(s) {
-    return {
-        game: {
-            id: s.game.id,
-            joinCode: s.game.join_code,
-            status: s.game.status,
-            phase: s.game.phase,
-            turnNumber: s.game.turn_number,
-            currentPlayerId: s.game.current_player_id,
-            stateVersion: s.game.state_version,
-            maxPlayers: s.game.max_players,
-            hostUserId: s.game.host_user_id,
-            startedAt: s.game.started_at,
-        },
-        bank: s.bank,
-        you: {
-            playerId: s.you.player_id,
-            seatIndex: s.you.seat_index,
-            points: s.you.points,
-            hand: s.you.hand,
-            foodDue: s.you.food_due,
-            rentDue: s.you.rent_due,
-            isMyTurn: s.you.is_my_turn,
-        },
-        players: s.players.map((p) => ({
-            id: p.id,
-            seatIndex: p.seat_index,
-            displayName: p.display_name,
-            status: p.status,
-            isBot: p.is_bot,
-            points: p.points,
-            foodDue: p.food_due,
-            rentDue: p.rent_due,
-            hand: p.hand,
-        })),
-    }
+  return {
+    game: {
+      id: s.game.id,
+      joinCode: s.game.join_code,
+      status: s.game.status,
+      phase: s.game.phase,
+      turnNumber: s.game.turn_number,
+      currentPlayerId: s.game.current_player_id,
+      stateVersion: s.game.state_version,
+      maxPlayers: s.game.max_players,
+      hostUserId: s.game.host_user_id,
+      startedAt: s.game.started_at,
+    },
+    bank: s.bank,
+    you: {
+      playerId: s.you.player_id,
+      seatIndex: s.you.seat_index,
+      points: s.you.points,
+      hand: s.you.hand,
+      foodDue: s.you.food_due,
+      rentDue: s.you.rent_due,
+      isMyTurn: s.you.is_my_turn,
+    },
+    players: s.players.map((p) => ({
+      id: p.id,
+      seatIndex: p.seat_index,
+      displayName: p.display_name,
+      status: p.status,
+      isBot: p.is_bot,
+      points: p.points,
+      foodDue: p.food_due,
+      rentDue: p.rent_due,
+      hand: p.hand,
+    })),
+  }
 }
 
 export const useGamesStore = defineStore('games', () => {
-    const myGames = ref([])
-    const current = ref(null)        // lobby-level shape, from /games/{code}
-    const state = ref(null)          // full table projection
-    const loadingMine = ref(false)
-    const hasLoadedMine = ref(false)
-    const hasLoadedState = ref(false)
-    const busy = ref(false)
-    const acting = ref(false)        // a player action is in flight
-    const error = ref(null)
-    const stateError = ref(null)
-    const actionError = ref(null)    // shown at the table, cleared on next action
-    const events = ref([])          // oldest first, appended incrementally
-    const lastSeq = ref(0)          // highest seq seen, so polls stay cheap
-    const sendingChat = ref(false)
+  const myGames = ref([])
+  const current = ref(null)        // lobby-level shape, from /games/{code}
+  const state = ref(null)          // full table projection
+  const loadingMine = ref(false)
+  const hasLoadedMine = ref(false)
+  const hasLoadedState = ref(false)
+  const busy = ref(false)
+  const acting = ref(false)        // a player action is in flight
+  const error = ref(null)
+  const stateError = ref(null)
+  const actionError = ref(null)    // shown at the table, cleared on next action
 
-    async function fetchMine({ silent = false } = {}) {
-        if (!silent) loadingMine.value = true
-        try {
-            const list = await apiJson('/api/v1/games/mine')
-            myGames.value = list.map(toGame)
-            hasLoadedMine.value = true
-            if (!silent) error.value = null
-        } catch (e) {
-            // A failed poll should not wipe the list or flash a red error — the next
-            // tick will most likely succeed, and a stale list beats nothing.
-            if (!silent) error.value = e.message
-        } finally {
-            if (!silent) loadingMine.value = false
-        }
+  async function fetchMine({ silent = false } = {}) {
+    if (!silent) loadingMine.value = true
+    try {
+      const list = await apiJson('/api/v1/games/mine')
+      myGames.value = list.map(toGame)
+      hasLoadedMine.value = true
+      if (!silent) error.value = null
+    } catch (e) {
+      // A failed poll should not wipe the list or flash a red error — the next
+      // tick will most likely succeed, and a stale list beats nothing.
+      if (!silent) error.value = e.message
+    } finally {
+      if (!silent) loadingMine.value = false
     }
+  }
 
-    /**
-     * The whole table. This is the ONE function a WebSocket replaces later:
-     * everything downstream reads `state`, so swapping poll-and-replace for
-     * push-and-patch touches this and nothing else.
-     */
-    async function fetchState(code, { silent = false } = {}) {
-        try {
-            state.value = toState(await apiJson(`/api/v1/games/${code.toUpperCase()}/state`))
-            hasLoadedState.value = true
-            if (!silent) stateError.value = null
-            return state.value
-        } catch (e) {
-            if (!silent) stateError.value = e.message
-            return null
-        }
+  /**
+   * The whole table. This is the ONE function a WebSocket replaces later:
+   * everything downstream reads `state`, so swapping poll-and-replace for
+   * push-and-patch touches this and nothing else.
+   */
+  async function fetchState(code, { silent = false } = {}) {
+    try {
+      const fresh = await apiJson(`/api/v1/games/${code.toUpperCase()}/state`)
+
+      /*
+        Skip the write when nothing changed.
+
+        Every mutation bumps state_version, so an equal version means an
+        identical table. Reassigning anyway would hand every component brand
+        new prop objects twice a second and make Vue re-patch the whole panel —
+        including whatever button the cursor happens to be over. A replaced
+        element never receives mouseleave, so its hover state sticks until the
+        next patch, which is why it lingered for a multiple of the poll
+        interval and why the action buttons felt unreliable.
+      */
+      if (state.value && fresh.game.state_version === state.value.game.stateVersion) {
+        hasLoadedState.value = true
+        if (!silent) stateError.value = null
+        return state.value
+      }
+
+      state.value = toState(fresh)
+      hasLoadedState.value = true
+      if (!silent) stateError.value = null
+      return state.value
+    } catch (e) {
+      if (!silent) stateError.value = e.message
+      return null
     }
+  }
 
-    /**
-     * Incremental. The client asks only for what follows the last seq it saw, so
-     * a long match does not re-send its whole history every two seconds — and
-     * appending rather than replacing means the log never flickers or loses
-     * scroll position.
-     */
-    async function fetchEvents(code) {
-        try {
-            const fresh = await apiJson(
-                `/api/v1/games/${code.toUpperCase()}/events?since=${lastSeq.value}`
-            )
-            if (fresh.length) {
-                events.value = [...events.value, ...fresh]
-                lastSeq.value = fresh[fresh.length - 1].seq
-            }
-            return fresh
-        } catch {
-            // The feed is a nicety; a dropped poll should never surface an error over
-            // the table. The next tick picks up whatever was missed, because `since`
-            // has not advanced.
-            return []
-        }
+  function clearState() {
+    state.value = null
+    hasLoadedState.value = false
+    stateError.value = null
+    actionError.value = null
+  }
+
+  /**
+   * Every player action goes through here.
+   *
+   * Two things it centralises. It sends expected_state_version, so the server
+   * rejects an action decided against a stale view rather than applying it to
+   * a world that moved. And it treats a 409 as routine — refetch and tell the
+   * player to look again, never retry blindly, since the action they chose may
+   * no longer be the one they want.
+   *
+   * Actions return the refreshed projection, so there is no second round trip.
+   */
+  async function act(code, action, body = {}) {
+    acting.value = true
+    actionError.value = null
+    try {
+      const fresh = await apiJson(`/api/v1/games/${code.toUpperCase()}/actions/${action}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...body,
+          expected_state_version: state.value?.game.stateVersion ?? null,
+        }),
+      })
+      state.value = toState(fresh)
+      return true
+    } catch (e) {
+      actionError.value = e.message
+      if (e.status === 409) await fetchState(code, { silent: true })
+      return false
+    } finally {
+      acting.value = false
     }
+  }
 
-    async function sendChat(code, text) {
-        sendingChat.value = true
-        try {
-            const event = await apiJson(`/api/v1/games/${code.toUpperCase()}/chat`, {
-                method: 'POST',
-                body: JSON.stringify({ text }),
-            })
-            // Append immediately so your own message appears without waiting for the
-            // next poll; `since` filtering keeps the poll from duplicating it.
-            if (event.seq > lastSeq.value) {
-                events.value = [...events.value, event]
-                lastSeq.value = event.seq
-            }
-            return true
-        } catch (e) {
-            actionError.value = e.message
-            return false
-        } finally {
-            sendingChat.value = false
-        }
+  const buyFromBank = (code, cardType, quantity) =>
+    act(code, 'buy-from-bank', { card_type: cardType, quantity })
+
+  const sellToBank = (code, cardType, quantity) =>
+    act(code, 'sell-to-bank', { card_type: cardType, quantity })
+
+  const endTurn = (code) => act(code, 'end-turn')
+
+  async function createGame(maxPlayers = 4) {
+    busy.value = true
+    error.value = null
+    try {
+      const game = await apiJson('/api/v1/games', {
+        method: 'POST',
+        body: JSON.stringify({ max_players: maxPlayers }),
+      })
+      current.value = toGame(game)
+      await fetchMine()
+      return current.value
+    } catch (e) {
+      error.value = e.message
+      return null
+    } finally {
+      busy.value = false
     }
+  }
 
-    function clearState() {
-        state.value = null
-        hasLoadedState.value = false
-        stateError.value = null
-        actionError.value = null
-        events.value = []
-        lastSeq.value = 0
+  async function joinGame(code) {
+    busy.value = true
+    error.value = null
+    try {
+      const game = await apiJson(`/api/v1/games/${code.toUpperCase()}/join`, { method: 'POST' })
+      current.value = toGame(game)
+      await fetchMine()
+      return current.value
+    } catch (e) {
+      error.value = e.message
+      return null
+    } finally {
+      busy.value = false
     }
+  }
 
-    /**
-     * Every player action goes through here.
-     *
-     * Two things it centralises. It sends expected_state_version, so the server
-     * rejects an action decided against a stale view rather than applying it to
-     * a world that moved. And it treats a 409 as routine — refetch and tell the
-     * player to look again, never retry blindly, since the action they chose may
-     * no longer be the one they want.
-     *
-     * Actions return the refreshed projection, so there is no second round trip.
-     */
-    async function act(code, action, body = {}) {
-        acting.value = true
-        actionError.value = null
-        try {
-            const fresh = await apiJson(`/api/v1/games/${code.toUpperCase()}/actions/${action}`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    ...body,
-                    expected_state_version: state.value?.game.stateVersion ?? null,
-                }),
-            })
-            state.value = toState(fresh)
-            return true
-        } catch (e) {
-            actionError.value = e.message
-            if (e.status === 409) await fetchState(code, { silent: true })
-            return false
-        } finally {
-            acting.value = false
-        }
+  async function fetchGame(code) {
+    error.value = null
+    try {
+      current.value = toGame(await apiJson(`/api/v1/games/${code.toUpperCase()}`))
+      return current.value
+    } catch (e) {
+      error.value = e.message
+      return null
     }
+  }
 
-    const buyFromBank = (code, cardType, quantity) =>
-        act(code, 'buy-from-bank', { card_type: cardType, quantity })
-
-    const sellToBank = (code, cardType, quantity) =>
-        act(code, 'sell-to-bank', { card_type: cardType, quantity })
-
-    const endTurn = (code) => act(code, 'end-turn')
-
-    async function createGame(maxPlayers = 4) {
-        busy.value = true
-        error.value = null
-        try {
-            const game = await apiJson('/api/v1/games', {
-                method: 'POST',
-                body: JSON.stringify({ max_players: maxPlayers }),
-            })
-            current.value = toGame(game)
-            await fetchMine()
-            return current.value
-        } catch (e) {
-            error.value = e.message
-            return null
-        } finally {
-            busy.value = false
-        }
+  async function startGame(code) {
+    busy.value = true
+    error.value = null
+    try {
+      current.value = toGame(
+        await apiJson(`/api/v1/games/${code.toUpperCase()}/start`, { method: 'POST' })
+      )
+      return current.value
+    } catch (e) {
+      error.value = e.message
+      return null
+    } finally {
+      busy.value = false
     }
+  }
 
-    async function joinGame(code) {
-        busy.value = true
-        error.value = null
-        try {
-            const game = await apiJson(`/api/v1/games/${code.toUpperCase()}/join`, { method: 'POST' })
-            current.value = toGame(game)
-            await fetchMine()
-            return current.value
-        } catch (e) {
-            error.value = e.message
-            return null
-        } finally {
-            busy.value = false
-        }
+  async function closeGame(code) {
+    busy.value = true
+    error.value = null
+    try {
+      await apiJson(`/api/v1/games/${code.toUpperCase()}`, { method: 'DELETE' })
+      myGames.value = myGames.value.filter((g) => g.joinCode !== code.toUpperCase())
+      if (current.value?.joinCode === code.toUpperCase()) current.value = null
+      await fetchMine()
+      return true
+    } catch (e) {
+      error.value = e.message
+      return false
+    } finally {
+      busy.value = false
     }
+  }
 
-    async function fetchGame(code) {
-        error.value = null
-        try {
-            current.value = toGame(await apiJson(`/api/v1/games/${code.toUpperCase()}`))
-            return current.value
-        } catch (e) {
-            error.value = e.message
-            return null
-        }
+  async function leaveGame(code) {
+    error.value = null
+    try {
+      await apiJson(`/api/v1/games/${code.toUpperCase()}/leave`, { method: 'POST' })
+      await fetchMine()
+      return true
+    } catch (e) {
+      error.value = e.message
+      return false
     }
+  }
 
-    async function startGame(code) {
-        busy.value = true
-        error.value = null
-        try {
-            current.value = toGame(
-                await apiJson(`/api/v1/games/${code.toUpperCase()}/start`, { method: 'POST' })
-            )
-            return current.value
-        } catch (e) {
-            error.value = e.message
-            return null
-        } finally {
-            busy.value = false
-        }
-    }
-
-    async function closeGame(code) {
-        busy.value = true
-        error.value = null
-        try {
-            await apiJson(`/api/v1/games/${code.toUpperCase()}`, { method: 'DELETE' })
-            myGames.value = myGames.value.filter((g) => g.joinCode !== code.toUpperCase())
-            if (current.value?.joinCode === code.toUpperCase()) current.value = null
-            await fetchMine()
-            return true
-        } catch (e) {
-            error.value = e.message
-            return false
-        } finally {
-            busy.value = false
-        }
-    }
-
-    async function leaveGame(code) {
-        error.value = null
-        try {
-            await apiJson(`/api/v1/games/${code.toUpperCase()}/leave`, { method: 'POST' })
-            await fetchMine()
-            return true
-        } catch (e) {
-            error.value = e.message
-            return false
-        }
-    }
-
-    return {
-        myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
-        busy, acting, error, stateError, actionError, events, sendingChat, fetchEvents, sendChat,
-        fetchMine, fetchState, clearState, act, buyFromBank, sellToBank, endTurn,
-        createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
-    }
+  return {
+    myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
+    busy, acting, error, stateError, actionError,
+    fetchMine, fetchState, clearState, act, buyFromBank, sellToBank, endTurn,
+    createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
+  }
 })
