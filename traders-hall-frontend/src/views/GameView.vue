@@ -7,6 +7,7 @@ import PlayerCardHolder from '../Components/PlayerCardHolder.vue'
 import LoadingScreen from '../Components/LoadingScreen.vue'
 import { useCardTypesStore } from '../stores/cardTypes'
 import { useGamesStore } from '../stores/games'
+import EventLog from '../Components/EventLog.vue'
 
 // From the /game/:code route via `props: true`
 const props = defineProps({ code: { type: String, required: true } })
@@ -15,10 +16,15 @@ const cardTypes = useCardTypesStore()
 const games = useGamesStore()
 
 const { loaded, error: cardError } = storeToRefs(cardTypes)
-const { state, hasLoadedState, stateError, acting, actionError } = storeToRefs(games)
+const { state, hasLoadedState, stateError, acting, actionError,
+    events, sendingChat } = storeToRefs(games)
 
 async function load() {
-  await Promise.all([cardTypes.fetchAll(), games.fetchState(props.code)])
+  await Promise.all([
+    cardTypes.fetchAll(),
+    games.fetchState(props.code),
+    games.fetchEvents(props.code),
+  ])
 }
 
 /* ── live updates ──────────────────────────────────────────────
@@ -38,6 +44,7 @@ async function poll() {
   inFlight = true
   try {
     await games.fetchState(props.code, { silent: true })
+    await games.fetchEvents(props.code)
   } finally {
     inFlight = false
   }
@@ -78,6 +85,12 @@ onUnmounted(() => {
 
 const me = computed(() => state.value?.you ?? null)
 const isMyTurn = computed(() => me.value?.isMyTurn ?? false)
+const seatByPlayer = computed(() =>
+  Object.fromEntries((state.value?.players ?? []).map((p) => [p.id, p.seatIndex]))
+)
+const nameByPlayer = computed(() =>
+  Object.fromEntries((state.value?.players ?? []).map((p) => [p.id, p.displayName]))
+)
 
 const seats = computed(() => {
   const s = state.value
@@ -151,8 +164,8 @@ watch(isMyTurn, (mine) => {
     <div class="flex w-full flex-col">
       <Header :game-code="code" />
 
-      <div class="flex-grow py-4">
-        <div class="flex w-full gap-4">
+      <div class="flex min-h-0 flex-grow flex-col gap-4 py-4">
+        <div class="flex w-full shrink-0 gap-4">
           <PlayerCardHolder
             v-for="seat in opponentSeats"
             :key="seat.seatIndex"
@@ -168,6 +181,15 @@ watch(isMyTurn, (mine) => {
             class="min-w-0 flex-1"
           />
         </div>
+
+        <EventLog
+          class="min-h-0 flex-1"
+          :events="events"
+          :seat-by-player="seatByPlayer"
+          :name-by-player="nameByPlayer"
+          :sending="sendingChat"
+          @send="(text) => games.sendChat(code, text)"
+        />
       </div>
 
       <PlayerCardHolder
