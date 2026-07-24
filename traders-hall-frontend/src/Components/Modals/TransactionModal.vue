@@ -7,6 +7,11 @@ const props = defineProps({
     cardType: { type: String, required: true },
     available: { type: Number, default: 99 },
     transactionType: { type: String, default: 'buy' },
+    // request in flight — the confirm button locks so a double-click cannot
+    // submit the same purchase twice
+    busy: { type: Boolean, default: false },
+    // buy only: what the player can actually afford
+    points: { type: Number, default: 0 },
 })
 
 /*
@@ -26,7 +31,7 @@ function clamp(value: number, max: number) {
     return Math.min(max, Math.max(1, value))
 }
 function step(delta: number) {
-    quantity.value = clamp(quantity.value + delta, props.available)
+    quantity.value = clamp(quantity.value + delta, maxQuantity.value)
 }
 function stepGet(delta: number) {
     getQuantity.value = clamp(getQuantity.value + delta, 99)
@@ -80,9 +85,32 @@ const previewZoom = computed(() => (isCompact.value ? PREVIEW_ZOOM : 1))
 
 // Card data comes from the store (fetched from /api/v1/config/card-types), so
 // the price shown here is the same number the server charges.
-const unitPoints = computed(() => cardTypes.get(props.cardType)?.baseCost ?? 0)
+const isBuy = computed(() => props.transactionType === 'buy')
+const isSell = computed(() => props.transactionType === 'sell')
+
+// Buying charges base_cost; selling pays sell_value. They are equal today, but
+// reading the right column now means changing the spread is a migration rather
+// than a frontend hunt.
+const unitPoints = computed(() => {
+    const card = cardTypes.get(props.cardType)
+    if (!card) return 0
+    return isSell.value ? card.sellValue : card.baseCost
+})
 const totalPoints = computed(() => unitPoints.value * quantity.value)
 const showPoints = computed(() => !isTrade.value && unitPoints.value > 0)
+
+/*
+  How many the player can afford. The server enforces this — the check here
+  exists so the stepper stops at a reachable number instead of letting someone
+  pick 5 and get rejected.
+*/
+const affordable = computed(() => {
+    if (!isBuy.value || unitPoints.value === 0) return props.available
+    return Math.min(props.available, Math.floor(props.points / unitPoints.value))
+})
+
+const maxQuantity = computed(() => Math.max(1, affordable.value))
+const cannotAfford = computed(() => isBuy.value && totalPoints.value > props.points)
 
 /** Title for a card code, safe if the catalogue somehow lacks it. */
 function titleOf(code: string) {
@@ -97,7 +125,11 @@ const tradeableTypes = computed(() =>
         .filter((c) => c.isTradeable && c.code !== props.cardType)
         .map((c) => c.code))
 
-const canConfirm = computed(() => !isTrade.value || getType.value !== '')
+const canConfirm = computed(() => {
+    if (props.busy) return false
+    if (isTrade.value) return getType.value !== ''
+    return !cannotAfford.value && quantity.value >= 1
+})
 
 function confirm() {
     if (!canConfirm.value) return
@@ -228,10 +260,15 @@ const actionButton =
                             <button type="button" :class="stepButton" :disabled="quantity <= 1"
                                 aria-label="Decrease quantity" @click="step(-1)">−</button>
                             <div :class="[countClass, 'w-20 text-xl']">{{ quantity }}</div>
-                            <button type="button" :class="stepButton" :disabled="quantity >= available"
+                            <button type="button" :class="stepButton" :disabled="quantity >= maxQuantity"
                                 aria-label="Increase quantity" @click="step(1)">+</button>
                         </div>
                         <p class="text-sm text-gray-x-light">{{ available }} available</p>
+                        <!-- says WHY the stepper stopped, rather than letting it
+                             silently refuse to go higher -->
+                        <p v-if="isBuy && affordable < available" class="text-xs font-bold text-amber-400">
+                            You can afford {{ affordable }}
+                        </p>
                     </section>
 
                     <section v-if="showPoints" class="flex flex-col gap-2">
@@ -253,7 +290,11 @@ const actionButton =
 
                 <button type="button" :class="[actionButton, type.confirmClass]" :disabled="!canConfirm"
                     @click="confirm">
-                    {{ type.confirm }} {{ isTrade ? '' : quantity }}
+                    <span class="flex items-center justify-center gap-2">
+                        <span v-if="busy"
+                            class="h-4 w-4 animate-spin rounded-full border-2 border-gray-dark/30 border-t-gray-dark"></span>
+                        {{ busy ? '' : type.confirm }} {{ busy || isTrade ? '' : quantity }}
+                    </span>
                 </button>
             </footer>
         </div>

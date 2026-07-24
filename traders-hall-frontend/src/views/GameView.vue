@@ -15,26 +15,26 @@ const cardTypes = useCardTypesStore()
 const games = useGamesStore()
 
 const { loaded, error: cardError } = storeToRefs(cardTypes)
-const { state, hasLoadedState, stateError } = storeToRefs(games)
+const { state, hasLoadedState, stateError, acting, actionError } = storeToRefs(games)
 
 async function load() {
   await Promise.all([cardTypes.fetchAll(), games.fetchState(props.code)])
 }
 
 /* ── live updates ──────────────────────────────────────────────
-   Polling, same shape as the lobby but faster — and more clearly temporary.
-   A 2s delay on "has anyone joined" is fine; a 2s delay on "did my opponent
-   just take the last rice" is not. This screen is the one that actually wants
-   a socket, and games.fetchState is the single function that gets replaced.
+   Polling, faster than the lobby and more clearly temporary. A 3s delay on
+   "has anyone joined" is fine; a 2s delay on "did my opponent take the last
+   rice" is not. This is the screen that actually wants a socket, and
+   games.fetchState is the single function that gets replaced.
 ─────────────────────────────────────────────────────────────── */
 const POLL_MS = 2000
 let pollTimer = null
 let inFlight = false
 
 async function poll() {
-  // A slow response must not stack requests behind it; skipping a tick beats
-  // queueing one.
-  if (inFlight || document.hidden) return
+  // Never poll while an action is in flight: the response would arrive with a
+  // stale state_version and clobber the fresher state the action returns.
+  if (inFlight || acting.value || document.hidden) return
   inFlight = true
   try {
     await games.fetchState(props.code, { silent: true })
@@ -77,11 +77,8 @@ onUnmounted(() => {
 /* ── derived ─────────────────────────────────────────────────── */
 
 const me = computed(() => state.value?.you ?? null)
+const isMyTurn = computed(() => me.value?.isMyTurn ?? false)
 
-/*
-  Every seat, occupied or not, so the table always shows max_players panels and
-  an empty chair looks like an empty chair rather than a missing panel.
-*/
 const seats = computed(() => {
   const s = state.value
   if (!s) return []
@@ -91,20 +88,18 @@ const seats = computed(() => {
       seatIndex: i,
       occupied: player !== null,
       name: player?.displayName ?? 'Empty seat',
-      // seat_index is the identity here, not display_name — two players can
-      // share a name, and the projection gives us the real seat.
+      // seat_index is the identity, not display_name — two players can share a
+      // name, and the projection gives us the real seat.
       isMe: player !== null && player.seatIndex === me.value?.seatIndex,
       isTurn: player !== null && player.id === s.game.currentPlayerId,
       hand: player?.hand ?? {},
       points: player?.points ?? 0,
       foodDue: player?.foodDue ?? 0,
       rentDue: player?.rentDue ?? 0,
-      status: player?.status ?? 'empty',
     }
   })
 })
 
-// opponents render across the top, my own panel sits at the bottom
 const opponentSeats = computed(() => seats.value.filter((s) => !s.isMe))
 const mine = computed(() => seats.value.find((s) => s.isMe) ?? null)
 
@@ -113,14 +108,35 @@ const activeAction = ref('')
 const startAction = (action) => (activeAction.value = action)
 const cancelAction = () => (activeAction.value = '')
 
-// A poll that arrives mid-transaction must not leave a modal open against stock
-// that has since changed under it.
+/* ── actions ─────────────────────────────────────────────────── */
+
+async function onBuy({ type, quantity }) {
+  if (await games.buyFromBank(props.code, type, quantity)) cancelAction()
+}
+
+async function onSell({ type, payload }) {
+  if (await games.sellToBank(props.code, type, payload)) cancelAction()
+}
+
+async function onEndTurn() {
+  cancelAction()
+  await games.endTurn(props.code)
+}
+
+// Any state change from elsewhere closes an open modal: confirming a purchase
+// against stock that moved two seconds ago is exactly the mistake
+// expected_state_version exists to catch, and it is better not to offer it.
 watch(
   () => state.value?.game.stateVersion,
   (next, prev) => {
     if (prev !== undefined && next !== prev) cancelAction()
   }
 )
+
+// Losing the turn mid-decision should close the modal too.
+watch(isMyTurn, (mine) => {
+  if (!mine) cancelAction()
+})
 </script>
 
 <template>
@@ -131,7 +147,7 @@ watch(
     @retry="load"
   />
 
-  <div v-else class="flex min-h-[100dvh] gap-6 bg-gray-dark p-6">
+  <div v-else class="relative flex h-[100dvh] gap-6 bg-gray-dark p-6">
     <div class="flex w-full flex-col">
       <Header :game-code="code" />
 
@@ -159,22 +175,63 @@ watch(
         :seat-index="mine?.seatIndex ?? -1"
         :player-name="mine?.name ?? ''"
         :player-active="mine !== null"
-        :is-turn="mine?.isTurn ?? false"
+        :is-turn="isMyTurn"
         :hand="mine?.hand ?? {}"
         :points="mine?.points ?? 0"
         :food-due="mine?.foodDue ?? 0"
         :rent-due="mine?.rentDue ?? 0"
+        :busy="acting"
         @buy="startAction('buy')"
         @sell="startAction('sell')"
         @trade="startAction('trade')"
         @cancel-operation="cancelAction"
+        @transaction="onSell"
+        @end-turn="onEndTurn"
       />
     </div>
 
     <BankSection
       :buying-active="activeAction === 'buy'"
       :pools="state.bank"
+      :points="me?.points ?? 0"
+      :busy="acting"
       @cancel="cancelAction"
+      @confirm="onBuy"
     />
+
+    <!-- Action failures are transient and belong near the action, not in a
+         panel that shifts layout when it appears. -->
+    <Transition name="toast">
+      <div
+        v-if="actionError"
+        class="fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 rounded-xl border-2 border-rose-400
+               bg-gray-x-dark px-5 py-3 shadow-2xl shadow-black/50"
+      >
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-bold text-rose-400">{{ actionError }}</span>
+          <button
+            type="button" @click="games.actionError = null"
+            class="cursor-pointer text-gray-x-light transition duration-200 hover:text-gray-2x-light"
+          >🗙</button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active { transition: none; }
+}
+</style>

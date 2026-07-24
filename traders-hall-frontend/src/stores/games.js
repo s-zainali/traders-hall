@@ -41,7 +41,6 @@ function toState(s) {
       hostUserId: s.game.host_user_id,
       startedAt: s.game.started_at,
     },
-    // { cardType: quantity } — already the shape the components want
     bank: s.bank,
     you: {
       playerId: s.you.player_id,
@@ -69,17 +68,17 @@ function toState(s) {
 export const useGamesStore = defineStore('games', () => {
   const myGames = ref([])
   const current = ref(null)        // lobby-level shape, from /games/{code}
-  const state = ref(null)          // full table projection, from /games/{code}/state
+  const state = ref(null)          // full table projection
   const loadingMine = ref(false)
   const hasLoadedMine = ref(false)
   const hasLoadedState = ref(false)
-  const busy = ref(false)          // a create/join/start/close is in flight
+  const busy = ref(false)
+  const acting = ref(false)        // a player action is in flight
   const error = ref(null)
   const stateError = ref(null)
+  const actionError = ref(null)    // shown at the table, cleared on next action
 
   async function fetchMine({ silent = false } = {}) {
-    // A background poll must not touch the loading flag: it drives the "loading"
-    // UI, and toggling it every 3s is what makes the panel flicker.
     if (!silent) loadingMine.value = true
     try {
       const list = await apiJson('/api/v1/games/mine')
@@ -96,11 +95,9 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   /**
-   * The whole table: bank pools, every hand, your private block.
-   *
-   * This is the ONE function a WebSocket replaces later. Everything downstream
-   * reads `state`, so swapping poll-and-replace for push-and-patch touches this
-   * and nothing else.
+   * The whole table. This is the ONE function a WebSocket replaces later:
+   * everything downstream reads `state`, so swapping poll-and-replace for
+   * push-and-patch touches this and nothing else.
    */
   async function fetchState(code, { silent = false } = {}) {
     try {
@@ -109,7 +106,6 @@ export const useGamesStore = defineStore('games', () => {
       if (!silent) stateError.value = null
       return state.value
     } catch (e) {
-      // Same reasoning as fetchMine: a dropped poll must not blank the table.
       if (!silent) stateError.value = e.message
       return null
     }
@@ -119,7 +115,49 @@ export const useGamesStore = defineStore('games', () => {
     state.value = null
     hasLoadedState.value = false
     stateError.value = null
+    actionError.value = null
   }
+
+  /**
+   * Every player action goes through here.
+   *
+   * Two things it centralises. It sends expected_state_version, so the server
+   * rejects an action decided against a stale view rather than applying it to
+   * a world that moved. And it treats a 409 as routine — refetch and tell the
+   * player to look again, never retry blindly, since the action they chose may
+   * no longer be the one they want.
+   *
+   * Actions return the refreshed projection, so there is no second round trip.
+   */
+  async function act(code, action, body = {}) {
+    acting.value = true
+    actionError.value = null
+    try {
+      const fresh = await apiJson(`/api/v1/games/${code.toUpperCase()}/actions/${action}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...body,
+          expected_state_version: state.value?.game.stateVersion ?? null,
+        }),
+      })
+      state.value = toState(fresh)
+      return true
+    } catch (e) {
+      actionError.value = e.message
+      if (e.status === 409) await fetchState(code, { silent: true })
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  const buyFromBank = (code, cardType, quantity) =>
+    act(code, 'buy-from-bank', { card_type: cardType, quantity })
+
+  const sellToBank = (code, cardType, quantity) =>
+    act(code, 'sell-to-bank', { card_type: cardType, quantity })
+
+  const endTurn = (code) => act(code, 'end-turn')
 
   async function createGame(maxPlayers = 4) {
     busy.value = true
@@ -183,13 +221,11 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
-  /** Host only; removes the table for everyone. */
   async function closeGame(code) {
     busy.value = true
     error.value = null
     try {
       await apiJson(`/api/v1/games/${code.toUpperCase()}`, { method: 'DELETE' })
-      // drop it locally too, so the list updates before the refetch lands
       myGames.value = myGames.value.filter((g) => g.joinCode !== code.toUpperCase())
       if (current.value?.joinCode === code.toUpperCase()) current.value = null
       await fetchMine()
@@ -216,8 +252,8 @@ export const useGamesStore = defineStore('games', () => {
 
   return {
     myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
-    busy, error, stateError,
-    fetchMine, fetchState, clearState, createGame, joinGame, fetchGame,
-    startGame, closeGame, leaveGame,
+    busy, acting, error, stateError, actionError,
+    fetchMine, fetchState, clearState, act, buyFromBank, sellToBank, endTurn,
+    createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }
 })

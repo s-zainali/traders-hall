@@ -11,6 +11,10 @@ const props = defineProps({
     // { cardType: quantity } straight from the projection. Was a hardcoded
     // `reactive` literal here, which meant every player saw a different bank.
     pools: { type: Object, default: () => ({}) },
+    // an action is in flight; the modal locks so a double-click cannot fire twice
+    busy: { type: Boolean, default: false },
+    // the buyer's balance, so the modal can cap the stepper at what they can afford
+    points: { type: Number, default: 0 },
 })
 const emit = defineEmits(['cancel', 'confirm'])
 
@@ -38,21 +42,22 @@ function openBuy(type) {
     activeModal.value = 'buy'
 }
 
-function onConfirm(payload) {
-    emit('confirm', { type: buyingType.value, payload })
+function onConfirm(quantity) {
+    // GameView needs both halves; it has no way to know which deck was clicked.
+    emit('confirm', { type: buyingType.value, quantity })
     activeModal.value = ''
-    emit('cancel')
 }
 </script>
 
 <template>
     <div
-        class="relative p-4 border-2 border-gray-light rounded-[1.5rem] bg-gray-x-dark w-max shrink-0 flex flex-col justify-between overflow-hidden">
+        class="relative p-4 border-2 border-gray-light rounded-[1.5rem] bg-gray-x-dark w-max shrink-0 flex flex-col justify-between overflow-hidden h-full">
 
         <!-- modals sit at the panel root so they overlay the whole section and
              aren't clipped by the cards well's overflow-hidden -->
         <TransactionModal v-if="activeModal === 'buy'" :transaction-type="'buy'" :card-type="buyingType"
-            :available="pools[buyingType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
+            :available="pools[buyingType] ?? 1" :points="points" :busy="busy" @confirm="onConfirm"
+            @cancel="activeModal = ''" />
         <BankerModal v-if="activeModal === 'bankerModal'" @close-modal="activeModal = ''" />
 
         <div class="flex gap-6 justify-between">
@@ -70,15 +75,16 @@ function onConfirm(payload) {
             <BankerCard @activate-modal="activeModal = $event" />
         </div>
 
-        <div class="relative p-4 mt-6 rounded-[1rem] border-1 outline-teal-light overflow-hidden transition duration-200 ease-in-out"
+        <div class="relative p-4 h-full rounded-[1rem] border-1 outline-teal-light overflow-hidden transition duration-200 ease-in-out"
             :class="buyingActive ? 'border-teal-light outline-4 -outline-offset-4 bg-gray-light/30' : 'border-gray-light outline-0'">
             <button v-if="buyingActive" @click="emit('cancel')"
                 class="flex justify-center items-center z-50 absolute top-0 right-0 p-4 text-gray-x-light leading-none hover:cursor-pointer hover:text-rose-400 transition duration-200 ease-in-out">🗙</button>
 
             <h1 class="text-gray-2x-light text-2xl pb-4 font-bold tracking-wide text-center">Cards</h1>
 
-            <div v-if="cardStock.length" class="grid grid-cols-3 gap-2">
-                <CardDeck v-for="stock in cardStock" :key="stock.type">
+            <div v-if="cardStock.length" class="grid grid-cols-3 grid-rows-2 justify-items-center gap-2">
+                <!-- BankSection -->
+                <CardDeck v-for="stock in cardStock" :key="`${stock.type}-${stock.count}`">
                     <Card v-for="n in stock.count" :key="`${stock.type}-${n}`" :card-type="stock.type"
                         :buying="buyingActive" @buy="openBuy(stock.type)" />
                 </CardDeck>

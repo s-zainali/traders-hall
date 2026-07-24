@@ -26,8 +26,10 @@ const props = defineProps({
     loanDue: { type: Number, default: 0 },
     residence: { type: String, default: '' },
     onRent: { type: Boolean, default: false },
+    // an action is in flight; controls lock so a double-click cannot fire twice
+    busy: { type: Boolean, default: false },
 })
-const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction'])
+const emit = defineEmits(['buy', 'sell', 'trade', 'cancelOperation', 'transaction', 'endTurn'])
 
 // NOTE: no bg-* here. The background is chosen per-state below so exactly one
 // background utility is ever present, avoiding a stylesheet-order conflict.
@@ -55,6 +57,13 @@ const HAND_STATES = {
 const handState = computed(() => HAND_STATES[props.activeAction] ?? null)
 
 const seat = computed(() => seatStyle(props.seatIndex))
+
+/*
+  Buy, sell and trade are turn-gated on the server. Disabling them off-turn is
+  not the enforcement — it is so the player can see whose turn it is from the
+  controls, rather than finding out from a rejected request.
+*/
+const canAct = computed(() => props.isTurn && !props.busy)
 
 /*
   The hand arrives with a row for EVERY card type, most of them zero — the
@@ -98,9 +107,10 @@ function openModal(type) {
 }
 
 function onConfirm(payload) {
+    // The parent needs the card type as well as the quantity — it has no other
+    // way to know which deck was clicked.
     emit('transaction', { action: activeModal.value, type: selectedType.value, payload })
     activeModal.value = ''
-    emit('cancelOperation')
 }
 </script>
 
@@ -109,24 +119,29 @@ function onConfirm(payload) {
         :class="[panelBorder, isTurn && playerActive ? 'turn-ring' : '']"
         :style="isTurn && playerActive ? { '--seat': seat.hex } : {}">
 
+        <span v-if="isTurn && playerType !== 'player'"
+            class="rounded-full border-2 w-14 text-center py-0.5 text-[10px] font-bold uppercase tracking-widest absolute top-2 left-[50%] -translate-x-7 "
+            :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
+
         <TransactionModal v-if="activeModal !== ''" :transaction-type="activeModal" :card-type="selectedType"
-            :available="hand[selectedType] ?? 1" @confirm="onConfirm" @cancel="activeModal = ''" />
+            :available="hand[selectedType] ?? 1" :points="points" :busy="busy" @confirm="onConfirm"
+            @cancel="activeModal = ''" />
 
         <!--
             Empty seat. A bare scrim read as "disabled" rather than "nobody
             here"; the dashed token matches the placeholders in the lobby list.
         -->
-        <div v-if="!playerActive"
-            class="absolute inset-0 z-100 flex flex-col items-center justify-center gap-3
+        <div v-if="!playerActive" class="absolute inset-0 z-100 flex flex-col items-center justify-center gap-3
                    bg-gray-dark/75 backdrop-blur-[2px]">
             <SeatToken :seat-index="-1" size="lg" />
             <div class="flex flex-col items-center gap-0.5">
                 <span class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Empty seat</span>
-                <span v-if="false" class="text-xs text-gray-light">Waiting for a player</span>
+                <span class="text-xs text-gray-light">Waiting for a player</span>
             </div>
         </div>
 
-        <div class="flex justify-between items-center" :class="[playerType === 'player' ? 'gap-4' : 'flex-col-reverse']">
+        <div class="flex justify-between items-center"
+            :class="[playerType === 'player' ? 'gap-4' : 'flex-col-reverse']">
             <div class="flex items-center gap-2">
                 <!-- the seat token replaces the generic user glyph: same slot,
                      but now it identifies WHICH player rather than just "a" player -->
@@ -148,9 +163,6 @@ function onConfirm(payload) {
 
                 <div v-if="playerType !== 'player'" class="flex items-center gap-2 px-2 py-2">
                     <h1 class="text-lg font-bold tracking-wide" :class="seat.text">{{ playerName }}</h1>
-                    <span v-if="isTurn"
-                        class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
-                        :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
                 </div>
 
                 <div class="flex px-2 bg-purple-dark border-4 border-purple-light rounded-[1rem]">
@@ -169,13 +181,18 @@ function onConfirm(payload) {
                 </div>
 
                 <div v-if="playerType === 'player'" class="flex gap-4">
-                    <button v-for="action in actions" :key="action.key" :class="[
+                    <button v-for="action in actions" :key="action.key" :disabled="!canAct" :class="[
                         buttonClass,
-                        action.hover,
+                        canAct ? action.hover : '',
                         activeAction === action.key ? action.active : 'text-gray-dark bg-gray-2x-light',
+                        !canAct ? 'opacity-40 cursor-not-allowed hover:scale-100' : '',
                     ]" @click="activeAction === '' ? $emit(action.key) : ''">{{ action.label }}</button>
-                    <button
-                        class="bg-rose-400/50 w-30 py-3 rounded-xl font-bold hover:bg-rose-500/50 cursor-pointer transition duration-300 ease-in-out hover:scale-110 text-gray-2x-light">End Turn</button>
+                    <button :disabled="!canAct" @click="$emit('endTurn')" :class="!canAct
+                        ? 'opacity-40 cursor-not-allowed hover:scale-100'
+                        : 'hover:bg-rose-500/50 hover:scale-110 cursor-pointer'"
+                        class="bg-rose-400/50 w-30 py-3 rounded-xl font-bold transition duration-300 ease-in-out text-gray-2x-light">
+                        {{ busy ? '…' : 'End Turn' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -189,7 +206,7 @@ function onConfirm(payload) {
                 <div v-if="heldTypes.length" class="flex gap-2">
                     <!-- :key is required here: without it Vue patches these decks
                          in place by index, which mixes card types between decks -->
-                    <CardDeck v-for="type in heldTypes" :key="type" :content-small="true">
+                    <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
                         <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
                             :class="handState ? 'cursor-pointer' : ''" :selling="activeAction === 'sell'"
                             :trading="activeAction === 'trade'" @sell="openModal(type)" @trade="openModal(type)" />
@@ -227,8 +244,15 @@ function onConfirm(payload) {
 }
 
 @keyframes turn-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--seat) 45%, transparent); }
-    50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--seat) 0%, transparent); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 color-mix(in oklab, var(--seat) 45%, transparent);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px color-mix(in oklab, var(--seat) 0%, transparent);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
