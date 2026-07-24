@@ -136,13 +136,11 @@ async function onTransaction(payload) {
     if (ok) cancelAction()
 }
 
-async function onAcceptOffer(offerId) {
-    await games.acceptOffer(props.code, offerId)
-}
-
-async function onCancelOffer(offerId) {
-    await games.cancelOffer(props.code, offerId)
-}
+const onClaimOffer = (id) => games.claimOffer(props.code, id)
+const onUnclaimOffer = (id) => games.unclaimOffer(props.code, id)
+const onDeclineOffer = (id) => games.declineOffer(props.code, id)
+const onConfirmOffer = (id) => games.confirmOffer(props.code, id)
+const onCancelOffer = (id) => games.cancelOffer(props.code, id)
 
 async function onEndTurn() {
     cancelAction()
@@ -205,9 +203,10 @@ watch(
                     :name-by-player="nameByPlayer" :sending="sendingChat"
                     @send="(text) => games.sendChat(code, text)" />
 
-                <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers"
-                    :my-player-id="me?.playerId ?? ''" :my-points="me?.points ?? 0" :my-hand="me?.hand ?? {}"
-                    :busy="acting" @accept="onAcceptOffer" @cancel="onCancelOffer" />
+                <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"
+                    :my-points="me?.points ?? 0" :my-hand="me?.hand ?? {}" :busy="acting" @claim="onClaimOffer"
+                    @unclaim="onUnclaimOffer" @decline="onDeclineOffer" @confirm="onConfirmOffer"
+                    @cancel="onCancelOffer" />
 
                 <PlayerCardHolder class="area-own min-w-0" :active-action="activeAction"
                     :seat-index="mine?.seatIndex ?? -1" :player-name="mine?.name ?? ''"

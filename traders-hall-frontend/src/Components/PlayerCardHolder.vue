@@ -196,12 +196,11 @@ function onEndTurn() {
             below xl, where the panel is a tall left column; ABOVE from xl, where
             it spans the full width at the bottom.
         -->
-        <div v-if="activeModal !== ''"
-            class="absolute top-1/2 left-full z-[120] ml-2 w-max max-w-[calc(100vw-3rem)] -translate-y-1/2
+        <div v-if="activeModal !== ''" class="absolute top-1/2 left-full z-[120] ml-2 w-max max-w-[calc(100vw-3rem)] -translate-y-1/2
                    xl:top-auto xl:bottom-full xl:left-1/2 xl:ml-0 xl:-translate-x-1/2 xl:translate-y-0">
             <TransactionModal :transaction-type="activeModal" :card-type="selectedType"
-                :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true"
-                @confirm="onConfirm" @cancel="closeModal" />
+                :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true" @confirm="onConfirm"
+                @cancel="closeModal" />
             <div class="mx-auto -mt-0.5 hidden h-1 w-16 rounded-b bg-gray-light xl:block"></div>
         </div>
 
@@ -238,8 +237,8 @@ function onEndTurn() {
 
             <div class="a-id flex min-w-0 items-center gap-2">
                 <SeatToken :seat-index="seatIndex" size="md" :filled="isTurn && playerActive" />
-                <h1 class="truncate text-lg font-bold tracking-wide whitespace-nowrap text-gray-2x-light xl:text-xl">
-                    Your Cards
+                <h1 class="truncate text-lg font-bold tracking-wide whitespace-nowrap xl:text-xl" :class="seat.text">
+                    {{ playerName }}
                 </h1>
             </div>
 
@@ -262,24 +261,27 @@ function onEndTurn() {
                     </div>
                 </div>
             </div>
-
-            <div class="a-hand relative flex min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
-                :class="handState ? handState.well : 'border-gray-light outline-0'">
-                <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
-                    class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
-
-                <!-- overflow-x-auto: a full hand of six types would otherwise
-                     widen the cell instead of scrolling -->
-                <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
-                    <!-- :key is required: without it Vue patches these decks in
-                         place by index, which mixes card types between decks -->
-                    <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
-                        <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
-                            :class="handState ? 'cursor-pointer' : ''" :selling="activeAction === 'sell'"
-                            :trading="activeAction === 'trade'" @sell="openModal(type)" @trade="openModal(type)" />
-                    </CardDeck>
+            <div class="flex">
+                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold">cards</span>
+                <div class="a-hand relative flex min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
+                    :class="handState ? handState.well : 'border-gray-light outline-0'">
+                    <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
+                        class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
+    
+                    <!-- overflow-x-auto: a full hand of six types would otherwise
+                         widen the cell instead of scrolling -->
+    
+                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
+                        <!-- :key is required: without it Vue patches these decks in
+                                 place by index, which mixes card types between decks -->
+                        <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
+                            <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
+                                :class="handState ? 'cursor-pointer' : ''" :selling="activeAction === 'sell'"
+                                :trading="activeAction === 'trade'" @sell="openModal(type)" @trade="openModal(type)" />
+                        </CardDeck>
+                    </div>
+                    <span v-else class="py-2 text-sm text-gray-light">No cards</span>
                 </div>
-                <span v-else class="py-2 text-sm text-gray-light">No cards</span>
             </div>
 
             <!-- caption above, number in the box: the box then shrinks to the
@@ -333,7 +335,7 @@ function onEndTurn() {
                         <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                     </CardDeck>
                     <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
-
+                    
                     <div class="flex items-center rounded-lg border-2 border-purple-light bg-purple-dark px-1">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
@@ -343,15 +345,17 @@ function onEndTurn() {
                     </div>
                 </div>
             </div>
-
-            <div
-                class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
-                <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
-                    <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
-                        <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
-                    </CardDeck>
+            <div class="flex">
+                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold">cards</span>
+                <div
+                    class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
+                        <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
+                            <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
+                        </CardDeck>
+                    </div>
+                    <span v-else class="text-sm text-gray-light">No cards</span>
                 </div>
-                <span v-else class="text-sm text-gray-light">No cards</span>
             </div>
         </template>
     </section>
@@ -387,11 +391,25 @@ function onEndTurn() {
     }
 }
 
-.a-id { grid-area: id; }
-.a-meta { grid-area: meta; }
-.a-hand { grid-area: hand; }
-.a-stats { grid-area: stats; }
-.a-actions { grid-area: actions; }
+.a-id {
+    grid-area: id;
+}
+
+.a-meta {
+    grid-area: meta;
+}
+
+.a-hand {
+    grid-area: hand;
+}
+
+.a-stats {
+    grid-area: stats;
+}
+
+.a-actions {
+    grid-area: actions;
+}
 
 /* ── turn indicator ───────────────────────────────────────────────
    box-shadow rather than an extra element or a border change: it costs no
@@ -440,5 +458,10 @@ function onEndTurn() {
         animation: none;
         box-shadow: 0 0 0 3px color-mix(in oklab, var(--seat) 40%, transparent);
     }
+}
+
+.card-label {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
 }
 </style>

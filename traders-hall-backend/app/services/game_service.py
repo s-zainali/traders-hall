@@ -14,6 +14,7 @@ from app.models.game_card_pool import GameCardPool
 from app.models.game_player import GamePlayer
 from app.models.player_hand import PlayerHand
 from app.models.user import User
+from app.services.offer_service import release_offers_for
 
 # No I, O, 0 or 1 — these codes get read aloud and typed by hand.
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -129,6 +130,8 @@ async def leave_game(
     else:
         player.status = "resigned"
         player.left_at = datetime.now(UTC)
+
+    await release_offers_for(db, game, player)
 
     remaining = [
         p for p in game.players

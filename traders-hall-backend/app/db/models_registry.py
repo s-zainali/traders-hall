@@ -16,3 +16,4 @@ from app.models.game_card_pool import GameCardPool  # noqa: F401
 from app.models.player_hand import PlayerHand  # noqa: F401
 from app.models.game_event import GameEvent  # noqa: F401
 from app.models.ledger_entry import LedgerEntry  # noqa: F401
+from app.models.trade_offer import TradeOffer  # noqa: F401
