@@ -7,6 +7,7 @@ import Header from '../Components/Header.vue'
 import PlayerCardHolder from '../Components/PlayerCardHolder.vue'
 import LoadingScreen from '../Components/LoadingScreen.vue'
 import EventLog from '../Components/EventLog.vue'
+import OffersPanel from '../Components/OffersPanel.vue'
 import { useCardTypesStore } from '../stores/cardTypes'
 import { useGamesStore } from '../stores/games'
 
@@ -18,7 +19,7 @@ const games = useGamesStore()
 
 const { loaded, error: cardError } = storeToRefs(cardTypes)
 const {
-    state, hasLoadedState, stateError, acting, actionError, events, sendingChat,
+    state, hasLoadedState, stateError, acting, actionError, events, sendingChat, offers,
 } = storeToRefs(games)
 
 async function load() {
@@ -26,6 +27,7 @@ async function load() {
         cardTypes.fetchAll(),
         games.fetchState(props.code),
         games.fetchEvents(props.code),
+        games.fetchOffers(props.code),
     ])
 }
 
@@ -39,6 +41,7 @@ async function poll() {
     try {
         await games.fetchState(props.code, { silent: true })
         await games.fetchEvents(props.code)
+        await games.fetchOffers(props.code)
     } finally {
         inFlight = false
     }
@@ -91,11 +94,10 @@ const seats = computed(() => {
         const player = s.players.find((p) => p.seatIndex === i) ?? null
         return {
             seatIndex: i,
-            occupied: player !== null && player.status === 'active',
+            seatStatus: player?.status ?? 'empty',
             name: player?.displayName ?? 'Empty seat',
             isMe: player !== null && player.seatIndex === me.value?.seatIndex,
             isTurn: player !== null && player.id === s.game.currentPlayerId,
-            status: player?.status ?? 'empty',
             hand: player?.hand ?? {},
             points: player?.points ?? 0,
             foodDue: player?.foodDue ?? 0,
@@ -115,8 +117,31 @@ async function onBuy({ type, quantity }) {
     if (await games.buyFromBank(props.code, type, quantity)) cancelAction()
 }
 
-async function onSell({ type, payload }) {
-    if (await games.sellToBank(props.code, type, payload)) cancelAction()
+async function onTransaction(payload) {
+    let ok = false
+
+    if (payload.kind === 'sell-to-bank') {
+        ok = await games.sellToBank(props.code, payload.cardType, payload.quantity)
+    } else if (payload.kind === 'sell-offer') {
+        ok = await games.sellOffer(
+            props.code, payload.cardType, payload.quantity, payload.pricePoints
+        )
+    } else if (payload.kind === 'trade-offer') {
+        ok = await games.tradeOffer(
+            props.code, payload.cardType, payload.quantity,
+            payload.wantCardType, payload.wantQuantity
+        )
+    }
+
+    if (ok) cancelAction()
+}
+
+async function onAcceptOffer(offerId) {
+    await games.acceptOffer(props.code, offerId)
+}
+
+async function onCancelOffer(offerId) {
+    await games.cancelOffer(props.code, offerId)
 }
 
 async function onEndTurn() {
@@ -136,7 +161,7 @@ watch(isMyTurn, (turn) => {
 })
 
 watch(
-    () => mine.value?.status,
+    () => mine.value?.seatStatus,
     (status) => {
         if (status && status !== 'active' && status !== 'empty') {
             games.clearState()
@@ -170,7 +195,7 @@ watch(
                             lg:overflow-visible lg:pb-0
                             xl:flex-col xl:gap-3 xl:overflow-x-hidden xl:overflow-y-auto xl:pb-0 xl:pr-1">
                     <PlayerCardHolder v-for="seat in opponentSeats" :key="seat.seatIndex" :player-type="'opponent'"
-                        :seat-index="seat.seatIndex" :player-name="seat.name" :player-active="seat.occupied"
+                        :seat-index="seat.seatIndex" :player-name="seat.name" :seat-status="seat.seatStatus"
                         :is-turn="seat.isTurn" :hand="seat.hand" :points="seat.points" :food-due="seat.foodDue"
                         :rent-due="seat.rentDue"
                         class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1 xl:w-full xl:flex-none" />
@@ -180,12 +205,16 @@ watch(
                     :name-by-player="nameByPlayer" :sending="sendingChat"
                     @send="(text) => games.sendChat(code, text)" />
 
+                <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers"
+                    :my-player-id="me?.playerId ?? ''" :my-points="me?.points ?? 0" :my-hand="me?.hand ?? {}"
+                    :busy="acting" @accept="onAcceptOffer" @cancel="onCancelOffer" />
+
                 <PlayerCardHolder class="area-own min-w-0" :active-action="activeAction"
                     :seat-index="mine?.seatIndex ?? -1" :player-name="mine?.name ?? ''"
-                    :player-active="mine?.occupied ?? false" :is-turn="isMyTurn" :hand="mine?.hand ?? {}"
+                    :seat-status="mine?.seatStatus ?? 'empty'" :is-turn="isMyTurn" :hand="mine?.hand ?? {}"
                     :points="mine?.points ?? 0" :food-due="mine?.foodDue ?? 0" :rent-due="mine?.rentDue ?? 0"
                     :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
-                    @cancel-operation="cancelAction" @transaction="onSell" @end-turn="onEndTurn" />
+                    @cancel-operation="cancelAction" @transaction="onTransaction" @end-turn="onEndTurn" />
             </div>
         </div>
 
@@ -210,38 +239,44 @@ watch(
     display: grid;
     gap: 0.5rem;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
         "opp"
         "own"
-        "log";
+        "log"
+        "offers";
 }
 
 @media (min-width: 768px) {
     .game-grid {
         gap: 0.75rem;
         grid-template-columns: 32rem minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
         grid-template-areas:
-            "opp opp"
-            "own log";
+            "opp    opp"
+            "own    log"
+            "offers offers";
     }
 }
 
 @media (min-width: 1024px) {
     .game-grid {
-        grid-template-columns: 33% minmax(0, 1fr);
+        grid-template-columns: 33% minmax(0, 1fr) 18rem;
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-areas:
+            "opp opp opp"
+            "own log offers";
     }
 }
 
 @media (min-width: 1280px) {
     .game-grid {
         gap: 1rem;
-        grid-template-columns: minmax(0, 1fr) 21rem;
+        grid-template-columns: minmax(0, 1fr) 19rem 21rem;
         grid-template-rows: minmax(0, 1fr) auto;
         grid-template-areas:
-            "log opp"
-            "own own";
+            "log offers opp"
+            "own own    own";
     }
 }
 
@@ -255,6 +290,10 @@ watch(
 
 .area-log {
     grid-area: log;
+}
+
+.area-offers {
+    grid-area: offers;
 }
 
 .toast-enter-active,

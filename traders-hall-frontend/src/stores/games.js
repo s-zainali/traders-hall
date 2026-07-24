@@ -21,6 +21,24 @@ function toGame(g) {
   }
 }
 
+function toOffer(o) {
+  return {
+    id: o.id,
+    posterPlayerId: o.poster_player_id,
+    posterName: o.poster_name,
+    posterSeatIndex: o.poster_seat_index,
+    kind: o.kind,
+    offerCardType: o.offer_card_type,
+    offerQuantity: o.offer_quantity,
+    pricePoints: o.price_points,
+    wantCardType: o.want_card_type,
+    wantQuantity: o.want_quantity,
+    status: o.status,
+    createdTurn: o.created_turn,
+    createdAt: o.created_at,
+  }
+}
+
 function toState(s) {
   return {
     game: {
@@ -71,6 +89,8 @@ export const useGamesStore = defineStore('games', () => {
   const error = ref(null)
   const stateError = ref(null)
   const actionError = ref(null)
+
+  const offers = ref([])
 
   const events = ref([])
   const lastSeq = ref(0)
@@ -132,6 +152,102 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
+  async function fetchOffers(code) {
+    try {
+      const list = await apiJson(`/api/v1/games/${code.toUpperCase()}/offers`)
+      offers.value = list.map(toOffer)
+      return offers.value
+    } catch {
+      return offers.value
+    }
+  }
+
+  async function postOffer(code, body) {
+    acting.value = true
+    actionError.value = null
+    try {
+      const fresh = await apiJson(`/api/v1/games/${code.toUpperCase()}/offers`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...body,
+          expected_state_version: state.value?.game.stateVersion ?? null,
+        }),
+      })
+      state.value = toState(fresh)
+      await fetchOffers(code)
+      return true
+    } catch (e) {
+      actionError.value = e.message
+      if (e.status === 409) await fetchState(code, { silent: true })
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  async function acceptOffer(code, offerId) {
+    acting.value = true
+    actionError.value = null
+    try {
+      const fresh = await apiJson(
+        `/api/v1/games/${code.toUpperCase()}/offers/${offerId}/accept`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            expected_state_version: state.value?.game.stateVersion ?? null,
+          }),
+        }
+      )
+      state.value = toState(fresh)
+      await fetchOffers(code)
+      return true
+    } catch (e) {
+      actionError.value = e.message
+      await fetchOffers(code)
+      if (e.status === 409) await fetchState(code, { silent: true })
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  async function cancelOffer(code, offerId) {
+    acting.value = true
+    actionError.value = null
+    try {
+      const fresh = await apiJson(
+        `/api/v1/games/${code.toUpperCase()}/offers/${offerId}/cancel`,
+        { method: 'POST' }
+      )
+      state.value = toState(fresh)
+      await fetchOffers(code)
+      return true
+    } catch (e) {
+      actionError.value = e.message
+      await fetchOffers(code)
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  const sellOffer = (code, cardType, quantity, pricePoints) =>
+    postOffer(code, {
+      kind: 'sell',
+      offer_card_type: cardType,
+      offer_quantity: quantity,
+      price_points: pricePoints,
+    })
+
+  const tradeOffer = (code, cardType, quantity, wantCardType, wantQuantity) =>
+    postOffer(code, {
+      kind: 'trade',
+      offer_card_type: cardType,
+      offer_quantity: quantity,
+      want_card_type: wantCardType,
+      want_quantity: wantQuantity,
+    })
+
   async function sendChat(code, text) {
     sendingChat.value = true
     try {
@@ -160,6 +276,7 @@ export const useGamesStore = defineStore('games', () => {
     events.value = []
     lastSeq.value = 0
     feedCode.value = ''
+    offers.value = []
   }
 
   async function act(code, action, body = {}) {
@@ -287,9 +404,10 @@ export const useGamesStore = defineStore('games', () => {
   return {
     myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
     busy, acting, error, stateError, actionError,
-    events, lastSeq, sendingChat,
-    fetchMine, fetchState, fetchEvents, sendChat, clearState, act,
+    events, lastSeq, sendingChat, offers,
+    fetchMine, fetchState, fetchEvents, fetchOffers, sendChat, clearState, act,
     buyFromBank, sellToBank, endTurn,
+    sellOffer, tradeOffer, acceptOffer, cancelOffer,
     createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }
 })

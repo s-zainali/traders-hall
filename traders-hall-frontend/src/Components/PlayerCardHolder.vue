@@ -10,7 +10,7 @@ const props = defineProps({
     playerType: { type: String, default: 'player' },
     activeAction: { type: String, default: '' },
     playerName: { type: String, default: 'Player' },
-    playerActive: { type: Boolean, default: false },
+    seatStatus: { type: String, default: 'empty' },
     /** which chair this panel is; drives the token and the accent colour */
     seatIndex: { type: Number, default: -1 },
     /** whose turn it is, for the pulsing ring */
@@ -46,12 +46,22 @@ const activeModal = ref('')
 const isOwn = computed(() => props.playerType === 'player')
 const seat = computed(() => seatStyle(props.seatIndex))
 
+const playerActive = computed(() => props.seatStatus === 'active')
+const isEmpty = computed(() => props.seatStatus === 'empty')
+const isOut = computed(() => !playerActive.value && !isEmpty.value)
+
+const OUT_STATES = {
+    resigned: { label: 'Resigned', note: 'Left the game', tone: 'text-rose-400', border: 'border-rose-400/50' },
+    eliminated: { label: 'Eliminated', note: 'Out of the game', tone: 'text-rose-400', border: 'border-rose-400/50' },
+}
+const outState = computed(() => OUT_STATES[props.seatStatus] ?? OUT_STATES.resigned)
+
 /**
  * Buy, sell and trade are turn-gated on the server. Disabling them off-turn is
  * not the enforcement — it is so the player can see whose turn it is from the
  * controls rather than from a rejected request.
  */
-const canAct = computed(() => props.isTurn && !props.busy && props.playerActive)
+const canAct = computed(() => props.isTurn && !props.busy && playerActive.value)
 
 /**
  * The hand arrives with a row for EVERY card type, most of them zero: the
@@ -72,7 +82,8 @@ const heldTypes = computed(() =>
  */
 const panelBorder = computed(() => {
     if (activeModal.value && handState.value) return handState.value.panel
-    if (!props.playerActive) return 'border-dashed border-gray-light'
+    if (isEmpty.value) return 'border-dashed border-gray-light'
+    if (isOut.value) return outState.value.border
     if (props.isTurn) return seat.value.border
     return seat.value.borderSoft
 })
@@ -196,13 +207,21 @@ function onEndTurn() {
 
         <!-- Empty seat. A bare scrim read as "disabled" rather than "nobody
              here"; the dashed token matches the lobby placeholders. -->
-        <div v-if="!playerActive"
+        <div v-if="isEmpty"
             class="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 rounded-[1.5rem] bg-gray-dark/75 backdrop-blur-[2px]">
             <SeatToken :seat-index="-1" size="lg" />
             <div class="flex flex-col items-center gap-0.5">
                 <span class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Empty seat</span>
                 <span class="text-xs text-gray-light">Waiting for a player</span>
             </div>
+        </div>
+
+        <div v-else-if="isOut"
+            class="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-2 rounded-[1.5rem] bg-gray-dark/70 backdrop-blur-[2px]">
+            <span class="text-lg font-bold tracking-wide" :class="seat.text">{{ playerName }}</span>
+            <span class="rounded-full border-2 px-3 py-0.5 text-xs font-bold uppercase tracking-widest"
+                :class="[outState.tone, outState.border, 'bg-rose-400/10']">{{ outState.label }}</span>
+            <span class="text-xs text-gray-light">{{ outState.note }}</span>
         </div>
 
         <!-- ══ own panel ══════════════════════════════════════════════
@@ -325,13 +344,14 @@ function onEndTurn() {
                 </div>
             </div>
 
-            <div class="relative flex min-w-0 overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+            <div
+                class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                 <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                     <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
                         <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
                     </CardDeck>
                 </div>
-                <span v-else class="py-2 text-sm text-gray-light">No cards</span>
+                <span v-else class="text-sm text-gray-light">No cards</span>
             </div>
         </template>
     </section>

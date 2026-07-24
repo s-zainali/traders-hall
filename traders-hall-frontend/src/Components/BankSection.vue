@@ -63,13 +63,22 @@ function openBuy(type) {
     activeModal.value = 'buy'
 }
 
-function onConfirm(quantity) {
-    // GameView needs both halves; it has no way to know which deck was clicked.
-    emit('confirm', { type: buyingType.value, quantity })
+function onConfirm(payload) {
+    emit('confirm', { type: payload.cardType, quantity: payload.quantity })
     activeModal.value = ''
 }
 
+/*
+  Closing the buy modal MUST also emit `cancel`.
 
+  Clearing only the local activeModal left the parent's activeAction at 'buy',
+  so buyingActive stayed true and this panel stayed EXPANDED — and an expanded
+  panel is `absolute top-0 bottom-0 right-full` with live pointer events, i.e.
+  a ~450px column covering the full game height. At xl the player's action
+  buttons sit at the right of the bottom row, directly underneath it, so they
+  silently stopped receiving clicks. Below xl the panel is far from them, which
+  is why the narrow layout seemed fine.
+*/
 function closeBuy() {
     activeModal.value = ''
     emit('cancel')
@@ -78,17 +87,54 @@ function closeBuy() {
 </script>
 
 <template>
-
     <div class="relative flex shrink-0 items-stretch">
 
+        <!--
+            Slide and fade, NOT the grid-column width trick used elsewhere in
+            this app. `1fr` resolves against a definite container width, and an
+            absolutely positioned box with only `right` set is shrink-to-fit —
+            its width depends on its content, which would depend on the
+            fraction. That circularity collapses the panel to nothing.
+
+            Overlaying removes the need for a width animation anyway: the panel
+            keeps its natural size and simply moves into place.
+
+            w-max is REQUIRED, not decorative. With `right` set and `left: auto`
+            the width is shrink-to-fit, and shrink-to-fit clamps to the space
+            available inside the containing block — which is zero here, because
+            the element's right edge sits exactly at that block's left edge. An
+            explicit max-content width is definite, so the clamp never applies.
+        -->
+        <!--
+            aria-hidden and inert when collapsed, not just transparent: an
+            invisible element still receives clicks, and this one spans the full
+            game height. pointer-events-none covers the mouse; `inert` also
+            takes it out of the tab order and off the accessibility tree, so a
+            keyboard user cannot land inside a panel nobody can see.
+        -->
         <div class="absolute top-0 right-full bottom-0 z-150 mr-2 w-max transition-all duration-300 ease-out"
             :inert="!expanded" :aria-hidden="!expanded"
             :class="expanded
                 ? 'translate-x-0 opacity-100'
                 : 'pointer-events-none translate-x-6 opacity-0'">
             <div>
+                <!--
+                    flex-col with the cards well as flex-1 min-h-0, rather than
+                    justify-between: a flex item defaults to min-height:auto and
+                    refuses to shrink below its content, so the grid would push
+                    the panel taller instead of scrolling inside it.
+                -->
+                <!--
+                    relative + max-w so the modals below have something real to
+                    cover. They used to sit on the section root, but that root is
+                    now just the 4rem rail — the panel is absolute — so an
+                    inset-0 modal was rendering 64px wide.
+
+                    max-w keeps the panel inside the viewport however many card
+                    types exist; the cards well scrolls rather than overflowing.
+                -->
                 <div
-                    class="relative flex h-full max-h-full w-max min-h-0 max-w-[calc(100vw-7rem)] flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4 shadow-2xl shadow-black/60">
+                    class="relative flex h-full max-h-full w-max min-h-0 max-w-[calc(100vw-7rem)] flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4 shadow-2xl shadow-black/60 overflow-hidden">
 
                     <TransactionModal v-if="activeModal === 'buy'" :transaction-type="'buy'" :card-type="buyingType"
                         :available="pools[buyingType] ?? 1" :points="points" :busy="busy" @confirm="onConfirm"
@@ -108,13 +154,26 @@ function closeBuy() {
                         <BankerCard @activate-modal="activeModal = $event" />
                     </div>
 
-                    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border-1 p-4 outline-teal-light transition duration-200 ease-in-out"
+                    <div class="relative mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border-1 p-4 outline-teal-light transition duration-200 ease-in-out"
                         :class="buyingActive ? 'border-teal-light outline-4 -outline-offset-4 bg-gray-light/30' : 'border-gray-light outline-0'">
                         <button v-if="buyingActive" @click="emit('cancel')"
                             class="absolute top-0 right-0 z-50 flex items-center justify-center p-4 leading-none text-gray-x-light transition duration-200 ease-in-out hover:cursor-pointer hover:text-rose-400">🗙</button>
 
+                        <!-- the heading stays put; only the grid below scrolls -->
                         <h1 class="shrink-0 pb-4 text-center text-2xl font-bold tracking-wide text-gray-2x-light">
-                            Cards</h1>
+                            Cards {{ buyingActive? '' : '🛈' }}</h1>
+
+                        <!--
+                            grid-cols-3 compiles to repeat(3, minmax(0, 1fr)),
+                            and that 0 minimum is what let the columns squeeze
+                            the decks when the panel opened on a narrower screen.
+                            max-content columns never compress: the cards stay
+                            the size they are at xl and the well scrolls instead.
+
+                            auto-rows-min stops rows stretching to fill the track
+                            when there are fewer than three, which would leave
+                            the decks floating in the middle of a tall cell.
+                        -->
                         <div v-if="cardStock.length"
                             class="scroll-slim grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(3,max-content)] gap-2 overflow-auto pr-2">
                             <CardDeck v-for="stock in cardStock" :key="`${stock.type}-${stock.count}`">
@@ -127,6 +186,11 @@ function closeBuy() {
                 </div>
             </div>
         </div>
+
+        <!--
+            The rail. Always mounted, so the stock counts stay readable while
+            collapsed — which is the point of collapsing rather than hiding.
+        -->
         <div
             class="relative z-50 flex w-16 shrink-0 flex-col items-center gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark py-4">
 

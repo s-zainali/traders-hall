@@ -3,8 +3,6 @@ import { computed, ref } from 'vue'
 import { useCardTypesStore } from '../stores/cardTypes'
 
 const props = defineProps({
-    // WHICH card this is. Unchanged — the store says what a card type *is*,
-    // this prop still selects which one to render.
     cardType: { type: String, required: true },
     large: { type: Boolean, default: true },
     selected: { type: Boolean, default: false },
@@ -17,7 +15,6 @@ const emit = defineEmits(['buy', 'sell', 'trade', 'details'])
 
 const cardTypes = useCardTypesStore()
 
-// rendered if cardType is empty or unknown, instead of throwing on `.title`
 const UNKNOWN_CARD = {
     title: '',
     iconUrl: '',
@@ -28,8 +25,6 @@ const UNKNOWN_CARD = {
 
 const isHovered = ref(false)
 
-// Reads the store instead of a hardcoded map. Still computed, so it tracks both
-// the prop changing AND the catalogue arriving.
 const info = computed(() => cardTypes.get(props.cardType) ?? UNKNOWN_CARD)
 
 const title = computed(() => info.value.title)
@@ -40,6 +35,7 @@ const cost = computed(() => info.value.baseCost)
 
 const isSelected = computed(() => props.selected)
 const isActive = computed(() => isHovered.value || isSelected.value)
+const interactive = computed(() => props.buying || props.selling || props.trading)
 
 const background = computed(() => `var(--color-${isActive.value ? bgColor.value : color.value})`)
 const accent = computed(() => `var(--color-${isActive.value ? color.value : bgColor.value})`)
@@ -54,10 +50,10 @@ function onClick() {
 
 <template>
     <div v-if="large" class="flex flex-col items-center">
-        <div class="w-[5.5rem] h-[7rem] rounded-xl p-3 flex flex-col items-center border-4 justify-between shrink-0 cursor-pointer hover:scale-110 transition duration-300 ease-in-out"
+        <div class="flex h-[7rem] w-[5.5rem] shrink-0 cursor-pointer flex-col items-center justify-between rounded-xl border-4 p-3 transition duration-300 ease-in-out hover:scale-110"
             :style="{ borderColor: accent, backgroundColor: background }" @mouseenter="isHovered = true"
             @mouseleave="isHovered = false" @click="onClick">
-            <span class="font-bold text-sm uppercase pb-2" :style="{ color: accent }">{{ title }}</span>
+            <span class="pb-2 text-sm font-bold uppercase" :style="{ color: accent }">{{ title }}</span>
             <div class="h-full w-full">
                 <div class="h-full w-full" :style="{
                     backgroundColor: accent,
@@ -66,15 +62,16 @@ function onClick() {
                 }"></div>
             </div>
         </div>
-        <div v-if="cost !== undefined" class="flex items-center justify-center pt-3 mb-1">
-            <span v-if="isHovered" class="font-bold text-md h-4" :style="{ color: background }">{{ title === 'Point' ? '' : cost }} {{ cost ? cost
-                === 1 ? 'Point' : 'Points' : '' }}</span>
+        <div v-if="cost !== undefined" class="mb-1 flex items-center justify-center pt-3">
+            <span v-if="isHovered" class="h-4 text-md font-bold" :style="{ color: background }">{{ title === 'Point' ? ''
+                : cost }} {{ cost ? cost === 1 ? 'Point' : 'Points' : '' }}</span>
             <span class="h-4"></span>
         </div>
     </div>
+
     <div v-else :style="{ backgroundColor: background, borderColor: accent }"
-        class="p-2 rounded-xl border-2 transition duration-200 ease-in-out"
-        :class="buying || selling || trading ? 'cursor-pointer hover:scale-110' : ''"
+        class="shrink-0 rounded-xl border-2 p-2 transition-colors duration-200 ease-in-out"
+        :class="interactive ? 'cursor-pointer' : ''"
         @mouseenter="isHovered = true" @mouseleave="isHovered = false" @click="onClick">
         <div class="h-5 w-5">
             <div class="h-full w-full" :style="{

@@ -29,6 +29,9 @@ const emit = defineEmits(['confirm', 'cancel'])
 
 const cardTypes = useCardTypesStore()
 
+const destination = ref('bank')
+const unitPrice = ref(1)
+
 const quantity = ref(1)          // buy / sell, and the "give" side of a trade
 const getQuantity = ref(1)       // trade only: how many of the wanted card
 const getType = ref('')          // trade only: which card is wanted back
@@ -102,6 +105,13 @@ const previewZoom = computed(() => {
 // the price shown here is the same number the server charges.
 const isBuy = computed(() => props.transactionType === 'buy')
 const isSell = computed(() => props.transactionType === 'sell')
+const toPlayer = computed(() => isSell.value && destination.value === 'player')
+
+function stepPrice(delta) {
+    unitPrice.value = Math.min(99, Math.max(1, unitPrice.value + delta))
+}
+
+const totalPrice = computed(() => unitPrice.value * quantity.value)
 
 // Buying charges base_cost; selling pays sell_value. Equal today, but reading
 // the right column now means changing the spread is a migration rather than a
@@ -142,17 +152,43 @@ const tradeableTypes = computed(() =>
 const canConfirm = computed(() => {
     if (props.busy) return false
     if (isTrade.value) return getType.value !== ''
+    if (toPlayer.value) return quantity.value >= 1 && unitPrice.value >= 1
     return !cannotAfford.value && quantity.value >= 1
+})
+
+const blocker = computed(() => {
+    if (isTrade.value && !getType.value) return 'Choose a card to receive'
+    return ''
 })
 
 function confirm() {
     if (!canConfirm.value) return
-    emit('confirm', isTrade.value
-        ? {
-            give: { type: props.cardType, quantity: quantity.value },
-            get: { type: getType.value, quantity: getQuantity.value },
-        }
-        : quantity.value)
+    if (isTrade.value) {
+        emit('confirm', {
+            kind: 'trade-offer',
+            cardType: props.cardType,
+            quantity: quantity.value,
+            wantCardType: getType.value,
+            wantQuantity: getQuantity.value,
+        })
+        return
+    }
+
+    if (toPlayer.value) {
+        emit('confirm', {
+            kind: 'sell-offer',
+            cardType: props.cardType,
+            quantity: quantity.value,
+            pricePoints: unitPrice.value,
+        })
+        return
+    }
+
+    emit('confirm', {
+        kind: isBuy.value ? 'buy' : 'sell-to-bank',
+        cardType: props.cardType,
+        quantity: quantity.value,
+    })
 }
 
 const wellClass =
@@ -196,6 +232,14 @@ const tradeSummary = computed(() => {
     }
 })
 
+const DESTINATIONS = [
+    { key: 'bank', label: 'To bank' },
+    { key: 'player', label: 'Post offer' },
+]
+
+const segClass =
+    'flex-1 cursor-pointer rounded-lg py-2 text-sm font-bold transition-colors duration-200'
+
 const actionButton =
     'min-w-24 px-5 py-2.5 rounded-xl font-bold cursor-pointer transition duration-200 ease-in-out ' +
     'disabled:opacity-40 disabled:cursor-not-allowed ' +
@@ -221,32 +265,34 @@ const actionButton =
                 <h2 id="transaction-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
                     {{ type.heading }}
                 </h2>
-                <p class="text-sm text-gray-x-light">{{ type.subheading }}</p>
+                <p class="text-sm text-gray-x-light">
+                    {{ toPlayer ? 'Name your price. Any player can take it.'
+                        : isTrade ? 'Post what you want in return. Any player can take it.'
+                        : type.subheading }}
+                </p>
             </header>
 
-            <!-- ══ trade ═══════════════════════════════════════════════
-                Two self-contained columns of equal width.
+            <div v-if="isSell" class="flex gap-1 rounded-xl border-2 border-gray-light bg-gray-dark p-1">
+                <button v-for="d in DESTINATIONS" :key="d.key" type="button" :class="[
+                    segClass,
+                    destination === d.key
+                        ? 'bg-gray-2x-light text-gray-dark'
+                        : 'text-gray-x-light hover:text-gray-2x-light',
+                ]" @click="destination = d.key">
+                    {{ d.label }}
+                </button>
+            </div>
 
-                Each side owns its OWN stepper, directly under the thing it
-                counts. The previous version put both steppers in a detached row
-                beneath the columns, so neither was visibly tied to a side and
-                you had to guess which number you were changing.
-
-                Equal widths matter too: an exchange should look symmetrical, so
-                neither side reads as the more important one.
-            -->
             <div v-if="isTrade" class="flex items-stretch justify-center gap-3">
 
                 <section class="flex w-[10.5rem] flex-col items-center gap-2">
                     <h3 :class="labelClass">You give</h3>
-
-                    <div class="flex h-[7.5rem] w-full items-center justify-center rounded-2xl border-2 border-gray-light bg-gray-dark">
-                        <!-- zoom shrinks the layout box, not just the pixels -->
+                    <div
+                        class="flex h-[7.5rem] w-full items-center justify-center rounded-2xl border-2 border-gray-light bg-gray-dark">
                         <div :style="{ zoom: 0.62 }">
                             <Card :card-type="cardType" :selected="true" />
                         </div>
                     </div>
-
                     <div :class="stepperClass">
                         <button type="button" :class="stepper" :disabled="quantity <= 1"
                             aria-label="Decrease quantity given" @click="step(-1)">−</button>
@@ -254,58 +300,38 @@ const actionButton =
                         <button type="button" :class="stepper" :disabled="quantity >= available"
                             aria-label="Increase quantity given" @click="step(1)">+</button>
                     </div>
-
                     <p class="text-xs text-gray-x-light">{{ available }} available</p>
                 </section>
 
-                <!-- self-center rather than a fixed offset: the columns can grow
-                     independently and the arrow stays on their midline -->
                 <div class="flex items-center">
                     <span class="text-2xl font-bold text-amber-400 select-none" aria-hidden="true">⇄</span>
                 </div>
 
                 <section class="flex w-[10.5rem] flex-col items-center gap-2">
                     <h3 :class="labelClass">You get</h3>
-
-                    <!-- a 3-column grid, not a nowrap row: five chips in a row
-                         set the dialog's width, and a sixth card type would have
-                         widened it again -->
-                    <div class="grid h-[7.5rem] w-full grid-cols-3 content-center justify-items-center gap-1.5 rounded-2xl border-2 border-gray-light bg-gray-dark p-2">
+                    <div
+                        class="grid h-[7.5rem] w-full grid-cols-3 content-center justify-items-center gap-1.5 rounded-2xl border-2 border-gray-light bg-gray-dark p-2">
                         <button v-for="t in tradeableTypes" :key="t" type="button"
                             :aria-label="`Trade for ${titleOf(t)}`" :aria-pressed="getType === t" @click="getType = t"
                             class="cursor-pointer rounded-xl outline-amber-400 transition duration-200 ease-in-out"
-                            :class="getType === t
-                                ? 'outline-3 scale-110'
-                                : 'outline-0 opacity-45 hover:opacity-90'">
+                            :class="getType === t ? 'outline-3 scale-110' : 'outline-0 opacity-45 hover:opacity-90'">
                             <Card :card-type="t" :selected="true" :large="false" />
                         </button>
                     </div>
-
                     <div :class="stepperClass">
                         <button type="button" :class="stepper" :disabled="getQuantity <= 1 || !getType"
                             aria-label="Decrease quantity wanted" @click="stepGet(-1)">−</button>
                         <div :class="[countClass, 'w-12 text-lg']">{{ getQuantity }}</div>
-                        <button type="button" :class="stepper" :disabled="!getType"
-                            aria-label="Increase quantity wanted" @click="stepGet(1)">+</button>
+                        <button type="button" :class="stepper" :disabled="!getType" aria-label="Increase quantity wanted"
+                            @click="stepGet(1)">+</button>
                     </div>
-
                     <p class="text-xs font-bold" :class="getType ? 'text-amber-400' : 'text-gray-light'">
                         {{ getType ? titleOf(getType) : 'Pick a card' }}
                     </p>
                 </section>
             </div>
 
-            <!-- the deal restated in one line: the only place both sides appear
-                 together, so it is where a mistake is actually visible -->
-            <p v-if="isTrade && tradeSummary"
-                class="rounded-xl border-2 border-amber-400/40 bg-amber-400/10 px-4 py-2 text-center text-sm font-bold text-gray-2x-light">
-                {{ tradeSummary.give }}
-                <span class="px-2 text-amber-400">→</span>
-                {{ tradeSummary.get }}
-            </p>
-
-            <!-- ══ buy / sell ══════════════════════════════════════════ -->
-            <div v-if="!isTrade" class="flex items-center" :class="popover ? 'gap-5' : (isCompact ? 'gap-4' : 'gap-6')">
+            <div v-else class="flex items-center" :class="popover ? 'gap-5' : (isCompact ? 'gap-4' : 'gap-6')">
 
                 <section class="flex flex-col gap-2">
                     <h3 :class="labelClass">Card</h3>
@@ -327,14 +353,23 @@ const actionButton =
                                 aria-label="Increase quantity" @click="step(1)">+</button>
                         </div>
                         <p class="text-xs text-gray-x-light">{{ available }} available</p>
-                        <!-- says WHY the stepper stopped, rather than letting it
-                             silently refuse to go higher -->
                         <p v-if="isBuy && affordable < available" class="text-xs font-bold text-amber-400">
                             You can afford {{ affordable }}
                         </p>
                     </section>
 
-                    <section v-if="showPoints" class="flex flex-col gap-2">
+                    <section v-if="toPlayer" class="flex flex-col gap-2">
+                        <h3 :class="labelClass">Price each</h3>
+                        <div :class="stepperClass">
+                            <button type="button" :class="stepper" :disabled="unitPrice <= 1"
+                                aria-label="Decrease price" @click="stepPrice(-1)">−</button>
+                            <div :class="[countClass, 'w-14 text-lg']">{{ unitPrice }}</div>
+                            <button type="button" :class="stepper" aria-label="Increase price"
+                                @click="stepPrice(1)">+</button>
+                        </div>
+                    </section>
+
+                    <section v-else-if="showPoints" class="flex flex-col gap-2">
                         <h3 :class="labelClass">{{ type.pointsLabel }}</h3>
                         <div :class="[wellClass, 'gap-2 p-2']">
                             <Card :card-type="'point'" :selected="true" :large="false" />
@@ -344,11 +379,24 @@ const actionButton =
                 </div>
             </div>
 
+            <p v-if="isTrade && tradeSummary"
+                class="rounded-xl border-2 border-amber-400/40 bg-amber-400/10 px-4 py-2 text-center text-sm font-bold text-gray-2x-light">
+                {{ tradeSummary.give }}
+                <span class="px-2 text-amber-400">→</span>
+                {{ tradeSummary.get }}
+                <span class="text-gray-x-light">— open to anyone</span>
+            </p>
+
+            <p v-else-if="toPlayer"
+                class="rounded-xl border-2 border-rose-400/40 bg-rose-400/10 px-4 py-2 text-center text-sm font-bold text-gray-2x-light">
+                {{ quantity }}× {{ titleOf(cardType) }}
+                <span class="px-2 text-rose-400">→</span>
+                {{ totalPrice }} pts
+                <span class="text-gray-x-light">— open to anyone</span>
+            </p>
+
             <footer class="flex items-center justify-end gap-2 border-t-1 border-gray-light pt-4">
-                <!-- names the blocker instead of leaving a dead button -->
-                <p v-if="isTrade && !getType" class="mr-auto text-xs font-bold text-gray-light">
-                    Choose a card to receive
-                </p>
+                <p v-if="blocker" class="mr-auto text-xs font-bold text-gray-light">{{ blocker }}</p>
 
                 <button type="button" :class="actionButton"
                     class="border-2 border-gray-light text-gray-x-light hover:border-gray-x-light hover:text-gray-2x-light"
@@ -359,7 +407,8 @@ const actionButton =
                     <span class="flex items-center justify-center gap-2">
                         <span v-if="busy"
                             class="h-4 w-4 animate-spin rounded-full border-2 border-gray-dark/30 border-t-gray-dark"></span>
-                        {{ busy ? '' : type.confirm }} {{ busy || isTrade ? '' : quantity }}
+                        {{ busy ? '' : (toPlayer ? 'Post offer' : isTrade ? 'Post offer' : type.confirm) }}
+                        {{ busy || isTrade || toPlayer ? '' : quantity }}
                     </span>
                 </button>
             </footer>
