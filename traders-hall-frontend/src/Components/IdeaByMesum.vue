@@ -10,8 +10,8 @@ defineProps({
 <template>
     <footer class="relative select-none group bg-transparent" :style="compact ? { zoom: 0.7 } : {}">
         <div class="flex flex-col items-center gap-2">
-            <span class="text-[8px] font-black uppercase tracking-[0.4em] text-white/25">
-                Architected by
+            <span class="text-[10px] font-black uppercase tracking-[0.4em] text-white/25">
+                Concept by
             </span>
 
             <div class="flex items-center gap-3">

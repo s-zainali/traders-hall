@@ -10,12 +10,28 @@ const props = defineProps({
     buyingActive: { type: Boolean, default: false },
     // { cardType: quantity } straight from the projection
     pools: { type: Object, default: () => ({}) },
-    // an action is in flight; the modal locks so a double-click cannot fire twice
+    // an action is in flight; the modals lock so a double-click cannot fire twice
     busy: { type: Boolean, default: false },
-    // the buyer's balance, so the modal can cap the stepper at what they can afford
+    /*
+      The buyer's SPENDABLE balance — points minus anything reserved against an
+      open market claim, not the raw total. Both the purchase stepper and the
+      credit desk cap against it, which is what the server checks too.
+    */
     points: { type: Number, default: 0 },
+
+    // ── credit ───────────────────────────────────────────────────────
+    // Passed straight through to BankerModal. This component does not read
+    // them; it owns the panel the desk lives in, not the desk itself.
+    hand: { type: Object, default: () => ({}) },
+    canAct: { type: Boolean, default: false },
+    loanOutstanding: { type: Number, default: 0 },
+    loanDue: { type: Number, default: 0 },
+    mortgageCardType: { type: String, default: null },
+    mortgageOutstanding: { type: Number, default: 0 },
+    mortgageDue: { type: Number, default: 0 },
+    maxLoan: { type: Number, default: 5 },
 })
-const emit = defineEmits(['cancel', 'confirm'])
+const emit = defineEmits(['cancel', 'confirm', 'borrow', 'repay', 'mortgage', 'redeem'])
 
 /*
   Collapse state.
@@ -84,6 +100,34 @@ function closeBuy() {
     emit('cancel')
 }
 
+/*
+  Credit actions do NOT close the desk.
+
+  Every one of them returns fresh state, so the panel visibly updates —
+  outstanding drops, the countdown appears, the redeem button unlocks. That
+  update IS the confirmation, and closing on success would hide it. It also
+  keeps partial repayment usable without reopening the modal each time.
+*/
+const closeBanker = () => (activeModal.value = '')
+
+// The rail badge: something is owed, so the collapsed panel still says so.
+const hasDebt = computed(
+    () => props.loanOutstanding > 0 || props.mortgageOutstanding > 0
+)
+const debtTotal = computed(() => props.loanOutstanding + props.mortgageOutstanding)
+const debtSoonest = computed(() => {
+    const live = [
+        props.loanOutstanding > 0 ? props.loanDue : null,
+        props.mortgageOutstanding > 0 ? props.mortgageDue : null,
+    ].filter((n) => n !== null)
+    return live.length ? Math.min(...live) : null
+})
+const debtTone = computed(() => {
+    if (debtSoonest.value === null) return 'text-gray-light'
+    if (debtSoonest.value <= 1) return 'text-rose-400'
+    if (debtSoonest.value <= 2) return 'text-amber-400'
+    return 'text-teal-light'
+})
 </script>
 
 <template>
@@ -139,7 +183,13 @@ function closeBuy() {
                     <TransactionModal v-if="activeModal === 'buy'" :transaction-type="'buy'" :card-type="buyingType"
                         :available="pools[buyingType] ?? 1" :points="points" :busy="busy" @confirm="onConfirm"
                         @cancel="closeBuy" />
-                    <BankerModal v-if="activeModal === 'bankerModal'" @close-modal="activeModal = ''" />
+
+                    <BankerModal v-if="activeModal === 'bankerModal'" :busy="busy" :can-act="canAct"
+                        :available-points="points" :hand="hand" :loan-outstanding="loanOutstanding" :loan-due="loanDue"
+                        :mortgage-card-type="mortgageCardType" :mortgage-outstanding="mortgageOutstanding"
+                        :mortgage-due="mortgageDue" :max-loan="maxLoan" @close-modal="closeBanker"
+                        @borrow="(amount) => emit('borrow', amount)" @repay="(amount) => emit('repay', amount)"
+                        @mortgage="(cardType) => emit('mortgage', cardType)" @redeem="emit('redeem')" />
 
                     <div class="flex shrink-0 justify-between gap-6">
                         <div>
@@ -151,7 +201,9 @@ function closeBuy() {
                                 <span v-else class="py-8 text-sm font-bold text-gray-light">Out of points</span>
                             </div>
                         </div>
-                        <BankerCard @activate-modal="activeModal = $event" />
+                        <BankerCard :loan-outstanding="loanOutstanding" :loan-due="loanDue"
+                            :mortgage-outstanding="mortgageOutstanding" :mortgage-due="mortgageDue"
+                            @activate-modal="activeModal = $event" />
                     </div>
 
                     <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1rem] border-1 p-4 outline-teal-light transition duration-200 ease-in-out"
@@ -214,6 +266,20 @@ function closeBuy() {
                 <span class="text-xs font-bold tabular-nums text-teal-light">{{ pointStock }}</span>
             </div>
 
+            <!--
+                Debt badge on the collapsed rail. A countdown the player cannot
+                see is a countdown they will miss, and the panel spends most of
+                the game closed.
+            -->
+            <div v-if="hasDebt" class="flex flex-col items-center gap-0.5"
+                :title="`${debtTotal} owed, next due in ${debtSoonest} round(s)`">
+                <div class="h-5 w-5 bg-current" :class="debtTone" :style="{
+                    mask: `url(/accountant.png) no-repeat center / contain`,
+                    '-webkit-mask': `url(/accountant.png) no-repeat center / contain`,
+                }"></div>
+                <span class="text-xs font-bold tabular-nums" :class="debtTone">{{ debtTotal }}</span>
+            </div>
+
             <div class="h-px w-8 bg-gray-light"></div>
 
             <div class="flex flex-col items-center gap-2">
@@ -232,44 +298,3 @@ function closeBuy() {
 
     </div>
 </template>
-
-<style scoped>
-.scroll-slim {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;
-}
-
-.scroll-slim::-webkit-scrollbar {
-    width: 10px;
-}
-
-.scroll-slim::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-/* content-box clip plus a transparent border is what makes the thumb read as
-   inset and pill-shaped: the border reserves padding the background skips */
-.scroll-slim::-webkit-scrollbar-thumb {
-    background: color-mix(in oklab, var(--color-gray-x-light) 28%, transparent);
-    background-clip: content-box;
-    border: 3px solid transparent;
-    border-radius: 999px;
-}
-
-.scroll-slim::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklab, var(--color-teal-light) 55%, transparent);
-    background-clip: content-box;
-}
-
-.bank-label {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .grid,
-    .transition-transform {
-        transition: none;
-    }
-}
-</style>

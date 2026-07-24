@@ -22,8 +22,9 @@ const props = defineProps({
 
 /*
  * confirm payload:
- *   buy / sell -> quantity (Number)
- *   trade      -> { give: { type, quantity }, get: { type, quantity } }
+ *   buy / sell-to-bank -> { kind, cardType, quantity }
+ *   sell-offer         -> { kind, cardType, quantity, pricePoints }  PER UNIT
+ *   trade-offer        -> { kind, cardType, quantity, wantCardType, wantQuantity }
  */
 const emit = defineEmits(['confirm', 'cancel'])
 
@@ -111,6 +112,18 @@ function stepPrice(delta) {
     unitPrice.value = Math.min(99, Math.max(1, unitPrice.value + delta))
 }
 
+/*
+  An offer is priced PER UNIT and settles at unit × quantity.
+
+  That is the server's reading too: offer_service multiplies in exactly one
+  place (_total_price) and every reservation, transfer and unreserve goes
+  through it. Before that fix the server took price_points as the whole-lot
+  price, so a 2-card offer at 3 each was shown here as 6 and settled for 3.
+
+  Both numbers appear wherever the price is set, because "3" alone is ambiguous
+  the moment quantity is greater than one — and that ambiguity is what hid the
+  bug for as long as it did.
+*/
 const totalPrice = computed(() => unitPrice.value * quantity.value)
 
 // Buying charges base_cost; selling pays sell_value. Equal today, but reading
@@ -175,6 +188,7 @@ function confirm() {
     }
 
     if (toPlayer.value) {
+        // PER UNIT, matching the server's reading of price_points.
         emit('confirm', {
             kind: 'sell-offer',
             cardType: props.cardType,
@@ -266,7 +280,7 @@ const actionButton =
                     {{ type.heading }}
                 </h2>
                 <p class="text-sm text-gray-x-light">
-                    {{ toPlayer ? 'Name your price. Any player can take it.'
+                    {{ toPlayer ? 'Name your price per card. Any player can take it.'
                         : isTrade ? 'Post what you want in return. Any player can take it.'
                         : type.subheading }}
                 </p>
@@ -367,6 +381,15 @@ const actionButton =
                             <button type="button" :class="stepper" aria-label="Increase price"
                                 @click="stepPrice(1)">+</button>
                         </div>
+                        <!--
+                            The arithmetic spelled out. "Price each 3" sitting
+                            beside "Quantity 2" leaves the buyer's real cost to
+                            be worked out in the player's head — and that gap is
+                            exactly where the unit/total mismatch hid.
+                        -->
+                        <p class="text-xs font-bold tabular-nums text-teal-light">
+                            {{ unitPrice }} × {{ quantity }} = {{ totalPrice }} pts
+                        </p>
                     </section>
 
                     <section v-else-if="showPoints" class="flex flex-col gap-2">
@@ -375,6 +398,9 @@ const actionButton =
                             <Card :card-type="'point'" :selected="true" :large="false" />
                             <span class="text-lg font-bold tabular-nums text-teal-light">{{ totalPoints }}</span>
                         </div>
+                        <p v-if="quantity > 1" class="text-xs tabular-nums text-gray-light">
+                            {{ unitPoints }} each
+                        </p>
                     </section>
                 </div>
             </div>
@@ -392,6 +418,7 @@ const actionButton =
                 {{ quantity }}× {{ titleOf(cardType) }}
                 <span class="px-2 text-rose-400">→</span>
                 {{ totalPrice }} pts
+                <span v-if="quantity > 1" class="text-gray-x-light">({{ unitPrice }} each)</span>
                 <span class="text-gray-x-light">— open to anyone</span>
             </p>
 

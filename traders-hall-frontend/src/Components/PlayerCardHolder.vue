@@ -22,7 +22,17 @@ const props = defineProps({
     points: { type: Number, default: 0 },
     foodDue: { type: Number, default: 0 },
     rentDue: { type: Number, default: 0 },
+
+    // ── credit ────────────────────────────────────────────────────
+    // Public for every seat, not just your own: a rival two rounds from
+    // default is information the whole table should be able to act on.
+    /** rounds until the loan falls due; meaningless when nothing is owed */
     loanDue: { type: Number, default: 0 },
+    loanOutstanding: { type: Number, default: 0 },
+    mortgageCardType: { type: String, default: null },
+    mortgageOutstanding: { type: Number, default: 0 },
+    mortgageDue: { type: Number, default: 0 },
+
     residence: { type: String, default: '' },
     onRent: { type: Boolean, default: false },
     /** an action is in flight; controls lock so a double-click cannot fire twice */
@@ -74,6 +84,53 @@ const heldTypes = computed(() =>
         .filter(([type, count]) => count > 0 && type !== 'point')
         .map(([type]) => type)
 )
+
+/* ── credit ──────────────────────────────────────────────────────── */
+
+const hasLoan = computed(() => props.loanOutstanding > 0)
+const hasMortgage = computed(() => props.mortgageOutstanding > 0)
+const hasDebt = computed(() => hasLoan.value || hasMortgage.value)
+const debtTotal = computed(() => props.loanOutstanding + props.mortgageOutstanding)
+
+// Whichever obligation lands first sets the urgency, since that is the one
+// about to cost the player something.
+const debtSoonest = computed(() => {
+    const live = [
+        hasLoan.value ? props.loanDue : null,
+        hasMortgage.value ? props.mortgageDue : null,
+    ].filter((n) => n !== null)
+    return live.length ? Math.min(...live) : null
+})
+
+// Full literal class strings: Tailwind's scanner cannot see an interpolated
+// name, so a computed `text-${tone}-400` would never be generated.
+function urgencyText(rounds) {
+    if (rounds === null) return 'text-gray-light'
+    if (rounds <= 1) return 'text-rose-400'
+    if (rounds <= 2) return 'text-amber-400'
+    return 'text-teal-light'
+}
+function urgencyBox(rounds) {
+    if (rounds === null) return 'border-gray-light bg-gray-dark text-gray-light'
+    if (rounds <= 1) return 'border-rose-400 bg-rose-400/20 text-rose-400'
+    if (rounds <= 2) return 'border-amber-400 bg-amber-400/20 text-amber-400'
+    return 'border-teal-light bg-teal-dark text-teal-light'
+}
+
+const debtTone = computed(() => urgencyText(debtSoonest.value))
+
+const debtTitle = computed(() => {
+    if (!hasDebt.value) return ''
+    const parts = []
+    if (hasLoan.value) parts.push(`Loan ${props.loanOutstanding}, due in ${props.loanDue}`)
+    if (hasMortgage.value) {
+        parts.push(`Mortgage ${props.mortgageOutstanding} on ${props.mortgageCardType}, due in ${props.mortgageDue}`)
+    }
+    return parts.join(' · ')
+})
+
+/** The mortgaged card is locked: it cannot be sold, traded or offered. */
+const isMortgaged = (type) => hasMortgage.value && type === props.mortgageCardType
 
 /**
  * Border priority, most urgent first:
@@ -134,15 +191,29 @@ const statBox = 'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base fo
 
 // `caption` is the -dark token so the label sits back against the panel while
 // the box keeps the fuller -light treatment.
+//
+// The loan box shows ROUNDS REMAINING, like food and rent beside it — not the
+// amount owed, which lives in the debt badge. An em dash rather than a zero
+// when nothing is owed: "Loan 0" reads as "due right now", which is the one
+// thing it must never be confused with.
 const stats = computed(() => [
     { key: 'food', label: 'Food', value: props.foodDue, caption: 'text-cream-dark', tone: 'border-cream-light bg-cream-dark text-cream-light' },
     { key: 'rent', label: 'Rent', value: props.rentDue, caption: 'text-purple-dark', tone: 'border-purple-light bg-purple-dark text-purple-light' },
-    { key: 'loan', label: 'Loan', value: props.loanDue, caption: 'text-teal-dark', tone: 'border-teal-light bg-teal-dark text-teal-light' },
+    {
+        key: 'loan',
+        label: 'Loan',
+        value: hasLoan.value ? props.loanDue : '—',
+        caption: hasLoan.value ? urgencyText(props.loanDue) : 'text-teal-dark',
+        tone: hasLoan.value ? urgencyBox(props.loanDue) : 'border-gray-light bg-gray-dark text-gray-light',
+    },
 ])
 
 /* ── behaviour ────────────────────────────────────────────────────── */
 
 function openModal(type) {
+    // A mortgaged card is collateral: the server refuses to sell, trade or
+    // offer it, so the modal should not open on it in the first place.
+    if (isMortgaged(type)) return
     selectedType.value = type
     activeModal.value = props.activeAction
 }
@@ -240,6 +311,13 @@ function onEndTurn() {
                 <h1 class="truncate text-lg font-bold tracking-wide whitespace-nowrap xl:text-xl" :class="seat.text">
                     {{ playerName }}
                 </h1>
+                <!-- Owed, not remaining rounds: the countdown is in the stats
+                     row, and repeating it here would say nothing new. -->
+                <span v-if="hasDebt" :title="debtTitle"
+                    class="shrink-0 rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest tabular-nums"
+                    :class="[debtTone, debtSoonest <= 1 ? 'border-rose-400 bg-rose-400/10' : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20']">
+                    Owes {{ debtTotal }}
+                </span>
             </div>
 
             <!-- points and residence travel together in both layouts -->
@@ -274,11 +352,24 @@ function onEndTurn() {
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                         <!-- :key is required: without it Vue patches these decks in
                                  place by index, which mixes card types between decks -->
-                        <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
-                            <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
-                                :class="handState ? 'cursor-pointer' : ''" :selling="activeAction === 'sell'"
-                                :trading="activeAction === 'trade'" @sell="openModal(type)" @trade="openModal(type)" />
-                        </CardDeck>
+                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`" class="relative shrink-0">
+                            <!--
+                                The mortgaged deck is dimmed and badged rather
+                                than hidden: the card is still yours, it just
+                                cannot move until the debt clears. Removing it
+                                would read as "the bank already took it".
+                            -->
+                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-50' : ''">
+                                <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
+                                    :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
+                                    :selling="activeAction === 'sell' && !isMortgaged(type)"
+                                    :trading="activeAction === 'trade' && !isMortgaged(type)"
+                                    @sell="openModal(type)" @trade="openModal(type)" />
+                            </CardDeck>
+                            <span v-if="isMortgaged(type)"
+                                :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
+                                class="pointer-events-none absolute -top-1 -right-1 z-10 rounded-full border-2 border-rose-400 bg-gray-x-dark px-1 text-[10px] leading-tight">🔒</span>
+                        </div>
                     </div>
                     <span v-else class="py-2 text-sm text-gray-light">No cards</span>
                 </div>
@@ -331,6 +422,14 @@ function onEndTurn() {
                     :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
 
                 <div class="ml-auto flex shrink-0 items-center gap-2">
+                    <!-- Compact because the panel is narrow: amount owed plus
+                         rounds left, which is the whole story at a glance. -->
+                    <span v-if="hasDebt" :title="debtTitle"
+                        class="shrink-0 rounded-full border-2 px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+                        :class="[debtTone, debtSoonest <= 1 ? 'border-rose-400 bg-rose-400/10' : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20']">
+                        {{ debtTotal }}·{{ debtSoonest }}r
+                    </span>
+
                     <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
                         <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                     </CardDeck>
@@ -350,9 +449,14 @@ function onEndTurn() {
                 <div
                     class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
-                        <CardDeck v-for="type in heldTypes" :key="`${type}-${hand[type]}`" :content-small="true">
-                            <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
-                        </CardDeck>
+                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`" class="relative shrink-0">
+                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-50' : ''">
+                                <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
+                            </CardDeck>
+                            <span v-if="isMortgaged(type)"
+                                :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
+                                class="pointer-events-none absolute -top-1 -right-1 z-10 rounded-full border-2 border-rose-400 bg-gray-x-dark px-1 text-[10px] leading-tight">🔒</span>
+                        </div>
                     </div>
                     <span v-else class="text-sm text-gray-light">No cards</span>
                 </div>

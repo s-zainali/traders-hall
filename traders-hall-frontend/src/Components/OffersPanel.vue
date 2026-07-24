@@ -7,6 +7,9 @@ import { useCardTypesStore } from '../stores/cardTypes'
 const props = defineProps({
     offers: { type: Array, default: () => [] },
     myPlayerId: { type: String, default: '' },
+    // SPENDABLE balance — points minus anything already reserved against
+    // another claim. Claiming spends against this, so the affordability check
+    // has to use it too or the panel offers a claim the server will refuse.
     myPoints: { type: Number, default: 0 },
     myHand: { type: Object, default: () => ({}) },
     busy: { type: Boolean, default: false },
@@ -17,10 +20,23 @@ const emit = defineEmits(['claim', 'unclaim', 'decline', 'confirm', 'cancel'])
 const cardTypes = useCardTypesStore()
 
 function titleOf(code) {
-    return cardTypes.get(code)?.title ?? code
+    return cardTypes.get(code) ?.title ?? code
 }
 
 const STEPS = ['Posted', 'Claimed', 'Settled']
+
+/**
+ * What a claimant actually pays.
+ *
+ * pricePoints is PER UNIT — a 2-card offer at 3 each costs 6. The server sends
+ * the total so nothing here has to multiply, but the fallback keeps the panel
+ * correct against a response that predates that field. Comparing a balance
+ * against the unit price, as this did, under-reported the cost of every
+ * multi-card offer and let players claim things they could not pay for.
+ */
+function totalOf(offer) {
+    return offer.totalPricePoints ?? (offer.pricePoints ?? 0) * offer.offerQuantity
+}
 
 const rows = computed(() =>
     props.offers.map((o) => {
@@ -28,17 +44,31 @@ const rows = computed(() =>
         const claimedByMe = o.claimedByPlayerId === props.myPlayerId
         const claimed = o.status === 'claimed'
         const isSell = o.kind === 'sell'
+        const total = isSell ? totalOf(o) : null
 
         let blocked = ''
         if (!mine && !claimed) {
-            if (isSell && props.myPoints < o.pricePoints) {
-                blocked = 'Not enough points'
+            if (isSell && props.myPoints < total) {
+                blocked = `Need ${total} points`
             } else if (!isSell && (props.myHand[o.wantCardType] ?? 0) < o.wantQuantity) {
                 blocked = `Need ${o.wantQuantity} ${titleOf(o.wantCardType)}`
             }
         }
 
-        return { ...o, mine, claimedByMe, claimed, isSell, blocked, step: claimed ? 1 : 0 }
+        return {
+            ...o,
+            mine,
+            claimedByMe,
+            claimed,
+            isSell,
+            total,
+            // Only worth spelling out the unit price when there is more than
+            // one card; for a single card the total IS the unit price and the
+            // extra line is noise.
+            showsUnitPrice: isSell && o.offerQuantity > 1,
+            blocked,
+            step: claimed ? 1 : 0,
+        }
     })
 )
 </script>
@@ -84,9 +114,17 @@ const rows = computed(() =>
 
                     <span class="text-lg font-bold" :class="offer.isSell ? 'text-rose-400' : 'text-amber-400'">→</span>
 
+                    <!-- The TOTAL is the headline, because that is the number
+                         the claimant is agreeing to pay. The unit price sits
+                         underneath as the explanation for it. -->
                     <div v-if="offer.isSell" class="flex items-center gap-1">
                         <Card :card-type="'point'" :selected="true" :large="false" />
-                        <span class="text-sm font-bold tabular-nums text-teal-light">{{ offer.pricePoints }}</span>
+                        <div class="flex flex-col leading-tight">
+                            <span class="text-sm font-bold tabular-nums text-teal-light">{{ offer.total }}</span>
+                            <span v-if="offer.showsUnitPrice" class="text-[10px] tabular-nums text-gray-light">
+                                {{ offer.pricePoints }} each
+                            </span>
+                        </div>
                     </div>
                     <div v-else class="flex items-center gap-1">
                         <Card :card-type="offer.wantCardType" :selected="true" :large="false" />
@@ -146,7 +184,7 @@ const rows = computed(() =>
                     :class="offer.blocked
                         ? 'cursor-not-allowed border-gray-light text-gray-light opacity-60'
                         : 'cursor-pointer border-teal-light bg-teal-light text-gray-dark hover:brightness-110'">
-                    {{ offer.blocked || 'Claim' }}
+                    {{ offer.blocked || (offer.isSell ? `Claim for ${offer.total}` : 'Claim') }}
                 </button>
             </li>
         </ul>

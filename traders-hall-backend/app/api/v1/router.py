@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import actions, auth, config, feed, games, loans, offers
+from app.api.v1 import actions, auth, config, feed, games, offers, loans
 
 api_router = APIRouter()
 

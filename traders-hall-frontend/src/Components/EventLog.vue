@@ -2,6 +2,7 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { seatStyle } from '../seats'
 import SeatToken from './SeatToken.vue'
+import Card from './Card.vue'
 
 const props = defineProps({
   // raw events, oldest first, straight from /games/{code}/events
@@ -19,31 +20,139 @@ const scroller = ref(null)
 
 const CHAT = 'chat.message'
 
+/* ── line grammar ─────────────────────────────────────────────────
+   A line is a list of PARTS rather than a string, so the cards involved can
+   render as actual cards. "bought 2 rice" tells you less at a glance than the
+   rice card itself does — the whole table is colour-coded by card type, and a
+   log written in prose throws that away.
+
+   Four part kinds, which between them cover every event:
+     text  plain words
+     card  a card chip with a count
+     pts   a points chip with a number
+     name  another player, in their seat colour
+────────────────────────────────────────────────────────────────── */
+const T = (v) => ({ t: 'text', v })
+const C = (code, qty = 1) => ({ t: 'card', code, qty })
+const P = (v) => ({ t: 'pts', v })
+const N = (id) => ({ t: 'name', id })
+
 /*
   How each event type renders. Keeping this as data rather than a chain of
   v-if branches means adding an event type is one entry, and the colour and the
   wording cannot drift apart.
 */
 const KINDS = {
+  // ── bank trades ──────────────────────────────────────────────
   'cards.bought': {
     icon: '▲',
     tone: 'text-emerald-400',
-    line: (p) => `bought ${p.quantity}× ${p.card_type} for ${p.total_cost} pts`,
+    parts: (p) => [T('bought'), C(p.card_type, p.quantity), T('from the bank for'), P(p.total_cost)],
   },
   'cards.sold': {
     icon: '▼',
     tone: 'text-rose-400',
-    line: (p) => `sold ${p.quantity}× ${p.card_type} for ${p.total_value} pts`,
+    parts: (p) => [T('sold'), C(p.card_type, p.quantity), T('to the bank for'), P(p.total_value)],
   },
+
+  // ── turn flow ────────────────────────────────────────────────
   'turn.ended': {
     icon: '⟳',
     tone: 'text-teal-light',
-    line: (p) => `ended their turn — round ${p.turn_number}`,
+    parts: (p) => [T(`ended their turn — round ${p.turn_number}`)],
   },
   'game.ended': {
     icon: '★',
     tone: 'text-amber-400',
-    line: () => 'the game ended',
+    parts: () => [T('the game ended')],
+  },
+
+  // ── marketplace ──────────────────────────────────────────────
+  // price_points is per unit, so the TOTAL is what the claimant actually pays
+  // and therefore what the log should show.
+  'offer.posted': {
+    icon: '☰',
+    tone: 'text-gray-2x-light',
+    parts: (p) =>
+      p.kind === 'sell'
+        ? [T('offered'), C(p.card_type, p.quantity), T('for'), P(p.total_price_points ?? p.price_points)]
+        : [T('offered'), C(p.card_type, p.quantity), T('for'), C(p.want_card_type, p.want_quantity)],
+  },
+  'offer.claimed': {
+    icon: '✋',
+    tone: 'text-amber-400',
+    parts: (p) => [T('claimed an offer from'), N(p.poster_player_id)],
+  },
+  'offer.claim_withdrawn': {
+    icon: '↩',
+    tone: 'text-gray-x-light',
+    parts: () => [T('withdrew their claim')],
+  },
+  'offer.declined': {
+    icon: '✕',
+    tone: 'text-rose-400',
+    parts: (p) => [T('declined the claim from'), N(p.declined_player_id)],
+  },
+  'offer.settled': {
+    icon: '⇄',
+    tone: 'text-emerald-400',
+    parts: (p) =>
+      p.kind === 'sell'
+        ? [T('sold'), C(p.card_type, p.quantity), T('to'), N(p.with_player_id), T('for'), P(p.total_price_points ?? p.price_points)]
+        : [T('traded'), C(p.card_type, p.quantity), T('to'), N(p.with_player_id), T('for'), C(p.want_card_type, p.want_quantity)],
+  },
+  'offer.cancelled': {
+    icon: '✕',
+    tone: 'text-gray-x-light',
+    parts: () => [T('withdrew an offer')],
+  },
+
+  // ── credit ───────────────────────────────────────────────────
+  'loan.borrowed': {
+    icon: '⊕',
+    tone: 'text-blue-light',
+    parts: (p) => [T('borrowed'), P(p.amount), T(`from the bank — due in ${p.due_in_rounds} rounds`)],
+  },
+  'loan.repaid': {
+    icon: '⊖',
+    tone: 'text-teal-light',
+    // `automatic` distinguishes a player choosing to pay from upkeep collecting
+    // on the due date, which reads very differently at the table.
+    parts: (p) => [
+      T(p.automatic ? 'was charged' : 'repaid'),
+      P(p.amount),
+      T(p.cleared ? '— loan cleared' : `— ${p.outstanding} still owed`),
+    ],
+  },
+  'loan.defaulted': {
+    icon: '⚠',
+    tone: 'text-rose-400',
+    parts: (p) => {
+      const out = [T('defaulted on'), P(p.owed)]
+      if (p.seized_points) out.push(T('— the bank took'), P(p.seized_points))
+      const cards = Object.entries(p.seized_cards ?? {})
+      if (cards.length) {
+        out.push(T(p.seized_points ? 'and seized' : '— the bank seized'))
+        for (const [code, count] of cards) out.push(C(code, count))
+      }
+      if (p.written_off) out.push(T(`— ${p.written_off} written off`))
+      return out
+    },
+  },
+  'mortgage.opened': {
+    icon: '🏦',
+    tone: 'text-purple-light',
+    parts: (p) => [T('mortgaged'), C(p.card_type, 1), T('for'), P(p.advance), T(`— due in ${p.due_in_rounds} rounds`)],
+  },
+  'mortgage.redeemed': {
+    icon: '🔓',
+    tone: 'text-teal-light',
+    parts: (p) => [T(p.automatic ? 'was charged to redeem' : 'redeemed'), C(p.card_type, 1), T('for'), P(p.amount)],
+  },
+  'mortgage.seized': {
+    icon: '🔒',
+    tone: 'text-rose-400',
+    parts: (p) => [T('lost'), C(p.card_type, 1), T('to the bank —'), P(p.owed), T('unpaid')],
   },
 }
 
@@ -52,7 +161,28 @@ const FALLBACK = {
   tone: 'text-gray-x-light',
   // An unknown type still renders something readable rather than a blank row:
   // a new backend event should never make the log look broken.
-  line: (_p, type) => type.replace(/[._]/g, ' '),
+  parts: (_p, type) => [T(type.replace(/[._]/g, ' '))],
+}
+
+/**
+ * Who a line is about.
+ *
+ * Server-run events — upkeep collecting a loan, the bank seizing a property —
+ * carry a null actor because no player chose to do them, and name their subject
+ * in the payload instead. Reading actor alone would colour every one of those
+ * grey and attribute them to nobody.
+ */
+function subjectOf(event) {
+  return event.actor_player_id ?? event.payload?.player_id ?? null
+}
+
+/** A malformed payload should cost one line, not the whole panel. */
+function safeParts(kind, payload, type) {
+  try {
+    return kind.parts(payload, type)
+  } catch {
+    return FALLBACK.parts(payload, type)
+  }
 }
 
 const logEntries = computed(() =>
@@ -60,12 +190,13 @@ const logEntries = computed(() =>
     .filter((e) => e.event_type !== CHAT)
     .map((e) => {
       const kind = KINDS[e.event_type] ?? FALLBACK
+      const payload = e.payload ?? {}
       return {
         seq: e.seq,
         icon: kind.icon,
         tone: kind.tone,
-        text: kind.line(e.payload ?? {}, e.event_type),
-        actor: e.actor_player_id,
+        parts: safeParts(kind, payload, e.event_type),
+        actor: subjectOf(e),
         at: e.created_at,
       }
     })
@@ -164,15 +295,50 @@ const tabClass = (name) =>
 
       <!-- log -->
       <template v-if="tab === 'log'">
+        <!--
+          items-center and flex-wrap, not items-baseline: a card chip is a box
+          with no text baseline of its own, so baseline alignment drops it below
+          the line. Wrapping matters because a settled trade can carry two
+          chips, two names and a price.
+        -->
         <div
           v-for="entry in shown"
           :key="entry.seq"
-          class="flex items-baseline gap-2 rounded-lg px-2 py-1 text-sm hover:bg-gray-dark/60"
+          class="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg px-2 py-1 text-sm hover:bg-gray-dark/60"
         >
           <span :class="entry.tone" class="w-3 shrink-0 text-center font-bold">{{ entry.icon }}</span>
-          <span :class="toneOf(entry.actor)" class="shrink-0 font-bold">{{ nameOf(entry.actor) }}</span>
-          <span class="min-w-0 flex-1 text-gray-x-light">{{ entry.text }}</span>
-          <span class="shrink-0 text-xs tabular-nums text-gray-light">{{ timeOf(entry.at) }}</span>
+
+          <!-- Server-run events (upkeep, seizure) have no actor and read as a
+               complete sentence without one. -->
+          <span v-if="entry.actor" :class="toneOf(entry.actor)" class="shrink-0 font-bold">
+            {{ nameOf(entry.actor) }}
+          </span>
+
+          <template v-for="(part, i) in entry.parts" :key="i">
+            <span v-if="part.t === 'text'" class="text-gray-x-light">{{ part.v }}</span>
+
+            <span v-else-if="part.t === 'card'" class="inline-flex shrink-0 items-center gap-1">
+              <span class="font-bold tabular-nums text-gray-2x-light">{{ part.qty }}×</span>
+              <!-- zoom, unlike scale, shrinks the measured box too, so the chip
+                   sits on the line instead of overhanging it -->
+              <span :style="{ zoom: 0.7 }" class="inline-flex">
+                <Card :card-type="part.code" :large="false" :selected="true" />
+              </span>
+            </span>
+
+            <span v-else-if="part.t === 'pts'" class="inline-flex shrink-0 items-center gap-1">
+              <span class="font-bold tabular-nums text-teal-light">{{ part.v }}</span>
+              <span :style="{ zoom: 0.7 }" class="inline-flex">
+                <Card :card-type="'point'" :large="false" :selected="true" />
+              </span>
+            </span>
+
+            <span v-else-if="part.t === 'name'" :class="toneOf(part.id)" class="shrink-0 font-bold">
+              {{ nameOf(part.id) }}
+            </span>
+          </template>
+
+          <span class="ml-auto shrink-0 text-xs tabular-nums text-gray-light">{{ timeOf(entry.at) }}</span>
         </div>
       </template>
 

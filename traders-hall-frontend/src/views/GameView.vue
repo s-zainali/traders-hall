@@ -102,12 +102,26 @@ const seats = computed(() => {
             points: player?.points ?? 0,
             foodDue: player?.foodDue ?? 0,
             rentDue: player?.rentDue ?? 0,
+            // Debt is public, so an opponent's countdown renders on their panel
+            // exactly as your own does.
+            loanOutstanding: player?.loanOutstanding ?? 0,
+            loanDue: player?.loanDue ?? 0,
+            mortgageCardType: player?.mortgageCardType ?? null,
+            mortgageOutstanding: player?.mortgageOutstanding ?? 0,
+            mortgageDue: player?.mortgageDue ?? 0,
         }
     })
 })
 
 const opponentSeats = computed(() => seats.value.filter((s) => !s.isMe))
 const mine = computed(() => seats.value.find((s) => s.isMe) ?? null)
+
+/*
+  Spendable balance, not the raw total: points reserved against an open market
+  claim cannot be spent on a purchase, a repayment or a redemption. Gating the
+  controls on the raw number offers actions the server would refuse.
+*/
+const availablePoints = computed(() => me.value?.availablePoints ?? 0)
 
 const activeAction = ref('')
 const startAction = (action) => (activeAction.value = action)
@@ -142,6 +156,16 @@ const onUnclaimOffer = (id) => games.unclaimOffer(props.code, id)
 const onDeclineOffer = (id) => games.declineOffer(props.code, id)
 const onConfirmOffer = (id) => games.confirmOffer(props.code, id)
 const onCancelOffer = (id) => games.cancelOffer(props.code, id)
+
+/*
+  Credit. These deliberately do NOT cancelAction(): the desk lives inside the
+  bank panel and stays open after each one, so the player can watch the balance
+  move and repay again without reopening it.
+*/
+const onBorrow = (amount) => games.borrow(props.code, amount)
+const onRepay = (amount) => games.repayLoan(props.code, amount)
+const onMortgage = (cardType) => games.openMortgage(props.code, cardType)
+const onRedeem = () => games.redeemMortgage(props.code)
 
 async function onEndTurn() {
     cancelAction()
@@ -196,7 +220,9 @@ watch(
                     <PlayerCardHolder v-for="seat in opponentSeats" :key="seat.seatIndex" :player-type="'opponent'"
                         :seat-index="seat.seatIndex" :player-name="seat.name" :seat-status="seat.seatStatus"
                         :is-turn="seat.isTurn" :hand="seat.hand" :points="seat.points" :food-due="seat.foodDue"
-                        :rent-due="seat.rentDue"
+                        :rent-due="seat.rentDue" :loan-due="seat.loanDue" :loan-outstanding="seat.loanOutstanding"
+                        :mortgage-card-type="seat.mortgageCardType" :mortgage-outstanding="seat.mortgageOutstanding"
+                        :mortgage-due="seat.mortgageDue"
                         class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1 xl:w-full xl:flex-none" />
                 </div>
 
@@ -205,7 +231,7 @@ watch(
                     @send="(text) => games.sendChat(code, text)" />
 
                 <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"
-                    :my-points="me?.points ?? 0" :my-hand="me?.hand ?? {}" :busy="acting" @claim="onClaimOffer"
+                    :my-points="availablePoints" :my-hand="me?.hand ?? {}" :busy="acting" @claim="onClaimOffer"
                     @unclaim="onUnclaimOffer" @decline="onDeclineOffer" @confirm="onConfirmOffer"
                     @cancel="onCancelOffer" />
 
@@ -213,13 +239,20 @@ watch(
                     :seat-index="mine?.seatIndex ?? -1" :player-name="mine?.name ?? ''"
                     :seat-status="mine?.seatStatus ?? 'empty'" :is-turn="isMyTurn" :hand="mine?.hand ?? {}"
                     :points="mine?.points ?? 0" :food-due="mine?.foodDue ?? 0" :rent-due="mine?.rentDue ?? 0"
+                    :loan-due="mine?.loanDue ?? 0" :loan-outstanding="mine?.loanOutstanding ?? 0"
+                    :mortgage-card-type="mine?.mortgageCardType ?? null"
+                    :mortgage-outstanding="mine?.mortgageOutstanding ?? 0" :mortgage-due="mine?.mortgageDue ?? 0"
                     :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
                     @cancel-operation="cancelAction" @transaction="onTransaction" @end-turn="onEndTurn" />
             </div>
         </div>
 
-        <BankSection :buying-active="activeAction === 'buy'" :pools="state.bank" :points="me?.points ?? 0"
-            :busy="acting" @cancel="cancelAction" @confirm="onBuy" />
+        <BankSection :buying-active="activeAction === 'buy'" :pools="state.bank" :points="availablePoints"
+            :hand="me?.hand ?? {}" :can-act="isMyTurn" :loan-outstanding="me?.loanOutstanding ?? 0"
+            :loan-due="me?.loanDue ?? 0" :mortgage-card-type="me?.mortgageCardType ?? null"
+            :mortgage-outstanding="me?.mortgageOutstanding ?? 0" :mortgage-due="me?.mortgageDue ?? 0" :busy="acting"
+            @cancel="cancelAction" @confirm="onBuy" @borrow="onBorrow" @repay="onRepay" @mortgage="onMortgage"
+            @redeem="onRedeem" />
 
         <Transition name="toast">
             <div v-if="actionError"

@@ -30,7 +30,11 @@ function toOffer(o) {
     kind: o.kind,
     offerCardType: o.offer_card_type,
     offerQuantity: o.offer_quantity,
+    // pricePoints is PER UNIT; totalPricePoints is what the claimant pays for
+    // the whole lot. The server sends both so nothing here has to multiply —
+    // and so an affordability check is a comparison against one number.
     pricePoints: o.price_points,
+    totalPricePoints: o.total_price_points,
     wantCardType: o.want_card_type,
     wantQuantity: o.want_quantity,
     status: o.status,
@@ -61,10 +65,19 @@ function toState(s) {
       playerId: s.you.player_id,
       seatIndex: s.you.seat_index,
       points: s.you.points,
+      // Spendable balance: points minus anything reserved against an open
+      // market claim. Controls should gate on this, not on `points`, or the
+      // UI offers purchases the server will refuse.
+      availablePoints: s.you.available_points,
       hand: s.you.hand,
       foodDue: s.you.food_due,
       rentDue: s.you.rent_due,
       isMyTurn: s.you.is_my_turn,
+      loanOutstanding: s.you.loan_outstanding,
+      loanDue: s.you.loan_due,
+      mortgageCardType: s.you.mortgage_card_type,
+      mortgageOutstanding: s.you.mortgage_outstanding,
+      mortgageDue: s.you.mortgage_due,
     },
     players: s.players.map((p) => ({
       id: p.id,
@@ -76,6 +89,13 @@ function toState(s) {
       foodDue: p.food_due,
       rentDue: p.rent_due,
       hand: p.hand,
+      // Debt is public on purpose: knowing an opponent has one round left on a
+      // loan is exactly the kind of thing the table should trade on.
+      loanOutstanding: p.loan_outstanding,
+      loanDue: p.loan_due,
+      mortgageCardType: p.mortgage_card_type,
+      mortgageOutstanding: p.mortgage_outstanding,
+      mortgageDue: p.mortgage_due,
     })),
   }
 }
@@ -222,6 +242,7 @@ export const useGamesStore = defineStore('games', () => {
   const confirmOffer = (code, id) => offerAction(code, id, 'confirm', true)
   const cancelOffer = (code, id) => offerAction(code, id, 'cancel')
 
+  // pricePoints is per unit — the server multiplies by quantity.
   const sellOffer = (code, cardType, quantity, pricePoints) =>
     postOffer(code, {
       kind: 'sell',
@@ -299,6 +320,21 @@ export const useGamesStore = defineStore('games', () => {
     act(code, 'sell-to-bank', { card_type: cardType, quantity })
 
   const endTurn = (code) => act(code, 'end-turn')
+
+  /* ── credit ───────────────────────────────────────────────────────
+     All four go through act(), so they carry expected_state_version and
+     resync on a 409 exactly like a purchase does. Taking a loan is a
+     decision made against a view of the board; if that view has moved on,
+     the client should see the new one rather than borrow blind.
+  ─────────────────────────────────────────────────────────────────── */
+
+  const borrow = (code, amount) => act(code, 'borrow', { amount })
+
+  const repayLoan = (code, amount) => act(code, 'repay-loan', { amount })
+
+  const openMortgage = (code, cardType) => act(code, 'open-mortgage', { card_type: cardType })
+
+  const redeemMortgage = (code) => act(code, 'redeem-mortgage')
 
   async function createGame(maxPlayers = 4) {
     busy.value = true
@@ -379,10 +415,23 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
-  async function leaveGame(code) {
+  /**
+   * Leave a table, optionally naming who inherits it.
+   *
+   * The endpoint takes a LeaveRequest body, and a Pydantic model parameter with
+   * no default is REQUIRED — so a bodyless POST was coming back 422 and leaving
+   * silently did nothing. The body is always sent now, with a null heir when
+   * none was chosen, which is the server's cue to fall back to the lowest live
+   * seat. The id is validated server-side against the remaining players, so a
+   * stale pick cannot hand the table to someone who already left.
+   */
+  async function leaveGame(code, heirPlayerId = '') {
     error.value = null
     try {
-      await apiJson(`/api/v1/games/${code.toUpperCase()}/leave`, { method: 'POST' })
+      await apiJson(`/api/v1/games/${code.toUpperCase()}/leave`, {
+        method: 'POST',
+        body: JSON.stringify({ heir_player_id: heirPlayerId || null }),
+      })
       myGames.value = myGames.value.filter((g) => g.joinCode !== code.toUpperCase())
       await fetchMine()
       return true
@@ -398,6 +447,7 @@ export const useGamesStore = defineStore('games', () => {
     events, lastSeq, sendingChat, offers,
     fetchMine, fetchState, fetchEvents, fetchOffers, sendChat, clearState, act,
     buyFromBank, sellToBank, endTurn,
+    borrow, repayLoan, openMortgage, redeemMortgage,
     sellOffer, tradeOffer,
     claimOffer, unclaimOffer, declineOffer, confirmOffer, cancelOffer,
     createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
