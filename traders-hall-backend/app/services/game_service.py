@@ -210,10 +210,18 @@ async def close_game(db: AsyncSession, *, user: User, code: str) -> None:
     if game.host_user_id != user.id:
         raise GameError("NOT_HOST", "Only the host can delete the table")
 
-    # No emptiness check: the host owns the table and may bin it with players
-    # still seated. The frontend names the consequence before confirming.
-    # Everything below hangs off game_id with ondelete=CASCADE, so seats, pools
-    # and hands all go with it — enforced by Postgres, not by remembering to.
+    # Break the circular reference BEFORE deleting.
+    #
+    # games.current_player_id points into game_players, while the ORM's
+    # delete-orphan cascade removes the seat rows first and the game row last.
+    # Deleting a seat the game still references violates fk_games_current_player
+    # — which is why lobby games (current_player_id NULL) deleted fine and
+    # in-progress ones did not.
+    game.current_player_id = None
+    await db.flush()
+
+    # Everything else hangs off game_id with ondelete=CASCADE, so seats, pools
+    # and hands go with it — enforced by Postgres, not by remembering to.
     await db.delete(game)
 
 

@@ -122,7 +122,7 @@ function onConfirm(payload) {
             <SeatToken :seat-index="-1" size="lg" />
             <div class="flex flex-col items-center gap-0.5">
                 <span class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Empty seat</span>
-                <span class="text-xs text-gray-light">Waiting for a player</span>
+                <span v-if="false" class="text-xs text-gray-light">Waiting for a player</span>
             </div>
         </div>
 
