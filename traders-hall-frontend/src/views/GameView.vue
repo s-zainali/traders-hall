@@ -157,8 +157,8 @@ async function onTransaction(payload) {
 
 const onClaimOffer = (id) => games.claimOffer(props.code, id)
 const onUnclaimOffer = (id) => games.unclaimOffer(props.code, id)
-const onDeclineOffer = (id) => games.declineOffer(props.code, id)
-const onConfirmOffer = (id) => games.confirmOffer(props.code, id)
+const onDeclineOffer = ({ offerId, playerId }) => games.declineOffer(props.code, offerId, playerId)
+const onConfirmOffer = ({ offerId, playerId }) => games.confirmOffer(props.code, offerId, playerId)
 const onCancelOffer = (id) => games.cancelOffer(props.code, id)
 
 /*
@@ -200,8 +200,8 @@ const myTenantCount = computed(
 */
 const myRentPoints = computed(() => me.value?.rentPoints ?? 0)
 
-const onEat = ({ cardType, quantity }) =>
-    runCredit('eat', games.eatFood && (() => games.eatFood(props.code, cardType, quantity)))
+const onEat = ({ cardType }) =>
+    runCredit('eat', games.eatFood && (() => games.eatFood(props.code, cardType)))
 
 /*
   Credit. These deliberately do NOT cancelAction(): the desk lives inside the

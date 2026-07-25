@@ -1,12 +1,13 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.game import Game
 from app.models.game_player import GamePlayer
 from app.models.player_hand import PlayerHand
+from app.models.offer_claim import OfferClaim
 from app.models.trade_offer import TradeOffer
 from app.models.user import User
 from app.services.residence_service import free_rooms_by_card
@@ -77,37 +78,34 @@ async def _offer(db: AsyncSession, game: Game, offer_id: uuid.UUID) -> TradeOffe
 
 
 async def _release_claim(db: AsyncSession, game: Game, offer: TradeOffer) -> None:
-    if offer.claimed_by_player_id is None:
-        return
+    """Clear every hand raised on an offer.
 
-    claimant = await db.get(GamePlayer, offer.claimed_by_player_id)
-    if claimant is not None:
-        if offer.kind == "sell":
-            claimant.reserved_points = max(
-                0, claimant.reserved_points - _total_price(offer)
-            )
-        elif _is_rent(offer):
-            # Claiming a rent offer commits nothing, so there is nothing to give
-            # back. Rent is charged on the tenant's own clock once the tenancy
-            # starts rather than escrowed up front: a tenancy is a promise to
-            # pay later, and locking the first payment now would both misstate
-            # that and strand points if the landlord declined.
-            offer.claim_card_type = None
-        else:
-            want = await db.scalar(
-                select(PlayerHand).where(
-                    PlayerHand.game_id == game.id,
-                    PlayerHand.player_id == claimant.id,
-                    PlayerHand.card_type == offer.want_card_type,
-                )
-            )
-            if want is not None:
-                want.reserved_quantity = max(
-                    0, want.reserved_quantity - offer.want_quantity
-                )
-
+    There is nothing to give back. Claims reserve neither points nor cards, so
+    releasing one is just forgetting it — which is what lets any number of
+    players want the same offer without freezing anybody's balance.
+    """
+    await db.execute(delete(OfferClaim).where(OfferClaim.offer_id == offer.id))
     offer.claimed_by_player_id = None
     offer.claimed_at = None
+
+
+async def _claims_for(db: AsyncSession, offer: TradeOffer) -> list[OfferClaim]:
+    return list(await db.scalars(
+        select(OfferClaim)
+        .where(OfferClaim.offer_id == offer.id)
+        .order_by(OfferClaim.created_at)
+    ))
+
+
+async def _claim_of(
+    db: AsyncSession, offer: TradeOffer, player_id: uuid.UUID
+) -> OfferClaim | None:
+    return await db.scalar(
+        select(OfferClaim).where(
+            OfferClaim.offer_id == offer.id, OfferClaim.player_id == player_id
+        )
+    )
+
 
 
 async def list_offers(db: AsyncSession, *, user: User, code: str) -> list[dict]:
@@ -125,7 +123,7 @@ async def list_offers(db: AsyncSession, *, user: User, code: str) -> list[dict]:
 
     rows = list(await db.scalars(
         select(TradeOffer)
-        .where(TradeOffer.game_id == game.id, TradeOffer.status.in_(("open", "claimed")))
+        .where(TradeOffer.game_id == game.id, TradeOffer.status == "open")
         .order_by(TradeOffer.created_at.desc())
     ))
 
@@ -134,6 +132,16 @@ async def list_offers(db: AsyncSession, *, user: User, code: str) -> list[dict]:
             select(GamePlayer).where(GamePlayer.game_id == game.id)
         )
     }
+
+    # One query for every claim in the game rather than one per offer.
+    all_claims = list(await db.scalars(
+        select(OfferClaim)
+        .where(OfferClaim.game_id == game.id)
+        .order_by(OfferClaim.created_at)
+    ))
+    claims_by_offer: dict = {}
+    for c in all_claims:
+        claims_by_offer.setdefault(c.offer_id, []).append(c)
 
     out = []
     for offer in rows:
@@ -156,6 +164,15 @@ async def list_offers(db: AsyncSession, *, user: User, code: str) -> list[dict]:
             "want_card_type": offer.want_card_type,
             "want_quantity": offer.want_quantity,
             "status": offer.status,
+            "claims": [
+                {
+                    "player_id": c.player_id,
+                    "player_name": seats[c.player_id].display_name if c.player_id in seats else "Unknown",
+                    "seat_index": seats[c.player_id].seat_index if c.player_id in seats else -1,
+                    "card_type": c.card_type,
+                }
+                for c in claims_by_offer.get(offer.id, [])
+            ],
             "claimed_by_player_id": offer.claimed_by_player_id,
             "claimed_by_name": claimant.display_name if claimant else None,
             "claimed_by_seat_index": claimant.seat_index if claimant else None,
@@ -271,10 +288,15 @@ async def claim_offer(
     expected_state_version: int | None,
     card_type: str | None = None,
 ) -> Game:
-    """Take up an offer.
+    """Put your hand up. Does not lock the offer, and does not reserve anything.
 
-    card_type is only meaningful for rent_ask, where the claimant is the LANDLORD
-    and has to say which of their properties the room is in.
+    Several players may claim the same offer; the poster chooses between them.
+    Eligibility is still checked here so a player learns immediately that they
+    cannot afford it or have nowhere to put a tenant — but affordability is
+    RE-checked at settle, because nothing was frozen in the meantime.
+
+    card_type applies to rent_ask only, where the claimant is the LANDLORD and
+    must name which property the room is in.
     """
     game = await _lock_game(db, code)
     claimant = await _seat_of(db, game, user)
@@ -285,6 +307,8 @@ async def claim_offer(
         raise ActionError("OFFER_NOT_OPEN", "That offer is no longer open")
     if offer.poster_player_id == claimant.id:
         raise ActionError("CANNOT_CLAIM_OWN_OFFER", "That is your own offer")
+    if await _claim_of(db, offer, claimant.id) is not None:
+        raise ActionError("ALREADY_CLAIMED", "You have already claimed that offer")
 
     if offer.kind == "sell":
         total = _total_price(offer)
@@ -293,32 +317,28 @@ async def claim_offer(
             raise ActionError(
                 "INSUFFICIENT_POINTS",
                 f"That costs {total} points; you have {available} free",
-                required=total,
-                available=available,
+                required=total, available=available,
             )
-        claimant.reserved_points += total
+    elif offer.kind == "trade":
+        want = await _hand_row(db, game, claimant, offer.want_card_type)
+        if want.quantity - want.reserved_quantity < offer.want_quantity:
+            raise ActionError(
+                "INSUFFICIENT_CARDS",
+                f"You need {offer.want_quantity} free {offer.want_card_type}",
+            )
     elif offer.kind == "rent_out":
-        # Taking a room means moving in, so the claimant must have nowhere to
-        # live. Nothing is reserved: the first rent falls due a full interval
-        # after the tenancy starts.
         if claimant.residence_card_type is not None:
             raise ActionError(
                 "ALREADY_RESIDING",
                 "Leave your current residence before taking a room",
                 card_type=claimant.residence_card_type,
             )
-    elif offer.kind == "rent_ask":
-        # Answering a request means becoming a landlord, so the claimant needs a
-        # spare room and must name which property it is in.
+    else:  # rent_ask — the claimant is the landlord
         free = await free_rooms_by_card(db, game, claimant)
         if not any(free.values()):
-            raise ActionError(
-                "NO_FREE_ROOM",
-                "You have no spare room to let",
-            )
+            raise ActionError("NO_FREE_ROOM", "You have no spare room to let")
         if card_type is None:
-            # One candidate is not a choice, so do not make the client ask.
-            candidates = [code for code, n in free.items() if n > 0]
+            candidates = [c for c, n in free.items() if n > 0]
             if len(candidates) == 1:
                 card_type = candidates[0]
             else:
@@ -329,25 +349,17 @@ async def claim_offer(
                 )
         if free.get(card_type, 0) < 1:
             raise ActionError(
-                "NO_FREE_ROOM",
-                "You have no spare room in that property",
+                "NO_FREE_ROOM", "You have no spare room in that property",
                 card_type=card_type,
             )
-        offer.claim_card_type = card_type
-    else:
-        want = await _hand_row(db, game, claimant, offer.want_card_type)
-        available = want.quantity - want.reserved_quantity
-        if available < offer.want_quantity:
-            raise ActionError(
-                "INSUFFICIENT_CARDS",
-                f"You have only {available} free {offer.want_card_type}",
-                available=available,
-            )
-        want.reserved_quantity += offer.want_quantity
 
-    offer.claimed_by_player_id = claimant.id
-    offer.claimed_at = datetime.now(UTC)
-    offer.status = "claimed"
+    db.add(OfferClaim(
+        game_id=game.id,
+        offer_id=offer.id,
+        player_id=claimant.id,
+        card_type=card_type if offer.kind == "rent_ask" else None,
+    ))
+    await db.flush()
 
     await _append_event(
         db, game,
@@ -358,21 +370,20 @@ async def claim_offer(
     return game
 
 
+
 async def withdraw_claim(
     db: AsyncSession, *, user: User, code: str, offer_id: uuid.UUID
 ) -> Game:
+    """Take your own hand back down. The offer stays open to everyone else."""
     game = await _lock_game(db, code)
     seat = await _seat_of(db, game, user)
 
     offer = await _offer(db, game, offer_id)
-    if offer.status != "claimed":
-        raise ActionError("OFFER_NOT_CLAIMED", "That offer has not been claimed")
-    if offer.claimed_by_player_id != seat.id:
-        raise ActionError("NOT_CLAIMANT", "You did not claim that offer")
+    claim = await _claim_of(db, offer, seat.id)
+    if claim is None:
+        raise ActionError("NOT_CLAIMANT", "You have not claimed that offer")
 
-    await _release_claim(db, game, offer)
-    offer.status = "open"
-
+    await db.delete(claim)
     await _append_event(
         db, game,
         event_type="offer.claim_withdrawn",
@@ -382,35 +393,60 @@ async def withdraw_claim(
     return game
 
 
+
 async def decline_claim(
-    db: AsyncSession, *, user: User, code: str, offer_id: uuid.UUID
+    db: AsyncSession, *, user: User, code: str, offer_id: uuid.UUID,
+    player_id: uuid.UUID | None = None,
 ) -> Game:
+    """Turn down ONE claimant, leaving the rest in the running.
+
+    player_id is required once more than one player has claimed — declining
+    without saying who would be ambiguous, and silently picking the first would
+    reject someone the poster never looked at.
+    """
     game = await _lock_game(db, code)
     seat = await _seat_of(db, game, user)
 
     offer = await _offer(db, game, offer_id)
     if offer.poster_player_id != seat.id:
         raise ActionError("NOT_OFFER_OWNER", "Only the poster can decline a claim")
-    if offer.status != "claimed":
+
+    claims = await _claims_for(db, offer)
+    if not claims:
         raise ActionError("OFFER_NOT_CLAIMED", "Nobody has claimed that offer")
 
-    declined = offer.claimed_by_player_id
-    await _release_claim(db, game, offer)
-    offer.status = "open"
+    if player_id is None:
+        if len(claims) > 1:
+            raise ActionError("PLAYER_REQUIRED", "Choose which claim to decline")
+        player_id = claims[0].player_id
 
+    claim = await _claim_of(db, offer, player_id)
+    if claim is None:
+        raise ActionError("NOT_CLAIMANT", "That player has not claimed this offer")
+
+    await db.delete(claim)
     await _append_event(
         db, game,
         event_type="offer.declined",
         actor_player_id=seat.id,
-        payload={"offer_id": str(offer.id), "declined_player_id": str(declined)},
+        payload={"offer_id": str(offer.id), "declined_player_id": str(player_id)},
     )
     return game
+
 
 
 async def confirm_offer(
     db: AsyncSession, *, user: User, code: str, offer_id: uuid.UUID,
     expected_state_version: int | None,
+    player_id: uuid.UUID | None = None,
 ) -> Game:
+    """Accept ONE of the players who claimed, and settle with them.
+
+    player_id is required whenever more than one player has claimed. Everything
+    is validated here rather than at claim time, because claims reserve nothing —
+    the winner may have spent their points on something else since. If they have,
+    the poster gets a clear error and can accept somebody else instead.
+    """
     game = await _lock_game(db, code)
     poster = await _seat_of(db, game, user)
     _check_version(game, expected_state_version)
@@ -418,14 +454,31 @@ async def confirm_offer(
     offer = await _offer(db, game, offer_id)
     if offer.poster_player_id != poster.id:
         raise ActionError("NOT_OFFER_OWNER", "Only the poster can settle an offer")
-    if offer.status != "claimed":
+    if offer.status != "open":
+        raise ActionError("OFFER_NOT_OPEN", "That offer is no longer live")
+
+    claims = await _claims_for(db, offer)
+    if not claims:
         raise ActionError("OFFER_NOT_CLAIMED", "Nobody has claimed that offer")
 
-    buyer = await db.get(GamePlayer, offer.claimed_by_player_id)
+    if player_id is None:
+        if len(claims) > 1:
+            raise ActionError("PLAYER_REQUIRED", "Choose which player to accept")
+        player_id = claims[0].player_id
+
+    chosen = await _claim_of(db, offer, player_id)
+    if chosen is None:
+        raise ActionError("NOT_CLAIMANT", "That player has not claimed this offer")
+
+    buyer = await db.get(GamePlayer, player_id)
     if buyer is None or buyer.status != "active":
-        await _release_claim(db, game, offer)
-        offer.status = "open"
-        raise ActionError("CLAIMANT_GONE", "The claiming player has left the game")
+        await db.delete(chosen)
+        raise ActionError("CLAIMANT_GONE", "That player has left the game")
+
+    # rent_ask carries the landlord's chosen property on the CLAIM, not the
+    # offer — the request itself names no property.
+    if offer.kind == "rent_ask":
+        offer.claim_card_type = chosen.card_type
 
     if _is_rent(offer):
         landlord, tenant = _rent_parties(offer, poster, buyer)
@@ -438,7 +491,11 @@ async def confirm_offer(
         # may have sold the property, had it seized to cover a defaulted loan,
         # or let the room to someone else; and the tenant may have moved in
         # elsewhere. The claim reserves nothing, so nothing held any of it still.
-        free = await free_rooms_by_card(db, game, landlord, exclude_offer_id=offer_id)
+        # exclude_offer_id matters: lettable_by_card subtracts rooms promised
+        # by live rent_out offers, and THIS offer is one of them. Without the
+        # exclusion a landlord letting their only room always sees zero free and
+        # the settle can never succeed.
+        free = await free_rooms_by_card(db, game, landlord, exclude_offer_id=offer.id)
         if free.get(card_type, 0) < 1:
             raise ActionError(
                 "NO_FREE_ROOM",
@@ -562,9 +619,10 @@ async def confirm_offer(
         _ledger(db, game, event, player_id=poster.id, entry_type="trade",
                 card_type=offer.want_card_type, card_delta=offer.want_quantity)
 
+    # Everyone else's hand comes down with the settle. Nothing was reserved, so
+    # the losers simply stop seeing it.
+    await _release_claim(db, game, offer)
     offer.settled_with_player_id = buyer.id
-    offer.claimed_by_player_id = None
-    offer.claimed_at = None
     offer.status = "settled"
     offer.resolved_at = datetime.now(UTC)
     return game
@@ -579,7 +637,7 @@ async def cancel_offer(
     offer = await _offer(db, game, offer_id)
     if offer.poster_player_id != seat.id:
         raise ActionError("NOT_OFFER_OWNER", "Only the poster can withdraw an offer")
-    if offer.status not in ("open", "claimed"):
+    if offer.status != "open":
         raise ActionError("OFFER_NOT_OPEN", "That offer is no longer live")
 
     await _release_claim(db, game, offer)
@@ -604,17 +662,18 @@ async def cancel_offer(
     return game
 
 
+
 async def release_offers_for(db: AsyncSession, game: Game, player: GamePlayer) -> None:
+    """Tidy up after a player leaves: kill their offers, drop their claims."""
     posted = list(await db.scalars(
         select(TradeOffer).where(
             TradeOffer.game_id == game.id,
             TradeOffer.poster_player_id == player.id,
-            TradeOffer.status.in_(("open", "claimed")),
+            TradeOffer.status == "open",
         )
     ))
     for offer in posted:
         await _release_claim(db, game, offer)
-        # Rent offers never reserved a card, and rent_ask has no card to look up.
         if not _is_rent(offer):
             hand = await db.scalar(
                 select(PlayerHand).where(
@@ -630,13 +689,10 @@ async def release_offers_for(db: AsyncSession, game: Game, player: GamePlayer) -
         offer.status = "cancelled"
         offer.resolved_at = datetime.now(UTC)
 
-    claimed = list(await db.scalars(
-        select(TradeOffer).where(
-            TradeOffer.game_id == game.id,
-            TradeOffer.claimed_by_player_id == player.id,
-            TradeOffer.status == "claimed",
+    # Their hands on OTHER people's offers simply come down. Nothing was
+    # reserved, so there is nothing to unwind.
+    await db.execute(
+        delete(OfferClaim).where(
+            OfferClaim.game_id == game.id, OfferClaim.player_id == player.id
         )
-    ))
-    for offer in claimed:
-        await _release_claim(db, game, offer)
-        offer.status = "open"
+    )

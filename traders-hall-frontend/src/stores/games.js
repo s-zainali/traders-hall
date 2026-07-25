@@ -35,11 +35,15 @@ function toOffer(o) {
     // and so an affordability check is a comparison against one number.
     pricePoints: o.price_points,
     totalPricePoints: o.total_price_points,
-    // Rent kinds only. rentIntervalTurns is how many of the TENANT's turns
-    // between payments; claimCardType is which property a claiming landlord
-    // named when answering a rent_ask.
     rentIntervalTurns: o.rent_interval_turns,
     claimCardType: o.claim_card_type,
+    // Everyone with a hand up, oldest first. The poster picks one.
+    claims: (o.claims ?? []).map((c) => ({
+      playerId: c.player_id,
+      playerName: c.player_name,
+      seatIndex: c.seat_index,
+      cardType: c.card_type,
+    })),
     wantCardType: o.want_card_type,
     wantQuantity: o.want_quantity,
     status: o.status,
@@ -88,16 +92,11 @@ function toState(s) {
       mortgageCardType: s.you.mortgage_card_type,
       mortgageOutstanding: s.you.mortgage_outstanding,
       mortgageDue: s.you.mortgage_due,
-      // Housing. A landlord id alongside a residence means you rent; a
-      // residence with no landlord means you own the place; neither means
-      // homeless.
       residenceCardType: s.you.residence_card_type,
       residenceLandlordId: s.you.residence_landlord_id,
       roomsTotal: s.you.rooms_total ?? 0,
       roomsOccupied: s.you.rooms_occupied ?? 0,
       roomsFree: s.you.rooms_free ?? 0,
-      // Per property type, so the let-a-room control offers only the
-      // properties that actually have capacity left.
       roomsByCard: s.you.rooms_by_card ?? {},
     },
     players: s.players.map((p) => ({
@@ -117,8 +116,6 @@ function toState(s) {
       mortgageCardType: p.mortgage_card_type,
       mortgageOutstanding: p.mortgage_outstanding,
       mortgageDue: p.mortgage_due,
-      // Public: a spare room is what makes a player eligible to answer a
-      // request, so every client needs to see it.
       residenceCardType: p.residence_card_type,
       residenceLandlordId: p.residence_landlord_id,
       roomsTotal: p.rooms_total ?? 0,
@@ -265,14 +262,23 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
-  // cardType is only meaningful for rent_ask, where the claimant is the
-  // LANDLORD and must name which of their properties the room is in. The server
-  // picks for them when only one property is eligible.
+  // cardType is rent_ask only: the claiming LANDLORD names which property the
+  // room is in. The server picks when only one is eligible.
   const claimOffer = (code, id, cardType = null) =>
     offerAction(code, id, 'claim', true, cardType ? { card_type: cardType } : {})
+
   const unclaimOffer = (code, id) => offerAction(code, id, 'unclaim')
-  const declineOffer = (code, id) => offerAction(code, id, 'decline')
-  const confirmOffer = (code, id) => offerAction(code, id, 'confirm', true)
+
+  /*
+    Several players can claim one offer, so accepting and declining both name
+    WHICH. Null means "the only one" — the server rejects an ambiguous null once
+    more than one player is in the running, rather than picking for the poster.
+  */
+  const declineOffer = (code, id, playerId = null) =>
+    offerAction(code, id, 'decline', true, playerId ? { player_id: playerId } : {})
+
+  const confirmOffer = (code, id, playerId = null) =>
+    offerAction(code, id, 'confirm', true, playerId ? { player_id: playerId } : {})
   const cancelOffer = (code, id) => offerAction(code, id, 'cancel')
 
   // pricePoints is per unit — the server multiplies by quantity.
@@ -284,34 +290,21 @@ export const useGamesStore = defineStore('games', () => {
       price_points: pricePoints,
     })
 
-  /* ── housing ──────────────────────────────────────────────────────
-     Two routes into a tenancy, differing only in who posts. rentOut is a
-     landlord advertising one room; rentAsk is a homeless player broadcasting
-     what they will pay. Both carry the rent AND the interval, because both are
-     negotiated rather than fixed anywhere.
-  ─────────────────────────────────────────────────────────────────── */
-
   const rentOut = (code, cardType, rentPoints, intervalTurns) =>
     postOffer(code, {
-      kind: 'rent_out',
-      offer_card_type: cardType,
-      offer_quantity: 1,
-      price_points: rentPoints,
-      rent_interval_turns: intervalTurns,
+      kind: 'rent_out', offer_card_type: cardType, offer_quantity: 1,
+      price_points: rentPoints, rent_interval_turns: intervalTurns,
     })
 
   // No card: the request goes to every landlord, and whoever answers names the
   // property themselves.
   const rentAsk = (code, rentPoints, intervalTurns) =>
     postOffer(code, {
-      kind: 'rent_ask',
-      offer_quantity: 1,
-      price_points: rentPoints,
-      rent_interval_turns: intervalTurns,
+      kind: 'rent_ask', offer_quantity: 1,
+      price_points: rentPoints, rent_interval_turns: intervalTurns,
     })
 
   const moveIn = (code, cardType) => act(code, 'move-in', { card_type: cardType })
-
   const leaveResidence = (code) => act(code, 'leave-residence')
 
   const tradeOffer = (code, cardType, quantity, wantCardType, wantQuantity) =>
@@ -390,8 +383,10 @@ export const useGamesStore = defineStore('games', () => {
      Nutrition ADDS to whatever is left, so eating early stockpiles.
   ─────────────────────────────────────────────────────────────────── */
 
-  const eatFood = (code, cardType, quantity = 1) =>
-    act(code, 'eat', { card_type: cardType, quantity })
+  // One card per meal: nutrition raises food_due TO the card's value rather
+  // than adding onto it, so a second card cannot lift a ceiling the first
+  // already reached.
+  const eatFood = (code, cardType) => act(code, 'eat', { card_type: cardType })
 
   /* ── credit ───────────────────────────────────────────────────────
      All four go through act(), so they carry expected_state_version and

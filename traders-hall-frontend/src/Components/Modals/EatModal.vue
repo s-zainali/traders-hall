@@ -32,8 +32,6 @@ const emit = defineEmits(['confirm', 'cancel'])
 
 const cardTypes = useCardTypesStore()
 
-const quantity = ref(1)
-
 const card = computed(() => cardTypes.get(props.cardType))
 const title = computed(() => card.value?.title ?? props.cardType)
 
@@ -41,25 +39,16 @@ const title = computed(() => card.value?.title ?? props.cardType)
 // migration rather than a frontend edit.
 const nutrition = computed(() => card.value?.nutritionTurns ?? 0)
 
-const gained = computed(() => nutrition.value * quantity.value)
+// One card per meal, so the gain is simply the card's value — and zero when
+// you are already better fed than it would leave you.
+const gained = computed(() => Math.max(0, nutrition.value - props.foodDue))
 
 // Nutrition ADDS to what is left rather than replacing it, so eating early
 // stockpiles instead of wasting. The projected total is shown because that is
 // the number the player is actually deciding about.
-const projected = computed(() => props.foodDue + gained.value)
-
-const maxQuantity = computed(() => Math.max(1, props.available))
-
-function step(delta) {
-    quantity.value = Math.min(maxQuantity.value, Math.max(1, quantity.value + delta))
-}
-
-// The hand moves under this component while it is open — an opponent settling a
-// trade, or upkeep running — so a stepper left above the new ceiling would
-// submit an impossible amount.
-watch(maxQuantity, (max) => {
-    quantity.value = Math.min(quantity.value, max)
-})
+// Nutrition raises food_due TO the card's value rather than adding onto it, so
+// eating early buys nothing. max() keeps a snack from shortening your own clock.
+const projected = computed(() => Math.max(props.foodDue, nutrition.value))
 
 function onKeydown(e) {
     if (e.key === 'Escape') emit('cancel')
@@ -68,7 +57,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const canConfirm = computed(
-    () => !props.busy && nutrition.value > 0 && quantity.value >= 1
+    () => !props.busy && nutrition.value > 0
 )
 
 /* ── class vocabulary, shared with TransactionModal ───────────────── */
@@ -134,23 +123,6 @@ const eatClass =
 
                 <div class="flex flex-col gap-3">
                     <section class="flex flex-col gap-2">
-                        <h3 :class="labelClass">How many</h3>
-                        <div :class="[stepperClass, 'shrink-0']">
-                            <button type="button" :class="stepButton" :disabled="quantity <= 1"
-                                aria-label="Eat fewer" @click="step(-1)">−</button>
-                            <div :class="[countClass, 'w-14 text-lg']">{{ quantity }}</div>
-                            <button type="button" :class="stepButton" :disabled="quantity >= maxQuantity"
-                                aria-label="Eat more" @click="step(1)">+</button>
-                        </div>
-                        <p class="text-xs text-gray-x-light">{{ available }} in hand</p>
-                    </section>
-
-                    <!--
-                        Before and after, not just the gain. Nutrition stacks on
-                        whatever is left, so "+10" alone does not tell the player
-                        the thing they actually want to know.
-                    -->
-                    <section class="flex flex-col gap-2">
                         <h3 :class="labelClass">Food</h3>
                         <div :class="[wellClass, 'gap-2 px-3 py-2']">
                             <span class="text-lg font-bold tabular-nums text-gray-x-light">{{ foodDue }}</span>
@@ -162,7 +134,7 @@ const eatClass =
             </div>
 
             <p class="rounded-xl border-2 border-cream-light/40 bg-cream-light/10 px-4 py-2 text-center text-sm font-bold text-gray-2x-light">
-                {{ quantity }}× {{ title }}
+                {{ title }}
                 <span class="px-2 text-cream-light">→</span>
                 fed for {{ projected }} {{ projected === 1 ? 'turn' : 'turns' }}
             </p>
@@ -173,7 +145,7 @@ const eatClass =
                     @click="emit('cancel')">Cancel</button>
 
                 <button type="button" :class="[actionButton, eatClass]" :disabled="!canConfirm"
-                    @click="emit('confirm', { cardType, quantity })">
+                    @click="emit('confirm', { cardType })">
                     <span class="flex items-center justify-center gap-2">
                         <span v-if="busy"
                             class="h-4 w-4 animate-spin rounded-full border-2 border-gray-dark/30 border-t-gray-dark"></span>
