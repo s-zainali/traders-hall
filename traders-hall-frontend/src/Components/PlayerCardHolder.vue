@@ -587,7 +587,7 @@ function onEndTurn() {
                     </CardDeck>
                     <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
                     
-                    <div class="flex items-center rounded-lg border-2 border-purple-light bg-purple-dark px-1">
+                    <div class="flex items-center rounded-xl border-2 border-purple-light bg-purple-dark">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
                             mask: `url(/cancel.png) no-repeat center / contain`,

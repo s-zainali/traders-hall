@@ -37,6 +37,26 @@ const C = (code, qty = 1) => ({ t: 'card', code, qty })
 const P = (v) => ({ t: 'pts', v })
 const N = (id) => ({ t: 'name', id })
 
+const turns = (n) => (n === 1 ? '1 turn' : `${n} turns`)
+
+/**
+ * How a rent offer reads.
+ *
+ * rent_out is a landlord advertising a room; rent_ask is a homeless player
+ * saying what they will pay. Both carry a rent AND an interval, and a line that
+ * shows one without the other is a blind offer — which is what these looked like
+ * while they fell through to the trade branch and rendered "for ×" and a blank
+ * card, because a rent offer has no want_card_type to draw.
+ */
+const rentParts = (p, verbPrefix) =>
+  p.kind === 'rent_out'
+    ? [T(verbPrefix + ' a room in'), C(p.card_type, 1), T('to let for'), P(p.price_points),
+       T(`every ${turns(p.rent_interval_turns)}`)]
+    : [T(verbPrefix + ' a room, paying'), P(p.price_points),
+       T(`every ${turns(p.rent_interval_turns)}`)]
+
+const isRentKind = (kind) => kind === 'rent_out' || kind === 'rent_ask'
+
 /*
   How each event type renders. Keeping this as data rather than a chain of
   v-if branches means adding an event type is one entry, and the colour and the
@@ -73,10 +93,15 @@ const KINDS = {
   'offer.posted': {
     icon: '☰',
     tone: 'text-gray-2x-light',
-    parts: (p) =>
-      p.kind === 'sell'
-        ? [T('offered'), C(p.card_type, p.quantity), T('for'), P(p.total_price_points ?? p.price_points)]
-        : [T('offered'), C(p.card_type, p.quantity), T('for'), C(p.want_card_type, p.want_quantity)],
+    parts: (p) => {
+      if (isRentKind(p.kind)) return rentParts(p, p.kind === 'rent_out' ? 'offered' : 'wants')
+      if (p.kind === 'sell') {
+        return [T('offered'), C(p.card_type, p.quantity), T('for'),
+                P(p.total_price_points ?? p.price_points)]
+      }
+      return [T('offered'), C(p.card_type, p.quantity), T('for'),
+              C(p.want_card_type, p.want_quantity)]
+    },
   },
   'offer.claimed': {
     icon: '✋',
@@ -96,10 +121,18 @@ const KINDS = {
   'offer.settled': {
     icon: '⇄',
     tone: 'text-emerald-400',
-    parts: (p) =>
-      p.kind === 'sell'
-        ? [T('sold'), C(p.card_type, p.quantity), T('to'), N(p.with_player_id), T('for'), P(p.total_price_points ?? p.price_points)]
-        : [T('traded'), C(p.card_type, p.quantity), T('to'), N(p.with_player_id), T('for'), C(p.want_card_type, p.want_quantity)],
+    parts: (p) => {
+      if (isRentKind(p.kind)) {
+        return [T('let a room in'), C(p.card_type, 1), T('to'), N(p.tenant_player_id ?? p.with_player_id),
+                T('for'), P(p.rent_points), T(`every ${turns(p.rent_interval_turns)}`)]
+      }
+      if (p.kind === 'sell') {
+        return [T('sold'), C(p.card_type, p.quantity), T('to'), N(p.with_player_id), T('for'),
+                P(p.total_price_points ?? p.price_points)]
+      }
+      return [T('traded'), C(p.card_type, p.quantity), T('to'), N(p.with_player_id), T('for'),
+              C(p.want_card_type, p.want_quantity)]
+    },
   },
   'offer.cancelled': {
     icon: '✕',
@@ -123,6 +156,35 @@ const KINDS = {
     // No actor: upkeep raised this, not the player. subjectOf falls back to
     // payload.player_id so the line still names and colours the right seat.
     parts: () => [T('has run out of food')],
+  },
+
+  // ── tenancies ────────────────────────────────────────────────
+  'rent.paid': {
+    icon: '⌂',
+    tone: 'text-teal-light',
+    parts: (p) => [T('paid'), P(p.rent_points), T('rent to'), N(p.landlord_player_id),
+                   T(`— next in ${turns(p.next_due_in)}`)],
+  },
+  'rent.missed': {
+    icon: '⚠',
+    tone: 'text-rose-400',
+    parts: (p) => [T('could not pay'), P(p.rent_points), T('rent to'), N(p.landlord_player_id),
+                   T(`— ${p.shortfall} short`)],
+  },
+  'tenancy.ended': {
+    icon: '⌂',
+    tone: 'text-gray-x-light',
+    parts: (p) => [T('no longer rents'), C(p.card_type, 1), T('from'), N(p.landlord_player_id)],
+  },
+  'residence.moved_in': {
+    icon: '⌂',
+    tone: 'text-purple-light',
+    parts: (p) => [T('moved into'), C(p.card_type, 1)],
+  },
+  'residence.left': {
+    icon: '⌂',
+    tone: 'text-gray-x-light',
+    parts: (p) => [T('left'), C(p.card_type, 1)],
   },
 
   // ── credit ───────────────────────────────────────────────────

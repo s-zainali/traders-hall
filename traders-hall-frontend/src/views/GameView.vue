@@ -300,7 +300,9 @@ watch(
                     @send="(text) => games.sendChat(code, text)" />
 
                 <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"
-                    :my-points="availablePoints" :my-hand="me?.hand ?? {}" :busy="acting" @claim="onClaimOffer"
+                    :my-points="availablePoints" :my-hand="me?.hand ?? {}"
+                    :my-residence-card-type="me?.residenceCardType ?? null" :my-rooms-free="me?.roomsFree ?? 0"
+                    :busy="acting" @claim="onClaimOffer"
                     @unclaim="onUnclaimOffer" @decline="onDeclineOffer" @confirm="onConfirmOffer"
                     @cancel="onCancelOffer" />
 
