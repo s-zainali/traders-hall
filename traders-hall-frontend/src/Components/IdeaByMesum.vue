@@ -3,12 +3,13 @@ defineProps({
     // `zoom` (not `scale`) shrinks the layout box too, so the compact variant
     // takes proportionally less space instead of leaving a full-size gap.
     compact: { type: Boolean, default: false },
+    semiCompact : {type: Boolean, default: false}
 })
 
 </script>
 
 <template>
-    <footer class="relative select-none group bg-transparent" :style="compact ? { zoom: 0.7 } : {}">
+    <footer class="relative select-none group bg-transparent" :style="compact ? { zoom: 0.7 } : semiCompact? {zoom:0.8} :{}">
         <div class="flex flex-col items-center gap-2">
             <span class="text-[10px] font-black uppercase tracking-[0.4em] text-white/25">
                 Concept by

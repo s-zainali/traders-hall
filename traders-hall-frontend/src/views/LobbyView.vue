@@ -265,7 +265,7 @@ const dangerBtn =
         <header class="grid shrink-0 items-center grid-cols-3 rounded-[1.5rem] border-2 border-gray-light
              bg-gray-x-dark/85 p-4 backdrop-blur-xl">
             <h1 class="text-2xl font-bold tracking-widest text-gray-2x-light">TRADERS HALL</h1>
-            <IdeaByMesum compact/>
+            <IdeaByMesum semi-compact/>
             <div class="flex items-center gap-3 justify-self-end">
                 <div class="flex flex-col items-end leading-tight">
                     <span class="font-bold text-gray-2x-light">{{ user?.display_name }}</span>
