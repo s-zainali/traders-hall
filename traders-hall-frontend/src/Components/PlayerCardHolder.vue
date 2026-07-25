@@ -4,7 +4,9 @@ import Card from './Card.vue'
 import CardDeck from './CardDeck.vue'
 import SeatToken from './SeatToken.vue'
 import TransactionModal from './Modals/TransactionModal.vue'
+import EatModal from './Modals/EatModal.vue'
 import { seatStyle } from '../seats'
+import { useCardTypesStore } from '../stores/cardTypes'
 
 const props = defineProps({
     playerType: { type: String, default: 'player' },
@@ -35,13 +37,21 @@ const props = defineProps({
 
     residence: { type: String, default: '' },
     onRent: { type: Boolean, default: false },
+    // Housing. `residence` is the card code lived in; these describe capacity as
+    // a landlord, which is public — a spare room is what makes someone eligible
+    // to answer a request.
+    roomsTotal: { type: Number, default: 0 },
+    roomsFree: { type: Number, default: 0 },
+    isTenant: { type: Boolean, default: false },
     /** an action is in flight; controls lock so a double-click cannot fire twice */
     busy: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
-    'buy', 'sell', 'trade', 'cancelOperation', 'transaction', 'endTurn',
+    'buy', 'sell', 'trade', 'eat', 'residence', 'cancelOperation', 'transaction', 'endTurn',
 ])
+
+const cardTypes = useCardTypesStore()
 
 /* ── local state ──────────────────────────────────────────────────
    ONE ref for the card under action. Sell and trade previously wrote to
@@ -134,6 +144,36 @@ const debtTitle = computed(() => {
 
 /** The mortgaged card is locked: it cannot be sold, traded or offered. */
 const isMortgaged = (type) => hasMortgage.value && type === props.mortgageCardType
+
+/* ── eating ──────────────────────────────────────────────────────
+   Eating is available whenever a food card is in hand and it is your turn —
+   there is no "eat mode" in the action bar, because a meal has no counterparty
+   to negotiate with. It therefore has to yield to the market modes: a food card
+   during a sell must stay sellable, or the player can never sell their wheat.
+────────────────────────────────────────────────────────────────── */
+
+const isEdible = (type) => {
+    const card = cardTypes.get(type)
+    return !!card && card.category === 'food' && card.nutritionTurns > 0
+}
+
+const canEat = (type) =>
+    isOwn.value &&
+    canAct.value &&
+    props.activeAction === '' &&
+    !isMortgaged(type) &&
+    isEdible(type)
+
+function openEat(type) {
+    if (!canEat(type)) return
+    selectedType.value = type
+    activeModal.value = 'eat'
+}
+
+function onEat(payload) {
+    emit('eat', payload)
+    activeModal.value = ''
+}
 
 /**
  * Border priority, most urgent first:
@@ -276,7 +316,12 @@ function onEndTurn() {
         -->
         <div v-if="activeModal !== ''" class="absolute top-1/2 left-full z-[120] ml-2 w-max max-w-[calc(100vw-3rem)] -translate-y-1/2
                    xl:top-auto xl:bottom-full xl:left-1/2 xl:ml-0 xl:-translate-x-1/2 xl:translate-y-0">
-            <TransactionModal :transaction-type="activeModal" :card-type="selectedType"
+            <!-- Two modals share this anchor. Eating is not a transaction, so it
+                 gets its own component rather than a fourth mode inside one. -->
+            <EatModal v-if="activeModal === 'eat'" :card-type="selectedType"
+                :available="hand[selectedType] ?? 1" :food-due="foodDue" :busy="busy" :popover="true"
+                @confirm="onEat($event)" @cancel="closeModal" />
+            <TransactionModal v-else :transaction-type="activeModal" :card-type="selectedType"
                 :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true" @confirm="onConfirm($event)"
                 @cancel="closeModal" />
             <div class="mx-auto -mt-0.5 hidden h-1 w-16 rounded-b bg-gray-light xl:block"></div>
@@ -335,9 +380,30 @@ function onEndTurn() {
                 </CardDeck>
                 <span v-else class="px-1 text-sm font-bold text-gray-light">0 pts</span>
 
-                <div
-                    class="flex shrink-0 items-center gap-1 rounded-[1rem] border-4 border-purple-light bg-purple-dark px-2">
-                    <span class="text-xs font-bold text-purple-light">Residence</span>
+                <!--
+                    The residence box is the way into all of housing: where you
+                    live, leaving, letting a room, asking for one. A button
+                    rather than a decorated div, so it is keyboard reachable and
+                    reads as clickable.
+                -->
+                <button type="button" :disabled="busy"
+                    :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
+                    :title="residence !== '' ? 'Manage residence' : 'You live nowhere'"
+                    @click="emit('residence')"
+                    class="flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2 transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50"
+                    :class="residence !== ''
+                        ? 'border-purple-light hover:brightness-125'
+                        : 'border-purple-light/50 hover:border-purple-light'">
+                    <span class="flex flex-col items-start leading-tight">
+                        <span class="text-xs font-bold text-purple-light">Residence</span>
+                        <!-- Capacity only when there is any: a player owning no
+                             property has nothing to report here. -->
+                        <span v-if="roomsTotal > 0" class="text-[10px] font-bold tabular-nums"
+                            :class="roomsFree > 0 ? 'text-teal-light' : 'text-gray-x-light'">
+                            {{ roomsFree }} free
+                        </span>
+                        <span v-else-if="isTenant" class="text-[10px] font-bold text-gray-x-light">rented</span>
+                    </span>
                     <div class="-mx-1">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-7 w-7 bg-purple-light" :style="{
@@ -345,7 +411,7 @@ function onEndTurn() {
                             '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
                         }"></div>
                     </div>
-                </div>
+                </button>
             </div>
             <div class="flex">
                 <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
@@ -357,7 +423,7 @@ function onEndTurn() {
                     <!-- overflow-x-auto: a full hand of six types would otherwise
                          widen the cell instead of scrolling -->
     
-                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto p-1">
+                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                         <!-- :key is required: without it Vue patches these decks in
                                  place by index, which mixes card types between decks -->
                         <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
@@ -388,7 +454,8 @@ function onEndTurn() {
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
                                     :trading="activeAction === 'trade' && !isMortgaged(type)"
-                                    @sell="openModal(type)" @trade="openModal(type)" />
+                                    :eating="canEat(type)"
+                                    @sell="openModal(type)" @trade="openModal(type)" @eat="openEat(type)" />
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
@@ -401,7 +468,7 @@ function onEndTurn() {
                             </span>
                         </div>
                     </div>
-                    <span v-else class="py-3 text-sm text-gray-light">No cards</span>
+                    <span v-else class="py-2 text-sm text-gray-light">No cards</span>
                 </div>
             </div>
 
@@ -500,7 +567,7 @@ function onEndTurn() {
                 <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div
                     class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
-                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto p-1">
+                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                         <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
                             class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
                             :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
@@ -509,8 +576,8 @@ function onEndTurn() {
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-lg border-b-1 border-l-1 p-1 m-1 border-rose-400/70 bg-gray-x-dark">
-                                <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400/50" fill="none"
+                                class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
+                                <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
                                     stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
                                     <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
                                     <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
@@ -518,7 +585,7 @@ function onEndTurn() {
                             </span>
                         </div>
                     </div>
-                    <span v-else class="text-sm text-gray-light y-3 py-8">No cards</span>
+                    <span v-else class="text-sm text-gray-light">No cards</span>
                 </div>
             </div>
         </template>

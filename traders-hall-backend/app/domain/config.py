@@ -33,11 +33,15 @@ BANK_POOL_PER_PLAYER = {
 
 # --- upkeep timers, in turns ---
 #
-# How long a fed player stays fed, and how long between rent demands. The FOOD
-# figure is the opening grace period only: after the first meal the counter is
-# set from the card eaten, via card_types.nutrition_turns (rice 2, wheat 5).
+# FOOD_INTERVAL_TURNS is the opening grace period only. After the first meal the
+# counter is set by the card eaten, via card_types.nutrition_turns (rice 2,
+# wheat 5) — so this number governs the start of the game, not the rhythm of it.
 FOOD_INTERVAL_TURNS = 3
 RENT_INTERVAL_TURNS = 5
+
+# Which category can be eaten. Named rather than inlined as "food" so the check
+# reads as a rule and moves in one place.
+EDIBLE_CATEGORY = "food"
 
 # --- credit -----------------------------------------------------------------
 #

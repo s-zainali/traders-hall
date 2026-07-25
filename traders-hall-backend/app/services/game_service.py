@@ -286,4 +286,16 @@ async def get_game_state(db: AsyncSession, *, user: User, code: str) -> dict:
     for row in await db.scalars(select(PlayerHand).where(PlayerHand.game_id == game.id)):
         hands.setdefault(row.player_id, {})[row.card_type] = row.quantity
 
-    return {"game": game, "pools": pools, "hands": hands, "me": me}
+    # Room capacity per player, in ONE pass over the same hands and the live
+    # agreements. Capacity is derived rather than stored — see
+    # residence_service for why — so it has to be computed somewhere, and here
+    # is the only place that already holds every hand in the game.
+    #
+    # Imported locally: residence_service reaches into action_service for the
+    # transaction kernel, and action_service is imported by this module's
+    # callers, so a module-level import here risks a cycle.
+    from app.services.residence_service import room_summary
+
+    rooms = {p.id: await room_summary(db, game, p) for p in game.players}
+
+    return {"game": game, "pools": pools, "hands": hands, "me": me, "rooms": rooms}

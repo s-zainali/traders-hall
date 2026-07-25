@@ -29,6 +29,10 @@ _STATUS = {
     "INSUFFICIENT_POINTS": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "TOO_MANY_OFFERS": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "NOT_TRADEABLE": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "ALREADY_RESIDING": status.HTTP_409_CONFLICT,
+    "NO_FREE_ROOM": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "CARD_TYPE_REQUIRED": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "VALIDATION_ERROR": status.HTTP_400_BAD_REQUEST,
     "UNKNOWN_CARD_TYPE": status.HTTP_422_UNPROCESSABLE_ENTITY,
 }
 
@@ -66,6 +70,7 @@ async def create_offer(code: str, body: OfferCreate, user: CurrentUser, db: Db):
             price_points=body.price_points,
             want_card_type=body.want_card_type,
             want_quantity=body.want_quantity,
+            rent_interval_turns=body.rent_interval_turns,
             expected_state_version=body.expected_state_version,
         )
         return await _state(db, user, code)
@@ -79,6 +84,9 @@ async def claim_offer(code: str, offer_id: uuid.UUID, body: OfferAction, user: C
         await offer_service.claim_offer(
             db, user=user, code=code, offer_id=offer_id,
             expected_state_version=body.expected_state_version,
+            # rent_ask only: which of the claiming landlord's properties the
+            # room is in. Ignored by every other kind.
+            card_type=body.card_type,
         )
         return await _state(db, user, code)
     except ActionError as e:

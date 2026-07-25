@@ -41,6 +41,16 @@ class GamePlayer(Base):
             "(mortgage_card_type IS NULL) = (mortgage_outstanding = 0)",
             name="ck_player_mortgage_shape",
         ),
+        # Renting from someone while living nowhere is incoherent.
+        CheckConstraint(
+            "residence_landlord_id IS NULL OR residence_card_type IS NOT NULL",
+            name="ck_player_residence_shape",
+        ),
+        # You cannot rent from yourself; owning is expressed by a NULL landlord.
+        CheckConstraint(
+            "residence_landlord_id IS NULL OR residence_landlord_id <> id",
+            name="ck_player_not_own_landlord",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -62,12 +72,13 @@ class GamePlayer(Base):
 
     # --- economy ---
     points: Mapped[int] = mapped_column(Integer, default=0)
-    # locked by open market buy offers; unused until the marketplace lands, but
-    # here now so that does not need a second migration
+    # locked by open market buy offers, so one balance cannot back two claims
     reserved_points: Mapped[int] = mapped_column(Integer, default=0)
 
     # --- upkeep countdowns, in turns; at zero the obligation falls due ---
     food_due: Mapped[int] = mapped_column(Integer, default=0)
+    # Mirrors the active tenancy's turns_until_due so the panel can render it
+    # without a join. The agreement is the source of truth; this follows it.
     rent_due: Mapped[int] = mapped_column(Integer, default=0)
 
     # --- credit ---
@@ -86,14 +97,26 @@ class GamePlayer(Base):
     mortgage_outstanding: Mapped[int] = mapped_column(Integer, default=0)
     mortgage_due: Mapped[int] = mapped_column(Integer, default=0)
 
+    # --- where this player lives ---
+    # The property type they occupy a room in. NULL means homeless.
+    residence_card_type: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("card_types.code"), nullable=True, default=None
+    )
+    # Whose property it is. NULL alongside a residence means their own — which is
+    # why this cannot be derived from rental_agreements: an owner-occupier has no
+    # agreement to derive it from.
+    residence_landlord_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("game_players.id", ondelete="SET NULL"), nullable=True, default=None
+    )
+
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
-    # foreign_keys is required now that games.current_player_id creates a second
-    # FK between these tables — without it SQLAlchemy cannot tell which one this
-    # relationship follows.
+    # foreign_keys is required: games.current_player_id and now
+    # residence_landlord_id both create extra FKs touching this table, and
+    # SQLAlchemy cannot tell which one this relationship follows without it.
     game: Mapped["Game"] = relationship(
         back_populates="players",
         foreign_keys=[game_id],

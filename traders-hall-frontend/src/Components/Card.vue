@@ -9,9 +9,14 @@ const props = defineProps({
     buying: { type: Boolean, default: false },
     selling: { type: Boolean, default: false },
     trading: { type: Boolean, default: false },
+    // Eating differs from the three above in WHEN it applies: buy, sell and
+    // trade are modes the player enters from the action bar, whereas eating is
+    // available whenever a food card is in hand and it is your turn. The prop
+    // shape stays the same so the click dispatch below stays one chain.
+    eating: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['buy', 'sell', 'trade', 'details'])
+const emit = defineEmits(['buy', 'sell', 'trade', 'eat', 'details'])
 
 const cardTypes = useCardTypesStore()
 
@@ -35,15 +40,20 @@ const cost = computed(() => info.value.baseCost)
 
 const isSelected = computed(() => props.selected)
 const isActive = computed(() => isHovered.value || isSelected.value)
-const interactive = computed(() => props.buying || props.selling || props.trading)
+const interactive = computed(
+    () => props.buying || props.selling || props.trading || props.eating
+)
 
 const background = computed(() => `var(--color-${isActive.value ? bgColor.value : color.value})`)
 const accent = computed(() => `var(--color-${isActive.value ? color.value : bgColor.value})`)
 
+// Order matters: the explicit market modes win over eating, so a food card
+// stays sellable while a sell is in progress instead of being eaten by mistake.
 function onClick() {
     if (props.buying) emit('buy')
     else if (props.selling) emit('sell')
     else if (props.trading) emit('trade')
+    else if (props.eating) emit('eat')
     else emit('details')
 }
 </script>

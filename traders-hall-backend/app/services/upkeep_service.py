@@ -19,6 +19,7 @@ from app.models.game import Game
 from app.models.game_event import GameEvent
 from app.models.game_player import GamePlayer
 from app.models.player_hand import PlayerHand
+from app.services import rent_service
 from app.services.action_service import (
     _append_event,
     _hand_row,
@@ -34,6 +35,8 @@ async def run_upkeep(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
     turn they belong to and the ledger records them against the right
     turn_number.
     """
+    await _tick_food(db, game, seat)
+
     if seat.loan_outstanding > 0:
         seat.loan_due -= 1
         if seat.loan_due <= 0:
@@ -44,18 +47,45 @@ async def run_upkeep(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
         if seat.mortgage_due <= 0:
             await _settle_mortgage(db, game, seat)
 
-    # ── food and rent ────────────────────────────────────────────────
-    # Food is half-specified: rice and wheat carry their nutrition in
-    # card_types.nutrition_turns (2 and 5), so the RESET is known. What is not
-    # yet decided is whether eating is automatic at zero or an action the player
-    # takes, which card is consumed when both are held, and what happens to a
-    # player who reaches zero holding neither.
+    await rent_service.tick(db, game, seat)
+
+
+async def _tick_food(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
+    """Burn one turn of nutrition.
+
+    Clamped at zero rather than allowed to go negative: "how many turns until
+    you must eat" has no meaningful negative value, and a negative counter would
+    render as a nonsense number on every panel.
+
+    The transition to zero emits an event ONCE. Re-announcing hunger every turn
+    would bury the log, and the panel already shows the counter in red.
+    """
+    if seat.food_due <= 0:
+        # Already out of food. The consequence of staying here is the open
+        # question below, not something to re-log each turn.
+        return
+
+    seat.food_due -= 1
+    if seat.food_due > 0:
+        return
+
+    await _append_event(
+        db, game,
+        event_type="food.exhausted",
+        actor_player_id=None,
+        payload={"player_id": str(seat.id)},
+    )
+
+    # ── starvation ───────────────────────────────────────────────────
+    # This is where the penalty goes. It is NOT implemented because the rule is
+    # "you lose the game", and losing does not exist yet: nothing sets
+    # status='eliminated', nothing releases an eliminated player's offers or
+    # skips their seat, and nothing decides what ends the match.
     #
-    # Rent has no amount defined anywhere — RENT_INTERVAL_TURNS says when, not
-    # how much — and is explicitly deferred to the rental-agreement work.
-    #
-    # Both belong here, in the same shape as the two above: decrement, and
-    # settle at zero.
+    # game_players.status already has room for it and the frontend already
+    # renders an `eliminated` state, so the wiring is short — but it is the win
+    # condition, and inventing one silently would be worse than a counter that
+    # sits at zero.
 
 
 async def _settle_loan(db: AsyncSession, game: Game, seat: GamePlayer) -> None:

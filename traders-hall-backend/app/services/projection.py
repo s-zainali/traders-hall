@@ -2,12 +2,23 @@
 
 from app.schemas.game_state import GameInfo, GameStateOut, PlayerPublic, YouBlock
 
+_NO_ROOMS = {
+    "rooms_total": 0,
+    "rooms_occupied": 0,
+    "rooms_free": 0,
+    "rooms_by_card": {},
+}
+
 
 def build_game_state(raw: dict) -> GameStateOut:
     game = raw["game"]
     pools = raw["pools"]
     hands = raw["hands"]
     me = raw["me"]
+    # Defaulted rather than required: a caller that has not been updated to
+    # supply capacity gets zeros instead of a KeyError, which keeps the whole
+    # response alive while the rest catches up.
+    rooms = raw.get("rooms", {})
 
     players = [
         PlayerPublic(
@@ -25,6 +36,9 @@ def build_game_state(raw: dict) -> GameStateOut:
             mortgage_card_type=p.mortgage_card_type,
             mortgage_outstanding=p.mortgage_outstanding,
             mortgage_due=p.mortgage_due,
+            residence_card_type=p.residence_card_type,
+            residence_landlord_id=p.residence_landlord_id,
+            **_capacity(rooms.get(p.id), public=True),
         )
         for p in sorted(game.players, key=lambda p: p.seat_index)
     ]
@@ -56,7 +70,29 @@ def build_game_state(raw: dict) -> GameStateOut:
             mortgage_card_type=me.mortgage_card_type,
             mortgage_outstanding=me.mortgage_outstanding,
             mortgage_due=me.mortgage_due,
+            residence_card_type=me.residence_card_type,
+            residence_landlord_id=me.residence_landlord_id,
+            **_capacity(rooms.get(me.id), public=False),
             available_points=me.points - me.reserved_points,
         ),
         players=players,
     )
+
+
+def _capacity(summary: dict | None, *, public: bool) -> dict:
+    """Pick the capacity fields each block wants.
+
+    The per-card breakdown is only in `you`: it drives which properties the "let
+    a room" modal may offer, which is a decision only the owner makes. Opponents
+    get the totals, because a free room is public information — it is what makes
+    them eligible to accept a request.
+    """
+    data = summary or _NO_ROOMS
+    out = {
+        "rooms_total": data["rooms_total"],
+        "rooms_occupied": data["rooms_occupied"],
+        "rooms_free": data["rooms_free"],
+    }
+    if not public:
+        out["rooms_by_card"] = data.get("rooms_by_card", {})
+    return out

@@ -107,6 +107,24 @@ const KINDS = {
     parts: () => [T('withdrew an offer')],
   },
 
+  // ── upkeep ───────────────────────────────────────────────────
+  'food.eaten': {
+    icon: '◆',
+    tone: 'text-cream-light',
+    parts: (p) => [
+      T('ate'),
+      C(p.card_type, p.quantity),
+      T(`— fed for ${p.food_due} more ${p.food_due === 1 ? 'turn' : 'turns'}`),
+    ],
+  },
+  'food.exhausted': {
+    icon: '⚠',
+    tone: 'text-amber-400',
+    // No actor: upkeep raised this, not the player. subjectOf falls back to
+    // payload.player_id so the line still names and colours the right seat.
+    parts: () => [T('has run out of food')],
+  },
+
   // ── credit ───────────────────────────────────────────────────
   'loan.borrowed': {
     icon: '⊕',

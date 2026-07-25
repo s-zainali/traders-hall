@@ -18,6 +18,11 @@ class CardType(Base):
     nutrition_turns: Mapped[int | None] = mapped_column(default=None)
     # properties only: points produced per yield interval before investment
     base_output_points: Mapped[int] = mapped_column(default=0)
+    # properties only: how many people can live here — house 1, mansion 2,
+    # tower 3. Its own column rather than reusing base_output_points, which
+    # currently holds the same numbers: yield and capacity are different rules
+    # and will be balanced apart from each other.
+    rooms: Mapped[int] = mapped_column(default=0)
 
     icon_url: Mapped[str] = mapped_column(String(255))
     accent_color: Mapped[str] = mapped_column(String(64))

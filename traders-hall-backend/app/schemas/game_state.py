@@ -1,8 +1,8 @@
 """Response shapes for the game state projection.
 
-Built by hand rather than from_attributes, because the response draws on four
-tables and splits into a public part and a private one — a shape no single
-table has.
+Built by hand rather than from_attributes, because the response draws on several
+tables and splits into a public part and a private one — a shape no single table
+has.
 """
 
 import uuid
@@ -27,8 +27,9 @@ class GameInfo(BaseModel):
 class PlayerPublic(BaseModel):
     """Hands are public in this game, so this is genuinely the full picture.
 
-    Debt is public too, deliberately: knowing an opponent has three rounds left
-    on a loan is exactly the kind of thing the table should be able to trade on.
+    Debt and housing are public too, deliberately: knowing an opponent has one
+    round left on a loan, or a spare room going empty, is exactly the kind of
+    thing the table should be able to trade on.
     """
 
     id: uuid.UUID
@@ -47,6 +48,17 @@ class PlayerPublic(BaseModel):
     mortgage_card_type: str | None
     mortgage_outstanding: int
     mortgage_due: int
+
+    # --- housing ---
+    # residence_landlord_id NULL alongside a residence means they own the place.
+    residence_card_type: str | None
+    residence_landlord_id: uuid.UUID | None
+    # Derived capacity, not stored. rooms_free is what makes a player eligible to
+    # accept a tenant's request, so the client needs it to know which claim
+    # buttons to enable.
+    rooms_total: int
+    rooms_occupied: int
+    rooms_free: int
 
 
 class YouBlock(BaseModel):
@@ -71,6 +83,16 @@ class YouBlock(BaseModel):
     mortgage_card_type: str | None
     mortgage_outstanding: int
     mortgage_due: int
+
+    # --- housing ---
+    residence_card_type: str | None
+    residence_landlord_id: uuid.UUID | None
+    rooms_total: int
+    rooms_occupied: int
+    rooms_free: int
+    # Per property type, so the "let a room" modal can offer only the properties
+    # that actually have capacity left.
+    rooms_by_card: dict[str, int]
 
     # Spendable balance: points minus anything reserved against an open market
     # claim. The client needs this to disable controls correctly — showing the

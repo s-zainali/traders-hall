@@ -8,6 +8,7 @@ import PlayerCardHolder from '../Components/PlayerCardHolder.vue'
 import LoadingScreen from '../Components/LoadingScreen.vue'
 import EventLog from '../Components/EventLog.vue'
 import OffersPanel from '../Components/OffersPanel.vue'
+import ResidenceModal from '../Components/Modals/ResidenceModal.vue'
 import { useCardTypesStore } from '../stores/cardTypes'
 import { useGamesStore } from '../stores/games'
 
@@ -109,6 +110,10 @@ const seats = computed(() => {
             mortgageCardType: player?.mortgageCardType ?? null,
             mortgageOutstanding: player?.mortgageOutstanding ?? 0,
             mortgageDue: player?.mortgageDue ?? 0,
+            residenceCardType: player?.residenceCardType ?? null,
+            residenceLandlordId: player?.residenceLandlordId ?? null,
+            roomsTotal: player?.roomsTotal ?? 0,
+            roomsFree: player?.roomsFree ?? 0,
         }
     })
 })
@@ -156,6 +161,50 @@ const onUnclaimOffer = (id) => games.unclaimOffer(props.code, id)
 const onDeclineOffer = (id) => games.declineOffer(props.code, id)
 const onConfirmOffer = (id) => games.confirmOffer(props.code, id)
 const onCancelOffer = (id) => games.cancelOffer(props.code, id)
+
+/*
+  Eating. Routed through runCredit's sibling guard for the same reason: a click
+  that silently does nothing is the worst failure mode, and this handler is one
+  more place a stale store would produce exactly that.
+*/
+/*
+  Housing. Routed through the same guard as credit: a click that silently does
+  nothing is the failure mode worth engineering against.
+*/
+const showResidence = ref(false)
+
+const onMoveIn = (cardType) =>
+    runCredit('move in', games.moveIn && (() => games.moveIn(props.code, cardType)))
+const onLeaveResidence = () =>
+    runCredit('leave', games.leaveResidence && (() => games.leaveResidence(props.code)))
+const onRentOut = ({ cardType, rentPoints, intervalTurns }) =>
+    runCredit('let a room', games.rentOut && (() => games.rentOut(props.code, cardType, rentPoints, intervalTurns)))
+const onRentAsk = ({ rentPoints, intervalTurns }) =>
+    runCredit('request a room', games.rentAsk && (() => games.rentAsk(props.code, rentPoints, intervalTurns)))
+
+// The landlord's name is not on `you` — only their id — so resolve it from the
+// public player list every client already holds.
+const myLandlord = computed(() => {
+    const id = me.value?.residenceLandlordId
+    if (!id) return null
+    return state.value?.players.find((p) => p.id === id) ?? null
+})
+
+// Derived rather than sent: a count over the same public list.
+const myTenantCount = computed(
+    () => (state.value?.players ?? []).filter((p) => p.residenceLandlordId === me.value?.playerId).length
+)
+
+/*
+  The rent AMOUNT is not in the projection — YouBlock carries rent_due (the
+  countdown) but not rent_points. Passing 0 means the modal shows the countdown
+  and omits the figure, which is honest; adding rent_points to YouBlock is a
+  two-line backend change that makes it appear.
+*/
+const myRentPoints = computed(() => me.value?.rentPoints ?? 0)
+
+const onEat = ({ cardType, quantity }) =>
+    runCredit('eat', games.eatFood && (() => games.eatFood(props.code, cardType, quantity)))
 
 /*
   Credit. These deliberately do NOT cancelAction(): the desk lives inside the
@@ -244,7 +293,8 @@ watch(
                         :is-turn="seat.isTurn" :hand="seat.hand" :points="seat.points" :food-due="seat.foodDue"
                         :rent-due="seat.rentDue" :loan-due="seat.loanDue" :loan-outstanding="seat.loanOutstanding"
                         :mortgage-card-type="seat.mortgageCardType" :mortgage-outstanding="seat.mortgageOutstanding"
-                        :mortgage-due="seat.mortgageDue"
+                        :mortgage-due="seat.mortgageDue" :residence="seat.residenceCardType ?? ''"
+                        :rooms-total="seat.roomsTotal" :rooms-free="seat.roomsFree"
                         class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1 xl:w-full xl:flex-none" />
                 </div>
 
@@ -264,8 +314,11 @@ watch(
                     :loan-due="mine?.loanDue ?? 0" :loan-outstanding="mine?.loanOutstanding ?? 0"
                     :mortgage-card-type="mine?.mortgageCardType ?? null"
                     :mortgage-outstanding="mine?.mortgageOutstanding ?? 0" :mortgage-due="mine?.mortgageDue ?? 0"
+                    :residence="mine?.residenceCardType ?? ''" :rooms-total="mine?.roomsTotal ?? 0"
+                    :rooms-free="mine?.roomsFree ?? 0" :is-tenant="!!me?.residenceLandlordId"
                     :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
-                    @cancel-operation="cancelAction" @transaction="onTransaction" @end-turn="onEndTurn" />
+                    @eat="onEat" @residence="showResidence = true" @cancel-operation="cancelAction"
+                    @transaction="onTransaction" @end-turn="onEndTurn" />
             </div>
         </div>
 
@@ -275,6 +328,16 @@ watch(
             :mortgage-outstanding="me?.mortgageOutstanding ?? 0" :mortgage-due="me?.mortgageDue ?? 0" :busy="acting"
             @cancel="cancelAction" @confirm="onBuy" @borrow="onBorrow" @repay="onRepay" @mortgage="onMortgage"
             @redeem="onRedeem" />
+
+        <ResidenceModal v-if="showResidence" :busy="acting" :can-act="isMyTurn" :hand="me?.hand ?? {}"
+            :residence-card-type="me?.residenceCardType ?? null"
+            :residence-landlord-id="me?.residenceLandlordId ?? null"
+            :landlord-name="myLandlord?.displayName ?? ''" :landlord-seat-index="myLandlord?.seatIndex ?? -1"
+            :rent-points="myRentPoints" :rent-due="me?.rentDue ?? 0" :rooms-total="me?.roomsTotal ?? 0"
+            :rooms-occupied="me?.roomsOccupied ?? 0" :rooms-free="me?.roomsFree ?? 0"
+            :rooms-by-card="me?.roomsByCard ?? {}" :tenant-count="myTenantCount"
+            @close-modal="showResidence = false" @move-in="onMoveIn" @leave="onLeaveResidence"
+            @rent-out="onRentOut" @rent-ask="onRentAsk" />
 
         <Transition name="toast">
             <div v-if="actionError"

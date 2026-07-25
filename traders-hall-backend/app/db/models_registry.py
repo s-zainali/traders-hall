@@ -17,3 +17,4 @@ from app.models.player_hand import PlayerHand  # noqa: F401
 from app.models.game_event import GameEvent  # noqa: F401
 from app.models.ledger_entry import LedgerEntry  # noqa: F401
 from app.models.trade_offer import TradeOffer  # noqa: F401
+from app.models.rental_agreement import RentalAgreement  # noqa: F401
