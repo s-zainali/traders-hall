@@ -373,12 +373,11 @@ function onEndTurn() {
                 :rooms-by-card="roomsByCard" :busy="busy" :can-act="canAct" @close-modal="closeModal"
                 @move-in="(t) => onHousing('moveIn', t)" @leave="onHousing('leaveResidence')"
                 @rent-out="(p) => onHousing('rentOut', p)" @rent-ask="(p) => onHousing('rentAsk', p)" />
-            <EatModal v-else-if="activeModal === 'eat'" :card-type="selectedType"
-                :available="hand[selectedType] ?? 1" :food-due="foodDue" :busy="busy" :popover="true"
-                @confirm="onEat($event)" @cancel="closeModal" />
-            <TransactionModal v-else-if="activeModal === 'sell' || activeModal === 'trade'" :transaction-type="activeModal" :card-type="selectedType"
-                :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true" @confirm="onConfirm($event)"
-                @cancel="closeModal" />
+            <EatModal v-else-if="activeModal === 'eat'" :card-type="selectedType" :available="hand[selectedType] ?? 1"
+                :food-due="foodDue" :busy="busy" :popover="true" @confirm="onEat($event)" @cancel="closeModal" />
+            <TransactionModal v-else-if="activeModal === 'sell' || activeModal === 'trade'"
+                :transaction-type="activeModal" :card-type="selectedType" :available="hand[selectedType] ?? 1"
+                :points="points" :busy="busy" :popover="true" @confirm="onConfirm($event)" @cancel="closeModal" />
             <div class="mx-auto -mt-0.5 hidden h-1 w-16 rounded-b bg-gray-light xl:block"></div>
         </div>
 
@@ -443,10 +442,9 @@ function onEndTurn() {
                 -->
                 <button type="button" :disabled="busy"
                     :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
-                    :title="residence !== '' ? 'Manage residence' : 'You live nowhere'"
-                    @click="openResidence""
-                    class="flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2 transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50"
-                    :class="residence !== ''
+                    :title="residence !== '' ? 'Manage residence' : 'You live nowhere'" @click="openResidence""
+                    class=" flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2
+                    transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50" :class="residence !== ''
                         ? 'border-purple-light hover:brightness-125'
                         : 'border-purple-light/50 hover:border-purple-light'">
                     <span class="flex flex-col items-start leading-tight">
@@ -469,15 +467,16 @@ function onEndTurn() {
                 </button>
             </div>
             <div class="flex">
-                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
+                <span
+                    class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div class="a-hand relative flex min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
                     :class="handState ? handState.well : 'border-gray-light outline-0'">
                     <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
                         class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
-    
+
                     <!-- overflow-x-auto: a full hand of six types would otherwise
                          widen the cell instead of scrolling -->
-    
+
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                         <!-- :key is required: without it Vue patches these decks in
                                  place by index, which mixes card types between decks -->
@@ -508,10 +507,9 @@ function onEndTurn() {
                                 <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
-                                    :trading="activeAction === 'trade' && !isMortgaged(type)"
-                                    :eating="canEat(type)" :letting="canLet(type)"
-                                    @sell="openModal(type)" @trade="openModal(type)" @eat="openEat(type)"
-                                    @let="openLet(type)" />
+                                    :trading="activeAction === 'trade' && !isMortgaged(type)" :eating="canEat(type)"
+                                    :letting="canLet(type)" @sell="openModal(type)" @trade="openModal(type)"
+                                    @eat="openEat(type)" @let="openLet(type)" />
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
@@ -586,25 +584,29 @@ function onEndTurn() {
                         <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                     </CardDeck>
                     <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
-                    
+
                     <!--
-                        A tenancy is marked by the LANDLORD's own seat token in
-                        the corner, not a word: the table already reads players
-                        by colour and glyph, so the token says both "rented" and
-                        "from whom" in the space a label would need for one.
+                        Its own labelled box beside the residence, not a badge
+                        stuck on top of it. A corner token overlapped the card
+                        art and left the state to be inferred from a colour; the
+                        word says WHAT and the seat token says FROM WHOM, and
+                        neither has to fight the card for space.
                     -->
-                    <div class="relative flex items-center rounded-lg border-2 px-1 transition-colors duration-200"
-                        :class="isTenant ? 'border-teal-light bg-teal-dark/30' : 'border-purple-light bg-purple-dark'">
+
+                    <div class="flex items-center rounded-lg border-2 border-purple-light bg-purple-dark px-1 gap-1">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
                             mask: `url(/cancel.png) no-repeat center / contain`,
                             '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
                         }"></div>
-
-                        <span v-if="isTenant" :title="`Renting from ${landlordName || 'another player'}`"
-                            class="pointer-events-none absolute -top-1.5 -right-1.5 z-10 flex items-center justify-center rounded-full border-2 border-gray-x-dark bg-gray-x-dark">
+                        <div v-if="isTenant" class="flex items-center gap-1">
+                            <div :title="`Renting from ${landlordName || 'another player'}`"
+                                class="flex flex-col text-[10px] font-bold uppercase tracking-widest text-purple-light break-all">
+                                <span>on</span>
+                                <span>rent</span>
+                            </div>
                             <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="true" />
-                        </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -619,8 +621,7 @@ function onEndTurn() {
                 say what it means, and it only exists when there is debt.
             -->
             <div v-if="hasDebt" :title="debtTitle"
-                class="flex items-center justify-between gap-2 rounded-lg border-2 px-2 py-1"
-                :class="debtSoonest <= 1
+                class="flex items-center justify-between gap-2 rounded-lg border-2 px-2 py-1" :class="debtSoonest <= 1
                     ? 'border-rose-400 bg-rose-400/10'
                     : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20'">
                 <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
@@ -632,7 +633,8 @@ function onEndTurn() {
             </div>
 
             <div class="flex">
-                <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
+                <span
+                    class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div
                     class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">

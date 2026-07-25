@@ -18,12 +18,13 @@ const props = defineProps({
 const seat = computed(() => seatStyle(props.seatIndex))
 const isEmpty = computed(() => props.seatIndex < 0)
 
-const boxes = {
+const boxes = { 
+  xs: 'h-5 w-5 rounded-lg border-2',
   sm: 'h-7 w-7 rounded-lg border-2',
   md: 'h-10 w-10 rounded-xl border-2',
   lg: 'h-14 w-14 rounded-2xl border-4',
 }
-const glyphs = { sm: 'h-4 w-4', md: 'h-5 w-5', lg: 'h-7 w-7' }
+const glyphs = {xs: 'h-3 w-3', sm: 'h-4 w-4', md: 'h-5 w-5', lg: 'h-7 w-7' }
 </script>
 
 <template>

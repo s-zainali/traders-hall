@@ -47,6 +47,20 @@ def _http(exc: ActionError) -> HTTPException:
 
 
 async def _state(db, user, code: str) -> GameStateOut:
+    """Commit the action, then read the world back.
+
+    The commit is here and not left to get_db because that dependency commits in
+    TEARDOWN — after the handler has already returned its response. The client
+    gets its 200, immediately fires GET /offers on another connection, and that
+    read can arrive before the write lands: the player who just claimed sees an
+    offer with no claim on it, and only a page reload (by which time the commit
+    has settled) shows the truth.
+
+    Committing before building the response also means the state returned here
+    is the state everyone else will see, rather than a view only this
+    transaction has.
+    """
+    await db.commit()
     raw = await game_service.get_game_state(db, user=user, code=code)
     return build_game_state(raw)
 
