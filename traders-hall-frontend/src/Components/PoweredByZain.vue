@@ -9,7 +9,7 @@ const year = new Date().getFullYear()
 </script>
 
 <template>
-    <footer class="relative select-none group bg-transparent" :class="compact ? 'mt-0 pb-0' : 'mt-14 pb-6'"
+    <footer class="relative select-none group bg-transparent" :class="compact ? 'mt-0 pb-0' : 'pb-6'"
         :style="compact ? { zoom: 0.7 } : {}">
         <!-- hairline divider -->
         <div v-if="!compact"

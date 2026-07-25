@@ -67,7 +67,7 @@ function place(f) {
     <div
       v-for="(f, i) in floaters"
       :key="i"
-      class="floater absolute rounded-2xl border-4 backdrop-blur-[2px]"
+      class="floater absolute rounded-2xl border-4"
       :class="[sizes[f.size], palettes[f.color]]"
       :style="{
         ...place(f),
@@ -216,6 +216,19 @@ function place(f) {
 /* ── drifting cards ───────────────────────────────────────── */
 
 /*
+  These used to also carry backdrop-blur-[2px], which was the single most
+  expensive thing on the page and the cause of flickering everywhere else.
+
+  backdrop-filter makes the browser re-sample everything BEHIND the element to
+  produce its own pixels. On a static element that is a one-off cost; on one
+  that animates forever and drifts across the whole viewport it is a re-sample
+  and re-composite every frame, of whatever the floater happens to be passing
+  over. Cards elsewhere on the page were being repainted continuously by a
+  decoration sliding past them — which is why the flicker looked like it
+  belonged to the content rather than to the background.
+
+  A 2px blur behind a translucent outline was invisible anyway.
+
   Tilt and drift must share ONE transform: a second transform declaration
   replaces the first rather than composing with it. The --rot custom property
   lets every card keep its own angle while sharing one keyframe.
