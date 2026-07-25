@@ -131,7 +131,21 @@ const debtTone = computed(() => {
 </script>
 
 <template>
-    <div class="relative flex shrink-0 items-stretch">
+    <!--
+        Fixed height, independent of contents.
+
+        h-[calc(100%-2rem)] plus my-4 fills the parent exactly: the parent is
+        GameView's h-[100dvh] flex row, so 100% here IS the viewport height less
+        that row's own padding, and the 2rem subtracted is the 1rem top and
+        bottom margin given back. Written against 100% rather than 100dvh on
+        purpose — a literal calc(100dvh-2rem) ignores GameView's padding and
+        overflows the page by however much that padding is, which is 3rem at xl.
+
+        min-h-0 is what actually stops content from setting the height: without
+        it a flex item refuses to shrink below its content, so a tall bank would
+        push past the fixed height instead of scrolling inside it.
+    -->
+    <div class="relative my-4 flex h-[calc(100%-2rem)] min-h-0 shrink-0 items-stretch">
 
         <!--
             Slide and fade, NOT the grid-column width trick used elsewhere in
@@ -161,7 +175,18 @@ const debtTone = computed(() => {
             :class="expanded
                 ? 'translate-x-0 opacity-100'
                 : 'pointer-events-none translate-x-6 opacity-0'">
-            <div>
+            <!--
+                h-full here is load-bearing, not decoration.
+
+                The panel below asks for h-full, and a percentage height resolves
+                against its PARENT — this div. Left unclassed, this div was
+                auto-height, so the panel's h-full resolved to "as tall as my own
+                content" and the bank grew and shrank with however many card
+                types the pool happened to hold. Giving this div a definite
+                height chains the panel back to the absolutely positioned box
+                above, which is top-0 bottom-0 and therefore always full height.
+            -->
+            <div class="h-full min-h-0">
                 <!--
                     flex-col with the cards well as flex-1 min-h-0, rather than
                     justify-between: a flex item defaults to min-height:auto and

@@ -40,6 +40,11 @@ const frame = computed(() => {
 
 const tone = (rounds) =>
     rounds <= 1 ? 'text-rose-400' : rounds <= 2 ? 'text-amber-400' : 'text-teal-light'
+
+/** "1 round" / "3 rounds" — the card has room for the word, so it uses it. */
+const roundsLabel = (n) => (n === 1 ? '1 round' : `${n} rounds`)
+
+const microLabel = 'text-[10px] font-bold uppercase tracking-widest text-gray-x-light'
 </script>
 
 <template>
@@ -55,18 +60,35 @@ const tone = (rounds) =>
 
         <span class="font-bold tracking-wide text-gray-2x-light">Loan Manager</span>
 
-        <div v-if="hasDebt" class="mt-3 flex flex-col gap-1 text-xs font-bold">
-            <div v-if="loanOutstanding > 0" class="flex items-baseline justify-between gap-3">
-                <span class="text-gray-x-light">Loan</span>
-                <span class="tabular-nums" :class="tone(loanDue)">
-                    {{ loanOutstanding }} · {{ loanDue }}r
-                </span>
+        <!--
+            Each debt gets a label and a spelled-out line. The previous
+            "3 · 3r" packed an amount and a countdown into one field with
+            nothing to say which was which; the card is wide enough for words,
+            so it uses them.
+        -->
+        <div v-if="hasDebt" class="mt-3 flex flex-col gap-2">
+            <div v-if="loanOutstanding > 0" class="flex flex-col gap-0.5">
+                <span :class="microLabel">Loan</span>
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-xs font-bold tabular-nums" :class="tone(loanDue)">
+                        {{ loanOutstanding }} owed
+                    </span>
+                    <span class="text-[10px] font-bold tabular-nums" :class="tone(loanDue)">
+                        {{ roundsLabel(loanDue) }} left
+                    </span>
+                </div>
             </div>
-            <div v-if="mortgageOutstanding > 0" class="flex items-baseline justify-between gap-3">
-                <span class="text-gray-x-light">Mortgage</span>
-                <span class="tabular-nums" :class="tone(mortgageDue)">
-                    {{ mortgageOutstanding }} · {{ mortgageDue }}r
-                </span>
+
+            <div v-if="mortgageOutstanding > 0" class="flex flex-col gap-0.5">
+                <span :class="microLabel">Mortgage</span>
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-xs font-bold tabular-nums" :class="tone(mortgageDue)">
+                        {{ mortgageOutstanding }} owed
+                    </span>
+                    <span class="text-[10px] font-bold tabular-nums" :class="tone(mortgageDue)">
+                        {{ roundsLabel(mortgageDue) }} left
+                    </span>
+                </div>
             </div>
         </div>
 

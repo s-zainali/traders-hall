@@ -119,6 +119,9 @@ function urgencyBox(rounds) {
 
 const debtTone = computed(() => urgencyText(debtSoonest.value))
 
+/** "1 round" / "3 rounds" — the strip has room for the word, so it uses it. */
+const roundsLabel = (n) => (n === 1 ? '1 round' : `${n} rounds`)
+
 const debtTitle = computed(() => {
     if (!hasDebt.value) return ''
     const parts = []
@@ -192,19 +195,23 @@ const statBox = 'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base fo
 // `caption` is the -dark token so the label sits back against the panel while
 // the box keeps the fuller -light treatment.
 //
-// The loan box shows ROUNDS REMAINING, like food and rent beside it — not the
-// amount owed, which lives in the debt badge. An em dash rather than a zero
-// when nothing is owed: "Loan 0" reads as "due right now", which is the one
-// thing it must never be confused with.
+// The loan box shows ROUNDS REMAINING, like food and rent beside it, with the
+// amount owed as a caption underneath. It counts down to whichever bank
+// obligation lands FIRST — loan or mortgage — because that is the one about to
+// cost something; the tooltip breaks the two apart. An em dash rather than a
+// zero when nothing is owed: "Loan 0" reads as "due right now", which is the
+// one thing it must never be confused with.
 const stats = computed(() => [
-    { key: 'food', label: 'Food', value: props.foodDue, caption: 'text-cream-dark', tone: 'border-cream-light bg-cream-dark text-cream-light' },
-    { key: 'rent', label: 'Rent', value: props.rentDue, caption: 'text-purple-dark', tone: 'border-purple-light bg-purple-dark text-purple-light' },
+    { key: 'food', label: 'Food', value: props.foodDue, note: '', title: '', caption: 'text-cream-dark', tone: 'border-cream-light bg-cream-dark text-cream-light' },
+    { key: 'rent', label: 'Rent', value: props.rentDue, note: '', title: '', caption: 'text-purple-dark', tone: 'border-purple-light bg-purple-dark text-purple-light' },
     {
         key: 'loan',
         label: 'Loan',
-        value: hasLoan.value ? props.loanDue : '—',
-        caption: hasLoan.value ? urgencyText(props.loanDue) : 'text-teal-dark',
-        tone: hasLoan.value ? urgencyBox(props.loanDue) : 'border-gray-light bg-gray-dark text-gray-light',
+        value: hasDebt.value ? debtSoonest.value : '—',
+        note: hasDebt.value ? `${debtTotal.value} owed` : '',
+        title: debtTitle.value,
+        caption: hasDebt.value ? urgencyText(debtSoonest.value) : 'text-teal-dark',
+        tone: hasDebt.value ? urgencyBox(debtSoonest.value) : 'border-gray-light bg-gray-dark text-gray-light',
     },
 ])
 
@@ -311,13 +318,14 @@ function onEndTurn() {
                 <h1 class="truncate text-lg font-bold tracking-wide whitespace-nowrap xl:text-xl" :class="seat.text">
                     {{ playerName }}
                 </h1>
-                <!-- Owed, not remaining rounds: the countdown is in the stats
-                     row, and repeating it here would say nothing new. -->
-                <span v-if="hasDebt" :title="debtTitle"
-                    class="shrink-0 rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest tabular-nums"
-                    :class="[debtTone, debtSoonest <= 1 ? 'border-rose-400 bg-rose-400/10' : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20']">
-                    Owes {{ debtTotal }}
-                </span>
+                <!--
+                    The debt badge used to live here and was overrun by the
+                    points deck: a deck of five point cards is wide, `a-meta`
+                    sits in the 1fr track next door, and a shrink-0 pill in an
+                    auto-width track cannot get out of its way. Debt now rides
+                    on the Loan stat instead — a cell that already has room and
+                    is already about exactly this.
+                -->
             </div>
 
             <!-- points and residence travel together in both layouts -->
@@ -349,17 +357,33 @@ function onEndTurn() {
                     <!-- overflow-x-auto: a full hand of six types would otherwise
                          widen the cell instead of scrolling -->
     
-                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
+                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto p-1">
                         <!-- :key is required: without it Vue patches these decks in
                                  place by index, which mixes card types between decks -->
-                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`" class="relative shrink-0">
+                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
+                            class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
+                            :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
                             <!--
-                                The mortgaged deck is dimmed and badged rather
-                                than hidden: the card is still yours, it just
-                                cannot move until the debt clears. Removing it
-                                would read as "the bank already took it".
+                                The mortgaged deck is dimmed, ringed and badged
+                                rather than hidden: the card is still yours, it
+                                just cannot move until the debt clears. Removing
+                                it would read as "the bank already took it".
+
+                                The ring reuses the outline idiom the sell and
+                                trade wells already use, and the badge is a
+                                2px-bordered square holding a drawn glyph — not
+                                a round emoji pill. Nothing else here is a round
+                                pill, and an emoji renders at whatever weight
+                                and hue the platform font decides, which is why
+                                it read as foreign.
+
+                                p-1 is what keeps both off the card's own border
+                                and inside the well: the badge sits at THIS box's
+                                corner rather than hanging outside it, and the
+                                well is overflow-hidden, so anything that hung
+                                out was being sliced.
                             -->
-                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-50' : ''">
+                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
                                 <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
@@ -368,19 +392,32 @@ function onEndTurn() {
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                class="pointer-events-none absolute -top-1 -right-1 z-10 rounded-full border-2 border-rose-400 bg-gray-x-dark px-1 text-[10px] leading-tight">🔒</span>
+                                class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
+                                <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
+                                    stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                                    <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
+                                    <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
+                                </svg>
+                            </span>
                         </div>
                     </div>
-                    <span v-else class="py-2 text-sm text-gray-light">No cards</span>
+                    <span v-else class="py-3 text-sm text-gray-light">No cards</span>
                 </div>
             </div>
 
             <!-- caption above, number in the box: the box then shrinks to the
                  number, which is the width this reclaims -->
             <div class="a-stats grid grid-cols-3 gap-2 xl:flex">
-                <div v-for="stat in stats" :key="stat.key" class="flex flex-col items-center gap-0.5">
+                <div v-for="stat in stats" :key="stat.key" :title="stat.title"
+                    class="flex flex-col items-center gap-0.5">
                     <span :class="[statLabel, stat.caption]">{{ stat.label }}</span>
                     <div :class="[statBox, stat.tone]">{{ stat.value }}</div>
+                    <!-- the amount, under the countdown. Spelled out rather than
+                         packed into the box, so neither number has to be
+                         abbreviated to share the space. -->
+                    <span v-if="stat.note" class="text-[10px] font-bold tabular-nums" :class="stat.caption">
+                        {{ stat.note }}
+                    </span>
                 </div>
             </div>
 
@@ -422,14 +459,6 @@ function onEndTurn() {
                     :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
 
                 <div class="ml-auto flex shrink-0 items-center gap-2">
-                    <!-- Compact because the panel is narrow: amount owed plus
-                         rounds left, which is the whole story at a glance. -->
-                    <span v-if="hasDebt" :title="debtTitle"
-                        class="shrink-0 rounded-full border-2 px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
-                        :class="[debtTone, debtSoonest <= 1 ? 'border-rose-400 bg-rose-400/10' : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20']">
-                        {{ debtTotal }}·{{ debtSoonest }}r
-                    </span>
-
                     <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
                         <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                     </CardDeck>
@@ -444,21 +473,52 @@ function onEndTurn() {
                     </div>
                 </div>
             </div>
+
+            <!--
+                A full-width strip rather than a chip in the header row.
+
+                That header already carries a token, a truncating name, a turn
+                pill, a points deck and the residence box; a debt badge squeezed
+                in beside them had to shorten itself to "2·5r" to fit, which is
+                not something anyone can read. Given its own row it has room to
+                say what it means, and it only exists when there is debt.
+            -->
+            <div v-if="hasDebt" :title="debtTitle"
+                class="flex items-center justify-between gap-2 rounded-lg border-2 px-2 py-1"
+                :class="debtSoonest <= 1
+                    ? 'border-rose-400 bg-rose-400/10'
+                    : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20'">
+                <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
+                    Owes {{ debtTotal }}
+                </span>
+                <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
+                    Due in {{ roundsLabel(debtSoonest) }}
+                </span>
+            </div>
+
             <div class="flex">
                 <span class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div
                     class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
-                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
-                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`" class="relative shrink-0">
-                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-50' : ''">
+                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto p-1">
+                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
+                            class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
+                            :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
+                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
                                 <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                class="pointer-events-none absolute -top-1 -right-1 z-10 rounded-full border-2 border-rose-400 bg-gray-x-dark px-1 text-[10px] leading-tight">🔒</span>
+                                class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-lg border-b-1 border-l-1 p-1 m-1 border-rose-400/70 bg-gray-x-dark">
+                                <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400/50" fill="none"
+                                    stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                                    <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
+                                    <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
+                                </svg>
+                            </span>
                         </div>
                     </div>
-                    <span v-else class="text-sm text-gray-light">No cards</span>
+                    <span v-else class="text-sm text-gray-light y-3 py-8">No cards</span>
                 </div>
             </div>
         </template>
