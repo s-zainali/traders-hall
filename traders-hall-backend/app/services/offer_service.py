@@ -438,7 +438,7 @@ async def confirm_offer(
         # may have sold the property, had it seized to cover a defaulted loan,
         # or let the room to someone else; and the tenant may have moved in
         # elsewhere. The claim reserves nothing, so nothing held any of it still.
-        free = await free_rooms_by_card(db, game, landlord)
+        free = await free_rooms_by_card(db, game, landlord, exclude_offer_id=offer_id)
         if free.get(card_type, 0) < 1:
             raise ActionError(
                 "NO_FREE_ROOM",

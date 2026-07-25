@@ -444,7 +444,7 @@ function onEndTurn() {
                 <button type="button" :disabled="busy"
                     :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
                     :title="residence !== '' ? 'Manage residence' : 'You live nowhere'"
-                    @click="isTurn ? openResidence : ''""
+                    @click="isTurn ? openResidence() : ''""
                     class="flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2 transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50"
                     :class="residence !== ''
                         ? 'border-purple-light hover:brightness-125'
