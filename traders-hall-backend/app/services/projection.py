@@ -5,7 +5,8 @@ from app.schemas.game_state import GameInfo, GameStateOut, PlayerPublic, YouBloc
 _NO_ROOMS = {
     "rooms_total": 0,
     "rooms_occupied": 0,
-    "rooms_free": 0,
+    "rooms_pending": 0,
+    "rooms_lettable": 0,
     "rooms_by_card": {},
 }
 
@@ -82,16 +83,27 @@ def build_game_state(raw: dict) -> GameStateOut:
 def _capacity(summary: dict | None, *, public: bool) -> dict:
     """Pick the capacity fields each block wants.
 
-    The per-card breakdown is only in `you`: it drives which properties the "let
-    a room" modal may offer, which is a decision only the owner makes. Opponents
-    get the totals, because a free room is public information — it is what makes
-    them eligible to accept a request.
+    Reads with .get rather than [] on purpose. room_summary lives in
+    residence_service and has changed shape once already — it gained
+    rooms_pending, which is why the old rooms_free key vanished and this blew up
+    with a KeyError on every state poll. A missing number should degrade to zero,
+    not take the whole response down.
+
+    rooms_free is what the API calls the lettable count. The names differ because
+    the service distinguishes rooms occupied from rooms merely PROMISED by a live
+    offer, and only the sum of both is unavailable — the client just needs "how
+    many can I let right now".
+
+    The per-card breakdown is `you` only: it drives which properties the let-a-room
+    control may offer, a decision only the owner makes. Opponents get the totals,
+    since a spare room is public — it is what makes them eligible to answer a
+    request.
     """
     data = summary or _NO_ROOMS
     out = {
-        "rooms_total": data["rooms_total"],
-        "rooms_occupied": data["rooms_occupied"],
-        "rooms_free": data["rooms_free"],
+        "rooms_total": data.get("rooms_total", 0),
+        "rooms_occupied": data.get("rooms_occupied", 0),
+        "rooms_free": data.get("rooms_lettable", 0),
     }
     if not public:
         out["rooms_by_card"] = data.get("rooms_by_card", {})
