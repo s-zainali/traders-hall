@@ -444,7 +444,7 @@ function onEndTurn() {
                 <button type="button" :disabled="busy"
                     :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
                     :title="residence !== '' ? 'Manage residence' : 'You live nowhere'"
-                    @click="isTurn ? openResidence() : ''""
+                    @click="openResidence""
                     class="flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2 transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50"
                     :class="residence !== ''
                         ? 'border-purple-light hover:brightness-125'
@@ -587,12 +587,24 @@ function onEndTurn() {
                     </CardDeck>
                     <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
                     
-                    <div class="flex items-center rounded-xl border-2 border-purple-light bg-purple-dark">
+                    <!--
+                        A tenancy is marked by the LANDLORD's own seat token in
+                        the corner, not a word: the table already reads players
+                        by colour and glyph, so the token says both "rented" and
+                        "from whom" in the space a label would need for one.
+                    -->
+                    <div class="relative flex items-center rounded-lg border-2 px-1 transition-colors duration-200"
+                        :class="isTenant ? 'border-teal-light bg-teal-dark/30' : 'border-purple-light bg-purple-dark'">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
                             mask: `url(/cancel.png) no-repeat center / contain`,
                             '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
                         }"></div>
+
+                        <span v-if="isTenant" :title="`Renting from ${landlordName || 'another player'}`"
+                            class="pointer-events-none absolute -top-1.5 -right-1.5 z-10 flex items-center justify-center rounded-full border-2 border-gray-x-dark bg-gray-x-dark">
+                            <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="true" />
+                        </span>
                     </div>
                 </div>
             </div>

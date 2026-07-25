@@ -113,6 +113,12 @@ const seats = computed(() => {
             residenceLandlordId: player?.residenceLandlordId ?? null,
             roomsTotal: player?.roomsTotal ?? 0,
             roomsFree: player?.roomsFree ?? 0,
+            // Resolved here rather than sent: the landlord's seat index and name
+            // are already in the public player list, and the token needs both.
+            landlordSeatIndex:
+                s.players.find((p) => p.id === player?.residenceLandlordId)?.seatIndex ?? -1,
+            landlordName:
+                s.players.find((p) => p.id === player?.residenceLandlordId)?.displayName ?? '',
         }
     })
 })
@@ -292,6 +298,8 @@ watch(
                         :mortgage-card-type="seat.mortgageCardType" :mortgage-outstanding="seat.mortgageOutstanding"
                         :mortgage-due="seat.mortgageDue" :residence="seat.residenceCardType ?? ''"
                         :rooms-total="seat.roomsTotal" :rooms-free="seat.roomsFree"
+                        :is-tenant="!!seat.residenceLandlordId" :landlord-name="seat.landlordName"
+                        :landlord-seat-index="seat.landlordSeatIndex"
                         class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1 xl:w-full xl:flex-none" />
                 </div>
 

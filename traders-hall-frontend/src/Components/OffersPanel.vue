@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import Card from './Card.vue'
 import SeatToken from './SeatToken.vue'
 import { useCardTypesStore } from '../stores/cardTypes'
@@ -31,6 +31,22 @@ const KIND_BADGE = {
     trade: { label: 'Trade', cls: 'border-amber-400/50 bg-amber-400/15 text-amber-400' },
     rent_out: { label: 'To let', cls: 'border-teal-light/50 bg-teal-dark/30 text-teal-light' },
     rent_ask: { label: 'Wanted', cls: 'border-purple-light/50 bg-purple-dark/30 text-purple-light' },
+}
+
+const picked = ref({})
+
+function pick(offerId, playerId) {
+    picked.value = { ...picked.value, [offerId]: playerId }
+}
+
+function selectedFor(offer) {
+    const chosen = picked.value[offer.id]
+    if (chosen && offer.claims.some((c) => c.playerId === chosen)) return chosen
+    return offer.claims[0]?.playerId ?? null
+}
+
+function claimTitle(claim) {
+    return claim.cardType ? `${claim.playerName} · ${titleOf(claim.cardType)}` : claim.playerName
 }
 
 function totalOf(offer) {
@@ -183,33 +199,34 @@ const rows = computed(() =>
                     </span>
                 </div>
 
-                <div v-if="offer.claimed" class="flex flex-col gap-1">
-                    <div v-for="claim in offer.claims" :key="claim.playerId"
-                        class="flex items-center gap-2 rounded-lg border-2 px-2 py-1"
-                        :class="claim.playerId === myPlayerId
-                            ? 'border-teal-light/50 bg-teal-dark/20'
-                            : 'border-amber-400/40 bg-amber-400/10'">
-                        <SeatToken :seat-index="claim.seatIndex" size="sm" />
-                        <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-2x-light">
-                            {{ claim.playerId === myPlayerId ? 'You' : claim.playerName }}
-                            <span v-if="claim.cardType" class="text-gray-x-light">
-                                · {{ titleOf(claim.cardType) }}
-                            </span>
-                        </span>
+                <div v-if="offer.claimed" class="flex flex-wrap items-center gap-1.5">
+                    <button v-for="claim in offer.claims" :key="claim.playerId" type="button"
+                        :disabled="!offer.mine || busy" :title="claimTitle(claim)" :aria-label="claimTitle(claim)"
+                        :aria-pressed="offer.mine && selectedFor(offer) === claim.playerId"
+                        @click="pick(offer.id, claim.playerId)"
+                        class="rounded-lg outline-emerald-400 transition duration-200 ease-in-out"
+                        :class="[
+                            offer.mine ? 'cursor-pointer' : 'cursor-default',
+                            offer.mine && selectedFor(offer) === claim.playerId
+                                ? 'outline-2 outline-offset-2'
+                                : offer.mine ? 'opacity-50 hover:opacity-100' : '',
+                        ]">
+                        <SeatToken :seat-index="claim.seatIndex" size="sm"
+                            :filled="claim.playerId === myPlayerId" />
+                    </button>
+                </div>
 
-                        <template v-if="offer.mine">
-                            <button type="button" :disabled="busy" :aria-label="`Decline ${claim.playerName}`"
-                                @click="emit('decline', { offerId: offer.id, playerId: claim.playerId })"
-                                class="cursor-pointer rounded-lg border-2 border-gray-light px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-x-light transition-colors duration-200 hover:border-rose-400 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
-                                No
-                            </button>
-                            <button type="button" :disabled="busy" :aria-label="`Accept ${claim.playerName}`"
-                                @click="emit('confirm', { offerId: offer.id, playerId: claim.playerId })"
-                                class="cursor-pointer rounded-lg border-2 border-emerald-400 bg-emerald-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-dark transition-colors duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
-                                Accept
-                            </button>
-                        </template>
-                    </div>
+                <div v-if="offer.mine && offer.claimed" class="flex gap-2">
+                    <button type="button" :disabled="busy || !selectedFor(offer)"
+                        @click="emit('decline', { offerId: offer.id, playerId: selectedFor(offer) })"
+                        class="flex-1 cursor-pointer rounded-xl border-2 border-gray-light py-1.5 text-sm font-bold text-gray-x-light transition-colors duration-200 hover:border-rose-400 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
+                        Decline
+                    </button>
+                    <button type="button" :disabled="busy || !selectedFor(offer)"
+                        @click="emit('confirm', { offerId: offer.id, playerId: selectedFor(offer) })"
+                        class="flex-1 cursor-pointer rounded-xl border-2 border-emerald-400 bg-emerald-400 py-1.5 text-sm font-bold text-gray-dark transition-colors duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                        Accept
+                    </button>
                 </div>
 
                 <button v-if="offer.mine" type="button" :disabled="busy" @click="emit('cancel', offer.id)"
