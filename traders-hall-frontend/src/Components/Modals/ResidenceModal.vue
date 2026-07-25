@@ -5,108 +5,72 @@ import SeatToken from '../SeatToken.vue'
 import { useCardTypesStore } from '../../stores/cardTypes'
 
 /**
- * Housing, from the residence box.
+ * Housing, in two modes.
  *
- * One modal with sections rather than several, because every path here answers
- * the same question — where do you live and who pays whom — and which sections
- * apply is decided by state, not by which button was pressed:
+ *   'let'        opened from an owned property card. Letting one of ITS rooms,
+ *                and nothing else.
+ *   'residence'  opened from the residence box. Where you live, moving into your
+ *                own place, asking for a room, leaving.
  *
- *   housed          → status, and Leave
- *   homeless + own  → Move in
- *   homeless        → Request a room (broadcast, any landlord may answer)
- *   spare capacity  → Let a room (one offer per room)
+ * Split because they are different questions asked from different places. A
+ * property card is a thing you own and might rent out; the residence box is
+ * where you sleep. One combined list meant a landlord with three towers had to
+ * scan past their own housing to find the room they wanted to let.
  *
- * A landlord who lives in their own tower sees status, Leave AND Let a room at
- * once, which is exactly right: those are three separate things they can do.
+ * One component rather than two because the terms — a rent and an interval —
+ * are identical either way, as is every class string. Only the sections differ.
  */
 const props = defineProps({
+    mode: { type: String, default: 'residence' },   // 'residence' | 'let'
     busy: { type: Boolean, default: false },
-    // housing is turn-gated on the server; disabling here shows the player why
     canAct: { type: Boolean, default: false },
 
-    // { cardType: quantity } — raw counts from the projection
-    hand: { type: Object, default: () => ({}) },
+    // 'let' mode: the property that was clicked, and its spare capacity
+    cardType: { type: String, default: '' },
+    roomsFreeForCard: { type: Number, default: 0 },
+    roomsPendingForCard: { type: Number, default: 0 },
 
+    // 'residence' mode
     residenceCardType: { type: String, default: null },
     // set alongside a residence = renting; null alongside one = own property
     residenceLandlordId: { type: String, default: null },
     landlordName: { type: String, default: '' },
     landlordSeatIndex: { type: Number, default: -1 },
-
-    // terms of the tenancy the player is IN, if any
     rentPoints: { type: Number, default: 0 },
     rentDue: { type: Number, default: 0 },
-
-    roomsTotal: { type: Number, default: 0 },
-    roomsOccupied: { type: Number, default: 0 },
-    roomsFree: { type: Number, default: 0 },
-    // lettable rooms per property type, already net of tenants, the owner
-    // themselves, and rooms promised by live offers
+    // lettable rooms per property type, net of tenants, self, and live offers
     roomsByCard: { type: Object, default: () => ({}) },
-
-    // how many tenants this player is landlord to, for the summary line
-    tenantCount: { type: Number, default: 0 },
 })
 
 const emit = defineEmits(['closeModal', 'moveIn', 'leave', 'rentOut', 'rentAsk'])
 
 const cardTypes = useCardTypesStore()
 
+const isLet = computed(() => props.mode === 'let')
 const isHoused = computed(() => !!props.residenceCardType)
 const isTenant = computed(() => isHoused.value && !!props.residenceLandlordId)
-const isOwnerOccupier = computed(() => isHoused.value && !props.residenceLandlordId)
 
-function titleOf(code) {
-    return cardTypes.get(code)?.title ?? code
-}
-function roomsOf(code) {
-    return cardTypes.get(code)?.rooms ?? 0
-}
+const titleOf = (code) => cardTypes.get(code)?.title ?? code
 
-/* ── move in ─────────────────────────────────────────────────────── */
-
-/**
- * Own properties with a room going spare.
- *
- * roomsByCard is already net of tenants, of the owner themselves and of rooms
- * promised by live offers, so it needs no further filtering — which is the point
- * of computing capacity server-side rather than guessing from the hand.
- */
-const movableInto = computed(() =>
+/** Own properties with a room going spare — the occupy options. */
+const occupiable = computed(() =>
     Object.entries(props.roomsByCard)
         .filter(([, free]) => free > 0)
-        .map(([code, free]) => ({ code, free, title: titleOf(code), rooms: roomsOf(code) }))
+        .map(([code, free]) => ({ code, free, title: titleOf(code) }))
 )
 
 const moveTarget = ref('')
-watch(movableInto, (list) => {
+watch(occupiable, (list) => {
     if (!list.some((c) => c.code === moveTarget.value)) moveTarget.value = list[0]?.code ?? ''
 }, { immediate: true })
 
-/* ── let a room ──────────────────────────────────────────────────── */
+/* ── terms, shared by both modes ─────────────────────────────────── */
+const rent = ref(1)
+const interval = ref(3)
 
-const letTarget = ref('')
-const letRent = ref(1)
-const letInterval = ref(3)
-
-watch(movableInto, (list) => {
-    if (!list.some((c) => c.code === letTarget.value)) letTarget.value = list[0]?.code ?? ''
-}, { immediate: true })
-
-/* ── request a room ──────────────────────────────────────────────── */
-
-const askRent = ref(1)
-const askInterval = ref(3)
-
-function clamp(v, lo, hi) {
-    return Math.min(hi, Math.max(lo, v))
-}
-const stepLetRent = (d) => (letRent.value = clamp(letRent.value + d, 1, 99))
-const stepLetInterval = (d) => (letInterval.value = clamp(letInterval.value + d, 1, 20))
-const stepAskRent = (d) => (askRent.value = clamp(askRent.value + d, 1, 99))
-const stepAskInterval = (d) => (askInterval.value = clamp(askInterval.value + d, 1, 20))
-
-/* ── behaviour ───────────────────────────────────────────────────── */
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
+const stepRent = (d) => (rent.value = clamp(rent.value + d, 1, 99))
+const stepInterval = (d) => (interval.value = clamp(interval.value + d, 1, 20))
 
 function onKeydown(e) {
     if (e.key === 'Escape') emit('closeModal')
@@ -117,12 +81,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 const locked = computed(() => props.busy || !props.canAct)
 const turnNote = computed(() => (props.canAct ? '' : 'Only on your turn'))
 
+const turnsLabel = (n) => (n === 1 ? '1 turn' : `${n} turns`)
 const dueTone = computed(() =>
     props.rentDue <= 1 ? 'text-rose-400' : props.rentDue <= 2 ? 'text-amber-400' : 'text-teal-light'
 )
-const turnsLabel = (n) => (n === 1 ? '1 turn' : `${n} turns`)
 
-/* ── class vocabulary, shared with the other modals in this app ──── */
+/* ── class vocabulary, lifted from TransactionModal ──────────────── */
 const labelClass = 'text-xs font-bold uppercase tracking-widest text-gray-x-light'
 const wellClass =
     'flex items-center justify-center rounded-[1rem] bg-gray-dark border-1 border-gray-light'
@@ -133,86 +97,143 @@ const stepButton =
     'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-gray-light disabled:hover:text-gray-2x-light ' +
     'focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:-outline-offset-2'
 const countClass =
-    'flex items-center justify-center font-bold text-gray-2x-light bg-gray-dark tabular-nums'
+    'flex w-12 items-center justify-center font-bold text-gray-2x-light bg-gray-dark tabular-nums'
 const actionButton =
     'px-5 py-2.5 rounded-xl font-bold cursor-pointer transition duration-200 ease-in-out ' +
     'disabled:opacity-40 disabled:cursor-not-allowed ' +
     'focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2'
-
-const purpleBtn = 'bg-purple-light text-gray-dark border-2 border-purple-light hover:brightness-110'
 const tealBtn = 'bg-teal-light text-gray-dark border-2 border-teal-light hover:brightness-110'
+const purpleBtn = 'bg-purple-light text-gray-dark border-2 border-purple-light hover:brightness-110'
 const ghostBtn =
     'border-2 border-gray-light text-gray-x-light hover:border-rose-400 hover:text-rose-400'
-
-const pickerBtn = 'flex cursor-pointer items-center gap-2 rounded-xl border-2 px-3 py-2 transition duration-200 ease-in-out'
-const pickerOn = 'border-purple-light bg-purple-dark/30'
-const pickerOff = 'border-gray-light opacity-60 hover:opacity-100'
-const sectionClass = 'flex shrink-0 flex-col gap-3 border-t-1 border-gray-light pt-5'
+const pickerBtn =
+    'flex cursor-pointer items-center gap-2 rounded-xl border-2 px-3 py-2 transition duration-200 ease-in-out'
 </script>
 
 <template>
-    <div class="absolute inset-0 z-[100] flex items-center justify-center bg-gray-dark/90 p-4 backdrop-blur-sm"
-        @click.self="emit('closeModal')">
+    <!--
+        Popover only — no backdrop, no centring. The parent anchors this beside or
+        above the panel exactly as it does for buy, sell, trade and eat. A
+        page-wide overlay for a two-stepper decision was far heavier than the
+        decision, which is what made it feel wrong.
+    -->
+    <div role="dialog" aria-modal="true" aria-labelledby="residence-title"
+        class="relative flex w-max max-w-[20rem] flex-col gap-4 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-6 shadow-2xl shadow-black/60">
 
-        <div role="dialog" aria-modal="true" aria-labelledby="residence-title"
-            class="scroll-slim relative flex max-h-full w-[23rem] max-w-full flex-col gap-5 overflow-y-auto p-6">
+        <button type="button" aria-label="Close" @click="emit('closeModal')"
+            class="absolute top-3 right-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-x-light transition-colors duration-200 hover:bg-gray-light/40 hover:text-gray-2x-light">✕</button>
 
-            <button type="button" aria-label="Close" @click="emit('closeModal')"
-                class="absolute top-3 right-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-x-light transition-colors duration-200 hover:bg-gray-light/40 hover:text-gray-2x-light">✕</button>
+        <!-- ══ let a room ══════════════════════════════════════════ -->
+        <template v-if="isLet">
+            <header class="flex flex-col gap-0.5 pr-10">
+                <h2 id="residence-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
+                    Let a room
+                </h2>
+                <p class="text-sm text-gray-x-light">
+                    One room in your {{ titleOf(cardType) }}, open to every player.
+                </p>
+            </header>
 
+            <div class="flex items-center gap-4">
+                <div :class="[wellClass, 'p-3']">
+                    <div :style="{ zoom: 0.85 }">
+                        <Card :card-type="cardType" :selected="true" />
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1 leading-tight">
+                    <span :class="labelClass">Spare</span>
+                    <span class="text-2xl font-bold tabular-nums"
+                        :class="roomsFreeForCard > 0 ? 'text-teal-light' : 'text-gray-light'">
+                        {{ roomsFreeForCard }}
+                    </span>
+                    <!-- Rooms already promised explain why capacity looks short
+                         of the card's own room count. -->
+                    <span v-if="roomsPendingForCard > 0" class="text-[10px] font-bold text-amber-400">
+                        {{ roomsPendingForCard }} already offered
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <div class="flex flex-col gap-1">
+                    <span :class="labelClass">Rent</span>
+                    <div :class="[stepperClass, 'shrink-0']">
+                        <button type="button" :class="stepButton" :disabled="rent <= 1" aria-label="Lower rent"
+                            @click="stepRent(-1)">−</button>
+                        <div :class="countClass">{{ rent }}</div>
+                        <button type="button" :class="stepButton" aria-label="Raise rent"
+                            @click="stepRent(1)">+</button>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span :class="labelClass">Every</span>
+                    <div :class="[stepperClass, 'shrink-0']">
+                        <button type="button" :class="stepButton" :disabled="interval <= 1"
+                            aria-label="Shorter interval" @click="stepInterval(-1)">−</button>
+                        <div :class="countClass">{{ interval }}</div>
+                        <button type="button" :class="stepButton" aria-label="Longer interval"
+                            @click="stepInterval(1)">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <p
+                class="rounded-xl border-2 border-teal-light/40 bg-teal-light/10 px-4 py-2 text-center text-sm font-bold text-gray-2x-light">
+                {{ rent }} pts every {{ turnsLabel(interval) }}
+            </p>
+
+            <footer class="flex items-center justify-between gap-3 border-t-1 border-gray-light pt-4">
+                <span v-if="turnNote" class="text-xs font-bold text-gray-light">{{ turnNote }}</span>
+                <button type="button" :class="[actionButton, tealBtn, 'ml-auto']"
+                    :disabled="locked || roomsFreeForCard < 1"
+                    @click="emit('rentOut', { cardType, rentPoints: rent, intervalTurns: interval })">
+                    Post room
+                </button>
+            </footer>
+        </template>
+
+        <!-- ══ residence ═══════════════════════════════════════════ -->
+        <template v-else>
             <header class="flex flex-col gap-0.5 pr-10">
                 <h2 id="residence-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
                     Residence
                 </h2>
                 <p class="text-sm text-gray-x-light">
-                    {{ isTenant ? 'You rent a room.' : isOwnerOccupier ? 'You live in your own property.'
-                        : 'You have nowhere to live.' }}
+                    {{ isTenant ? 'You rent a room.' : isHoused ? 'Your own property.' : 'You live nowhere.' }}
                 </p>
             </header>
 
-            <!-- ── where you live ──────────────────────────────────── -->
-            <div v-if="isHoused" :class="[wellClass, 'shrink-0 justify-between gap-3 px-4 py-3']">
+            <div v-if="isHoused" :class="[wellClass, 'justify-between gap-3 px-4 py-3']">
                 <span class="flex items-center gap-2">
                     <Card :card-type="residenceCardType" :selected="true" :large="false" />
                     <span class="flex flex-col leading-tight">
                         <span class="text-sm font-bold text-gray-2x-light">{{ titleOf(residenceCardType) }}</span>
                         <span v-if="isTenant" class="flex items-center gap-1 text-xs text-gray-x-light">
-                            <SeatToken :seat-index="landlordSeatIndex" size="sm" />
-                            {{ landlordName }}
+                            <SeatToken :seat-index="landlordSeatIndex" size="sm" />{{ landlordName }}
                         </span>
                         <span v-else class="text-xs text-gray-x-light">Yours</span>
                     </span>
                 </span>
+                <!-- An em dash rather than 0 when the rent figure is unknown: the
+                     projection sends the countdown but not yet the amount. -->
                 <span v-if="isTenant" class="flex flex-col items-end leading-tight">
-                    <span class="text-lg font-bold tabular-nums text-teal-light">{{ rentPoints }}</span>
+                    <span class="text-lg font-bold tabular-nums text-teal-light">{{ rentPoints || '—' }}</span>
                     <span class="text-[10px] font-bold uppercase tracking-widest" :class="dueTone">
                         due in {{ turnsLabel(rentDue) }}
                     </span>
                 </span>
             </div>
 
-            <!-- Capacity summary. Shown to any owner, since it is the number
-                 every other section depends on. -->
-            <div v-if="roomsTotal > 0" class="flex shrink-0 items-center justify-between gap-3 text-xs">
-                <span :class="labelClass">Your rooms</span>
-                <span class="font-bold tabular-nums text-gray-2x-light">
-                    {{ roomsOccupied }} / {{ roomsTotal }} used
-                    <span v-if="tenantCount" class="text-gray-x-light">
-                        · {{ tenantCount }} {{ tenantCount === 1 ? 'tenant' : 'tenants' }}
-                    </span>
-                </span>
-            </div>
-
-            <!-- ── move in ─────────────────────────────────────────── -->
-            <section v-if="!isHoused && movableInto.length" :class="sectionClass">
-                <h3 :class="labelClass">Move in</h3>
-                <p class="text-xs leading-relaxed text-gray-x-light">
-                    Occupy a room in a property you own. It costs nothing, but it uses a room you could
-                    otherwise let.
-                </p>
+            <!-- occupy: only when homeless and holding a property with a spare room -->
+            <section v-if="!isHoused && occupiable.length"
+                class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
+                <span :class="labelClass">Occupy</span>
                 <div class="flex flex-wrap gap-2">
-                    <button v-for="opt in movableInto" :key="opt.code" type="button" :class="[
-                        pickerBtn, moveTarget === opt.code ? pickerOn : pickerOff,
+                    <button v-for="opt in occupiable" :key="opt.code" type="button" :class="[
+                        pickerBtn,
+                        moveTarget === opt.code
+                            ? 'border-purple-light bg-purple-dark/30'
+                            : 'border-gray-light opacity-60 hover:opacity-100',
                     ]" @click="moveTarget = opt.code">
                         <Card :card-type="opt.code" :selected="true" :large="false" />
                         <span class="flex flex-col items-start leading-tight">
@@ -221,155 +242,64 @@ const sectionClass = 'flex shrink-0 flex-col gap-3 border-t-1 border-gray-light 
                         </span>
                     </button>
                 </div>
-                <button type="button" :class="[actionButton, purpleBtn, 'w-full']"
-                    :disabled="locked || !moveTarget" @click="emit('moveIn', moveTarget)">
+                <button type="button" :class="[actionButton, purpleBtn, 'w-full']" :disabled="locked || !moveTarget"
+                    @click="emit('moveIn', moveTarget)">
                     Move in
                 </button>
             </section>
 
-            <!-- ── leave ───────────────────────────────────────────── -->
-            <section v-if="isHoused" :class="sectionClass">
-                <h3 :class="labelClass">Leave</h3>
+            <!-- request a room: only when homeless -->
+            <section v-if="!isHoused" class="flex flex-col gap-3 border-t-1 border-gray-light pt-4">
+                <span :class="labelClass">Request a room</span>
                 <p class="text-xs leading-relaxed text-gray-x-light">
-                    {{ isTenant
-                        ? 'Ends the tenancy and frees your landlord\'s room. No penalty and no notice.'
-                        : 'Vacate your own property, freeing the room to let.' }}
-                </p>
-                <button type="button" :class="[actionButton, ghostBtn, 'w-full']" :disabled="locked"
-                    @click="emit('leave')">
-                    Leave residence
-                </button>
-            </section>
-
-            <!-- ── let a room ──────────────────────────────────────── -->
-            <section v-if="roomsFree > 0" :class="sectionClass">
-                <h3 :class="labelClass">Let a room</h3>
-                <p class="text-xs leading-relaxed text-gray-x-light">
-                    One room per offer. You set the rent and how often it falls due; the property stays
-                    yours and stays sellable.
+                    Broadcast what you will pay. Everyone sees it, but only players with a spare room can
+                    accept — and they pick which property.
                 </p>
 
-                <div class="flex flex-wrap gap-2">
-                    <button v-for="opt in movableInto" :key="opt.code" type="button" :class="[
-                        pickerBtn, letTarget === opt.code ? pickerOn : pickerOff,
-                    ]" @click="letTarget = opt.code">
-                        <Card :card-type="opt.code" :selected="true" :large="false" />
-                        <span class="flex flex-col items-start leading-tight">
-                            <span class="text-sm font-bold text-gray-2x-light">{{ opt.title }}</span>
-                            <span class="text-xs tabular-nums text-teal-light">{{ opt.free }} free</span>
-                        </span>
-                    </button>
-                </div>
-
-                <div class="flex flex-wrap gap-4">
-                    <div class="flex flex-col gap-1">
-                        <span :class="labelClass">Rent</span>
-                        <div :class="[stepperClass, 'shrink-0']">
-                            <button type="button" :class="stepButton" :disabled="letRent <= 1"
-                                aria-label="Lower rent" @click="stepLetRent(-1)">−</button>
-                            <div :class="[countClass, 'w-12']">{{ letRent }}</div>
-                            <button type="button" :class="stepButton" aria-label="Raise rent"
-                                @click="stepLetRent(1)">+</button>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <span :class="labelClass">Every</span>
-                        <div :class="[stepperClass, 'shrink-0']">
-                            <button type="button" :class="stepButton" :disabled="letInterval <= 1"
-                                aria-label="Shorter interval" @click="stepLetInterval(-1)">−</button>
-                            <div :class="[countClass, 'w-12']">{{ letInterval }}</div>
-                            <button type="button" :class="stepButton" aria-label="Longer interval"
-                                @click="stepLetInterval(1)">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <p class="text-xs font-bold tabular-nums text-teal-light">
-                    {{ letRent }} every {{ turnsLabel(letInterval) }}
-                </p>
-
-                <button type="button" :class="[actionButton, tealBtn, 'w-full']"
-                    :disabled="locked || !letTarget"
-                    @click="emit('rentOut', { cardType: letTarget, rentPoints: letRent, intervalTurns: letInterval })">
-                    Post room
-                </button>
-            </section>
-
-            <!-- ── request a room ──────────────────────────────────── -->
-            <section v-if="!isHoused" :class="sectionClass">
-                <h3 :class="labelClass">Request a room</h3>
-                <p class="text-xs leading-relaxed text-gray-x-light">
-                    Broadcast what you will pay. Every player sees it, but only those with a spare room can
-                    accept — and they choose which property.
-                </p>
-
-                <div class="flex flex-wrap gap-4">
+                <div class="flex gap-4">
                     <div class="flex flex-col gap-1">
                         <span :class="labelClass">Offer</span>
                         <div :class="[stepperClass, 'shrink-0']">
-                            <button type="button" :class="stepButton" :disabled="askRent <= 1"
-                                aria-label="Lower offer" @click="stepAskRent(-1)">−</button>
-                            <div :class="[countClass, 'w-12']">{{ askRent }}</div>
+                            <button type="button" :class="stepButton" :disabled="rent <= 1" aria-label="Lower offer"
+                                @click="stepRent(-1)">−</button>
+                            <div :class="countClass">{{ rent }}</div>
                             <button type="button" :class="stepButton" aria-label="Raise offer"
-                                @click="stepAskRent(1)">+</button>
+                                @click="stepRent(1)">+</button>
                         </div>
                     </div>
                     <div class="flex flex-col gap-1">
                         <span :class="labelClass">Every</span>
                         <div :class="[stepperClass, 'shrink-0']">
-                            <button type="button" :class="stepButton" :disabled="askInterval <= 1"
-                                aria-label="Shorter interval" @click="stepAskInterval(-1)">−</button>
-                            <div :class="[countClass, 'w-12']">{{ askInterval }}</div>
+                            <button type="button" :class="stepButton" :disabled="interval <= 1"
+                                aria-label="Shorter interval" @click="stepInterval(-1)">−</button>
+                            <div :class="countClass">{{ interval }}</div>
                             <button type="button" :class="stepButton" aria-label="Longer interval"
-                                @click="stepAskInterval(1)">+</button>
+                                @click="stepInterval(1)">+</button>
                         </div>
                     </div>
                 </div>
 
-                <p class="text-xs font-bold tabular-nums text-teal-light">
-                    {{ askRent }} every {{ turnsLabel(askInterval) }}
-                </p>
-
                 <button type="button" :class="[actionButton, tealBtn, 'w-full']" :disabled="locked"
-                    @click="emit('rentAsk', { rentPoints: askRent, intervalTurns: askInterval })">
+                    @click="emit('rentAsk', { rentPoints: rent, intervalTurns: interval })">
                     Post request
                 </button>
             </section>
 
-            <!-- Nothing available: own nothing, live nowhere, cannot let. Say so
-                 rather than showing an empty modal. -->
-            <p v-if="!isHoused && !movableInto.length && roomsFree === 0"
-                :class="[sectionClass, 'text-sm text-gray-light']">
-                Buy a property to live in one, or post a request and wait for a landlord.
+            <section v-if="isHoused" class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
+                <button type="button" :class="[actionButton, ghostBtn, 'w-full']" :disabled="locked"
+                    @click="emit('leave')">
+                    {{ isTenant ? 'End tenancy' : 'Vacate' }}
+                </button>
+                <p class="text-xs text-gray-x-light">
+                    {{ isTenant ? 'Frees your landlord\'s room. No penalty.' : 'Frees the room to let.' }}
+                </p>
+            </section>
+
+            <p v-if="!isHoused && !occupiable.length" class="text-xs text-gray-light">
+                Buy a property to live in one, or post a request and wait.
             </p>
 
-            <footer class="flex shrink-0 items-center justify-between gap-3 border-t-1 border-gray-light pt-4">
-                <span v-if="turnNote" class="text-xs font-bold text-gray-light">{{ turnNote }}</span>
-                <button type="button" :class="[actionButton, 'ml-auto border-2 border-gray-light text-gray-x-light hover:border-gray-x-light hover:text-gray-2x-light']"
-                    @click="emit('closeModal')">Close</button>
-            </footer>
-        </div>
+            <p v-if="turnNote" class="text-xs font-bold text-gray-light">{{ turnNote }}</p>
+        </template>
     </div>
 </template>
-
-<style scoped>
-.scroll-slim {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;
-}
-
-.scroll-slim::-webkit-scrollbar {
-    width: 10px;
-}
-
-.scroll-slim::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.scroll-slim::-webkit-scrollbar-thumb {
-    background: color-mix(in oklab, var(--color-gray-x-light) 28%, transparent);
-    background-clip: content-box;
-    border: 3px solid transparent;
-    border-radius: 999px;
-}
-</style>

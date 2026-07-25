@@ -14,9 +14,13 @@ const props = defineProps({
     // available whenever a food card is in hand and it is your turn. The prop
     // shape stays the same so the click dispatch below stays one chain.
     eating: { type: Boolean, default: false },
+    // Same shape as `eating`: an affordance available whenever the card is an
+    // owned property with a spare room and it is your turn, rather than a mode
+    // entered from the action bar.
+    letting: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['buy', 'sell', 'trade', 'eat', 'details'])
+const emit = defineEmits(['buy', 'sell', 'trade', 'eat', 'let', 'details'])
 
 const cardTypes = useCardTypesStore()
 
@@ -41,7 +45,7 @@ const cost = computed(() => info.value.baseCost)
 const isSelected = computed(() => props.selected)
 const isActive = computed(() => isHovered.value || isSelected.value)
 const interactive = computed(
-    () => props.buying || props.selling || props.trading || props.eating
+    () => props.buying || props.selling || props.trading || props.eating || props.letting
 )
 
 const background = computed(() => `var(--color-${isActive.value ? bgColor.value : color.value})`)
@@ -54,6 +58,7 @@ function onClick() {
     else if (props.selling) emit('sell')
     else if (props.trading) emit('trade')
     else if (props.eating) emit('eat')
+    else if (props.letting) emit('let')
     else emit('details')
 }
 </script>

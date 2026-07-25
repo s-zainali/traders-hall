@@ -5,6 +5,7 @@ import CardDeck from './CardDeck.vue'
 import SeatToken from './SeatToken.vue'
 import TransactionModal from './Modals/TransactionModal.vue'
 import EatModal from './Modals/EatModal.vue'
+import ResidenceModal from './Modals/ResidenceModal.vue'
 import { seatStyle } from '../seats'
 import { useCardTypesStore } from '../stores/cardTypes'
 
@@ -43,12 +44,23 @@ const props = defineProps({
     roomsTotal: { type: Number, default: 0 },
     roomsFree: { type: Number, default: 0 },
     isTenant: { type: Boolean, default: false },
+    // Lettable rooms per property type, and rooms already promised by a live
+    // offer. Both come from the server, because capacity is derived there — the
+    // hand alone cannot tell you how many rooms are still free.
+    roomsByCard: { type: Object, default: () => ({}) },
+    roomsPendingByCard: { type: Object, default: () => ({}) },
+    residenceLandlordId: { type: String, default: null },
+    landlordName: { type: String, default: '' },
+    landlordSeatIndex: { type: Number, default: -1 },
+    rentPoints: { type: Number, default: 0 },
     /** an action is in flight; controls lock so a double-click cannot fire twice */
     busy: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
-    'buy', 'sell', 'trade', 'eat', 'residence', 'cancelOperation', 'transaction', 'endTurn',
+    'buy', 'sell', 'trade', 'eat', 'residence',
+    'moveIn', 'leaveResidence', 'rentOut', 'rentAsk',
+    'cancelOperation', 'transaction', 'endTurn',
 ])
 
 const cardTypes = useCardTypesStore()
@@ -172,6 +184,40 @@ function openEat(type) {
 
 function onEat(payload) {
     emit('eat', payload)
+    activeModal.value = ''
+}
+
+/* ── letting a room ──────────────────────────────────────────────
+   Clicking an owned property opens the let-a-room popover for THAT property
+   only. Same shape as eating: no mode in the action bar, and it yields to the
+   market modes so a property stays sellable during a sell.
+────────────────────────────────────────────────────────────────── */
+
+const freeRoomsFor = (type) => props.roomsByCard[type] ?? 0
+const pendingRoomsFor = (type) => props.roomsPendingByCard[type] ?? 0
+
+const canLet = (type) =>
+    isOwn.value &&
+    canAct.value &&
+    props.activeAction === '' &&
+    !isMortgaged(type) &&
+    freeRoomsFor(type) > 0
+
+function openLet(type) {
+    if (!canLet(type)) return
+    selectedType.value = type
+    activeModal.value = 'let'
+}
+
+// The residence popover shares the same anchor, so it goes through activeModal
+// rather than a separate flag — one open-modal-at-a-time falls out of that.
+function openResidence() {
+    if (!isOwn.value) return
+    activeModal.value = 'residence'
+}
+
+function onHousing(event, payload) {
+    emit(event, payload)
     activeModal.value = ''
 }
 
@@ -318,10 +364,19 @@ function onEndTurn() {
                    xl:top-auto xl:bottom-full xl:left-1/2 xl:ml-0 xl:-translate-x-1/2 xl:translate-y-0">
             <!-- Two modals share this anchor. Eating is not a transaction, so it
                  gets its own component rather than a fourth mode inside one. -->
-            <EatModal v-if="activeModal === 'eat'" :card-type="selectedType"
+            <ResidenceModal v-if="activeModal === 'let' || activeModal === 'residence'"
+                :mode="activeModal === 'let' ? 'let' : 'residence'" :card-type="selectedType"
+                :rooms-free-for-card="freeRoomsFor(selectedType)"
+                :rooms-pending-for-card="pendingRoomsFor(selectedType)" :residence-card-type="residence || null"
+                :residence-landlord-id="residenceLandlordId" :landlord-name="landlordName"
+                :landlord-seat-index="landlordSeatIndex" :rent-points="rentPoints" :rent-due="rentDue"
+                :rooms-by-card="roomsByCard" :busy="busy" :can-act="canAct" @close-modal="closeModal"
+                @move-in="(t) => onHousing('moveIn', t)" @leave="onHousing('leaveResidence')"
+                @rent-out="(p) => onHousing('rentOut', p)" @rent-ask="(p) => onHousing('rentAsk', p)" />
+            <EatModal v-else-if="activeModal === 'eat'" :card-type="selectedType"
                 :available="hand[selectedType] ?? 1" :food-due="foodDue" :busy="busy" :popover="true"
                 @confirm="onEat($event)" @cancel="closeModal" />
-            <TransactionModal v-else :transaction-type="activeModal" :card-type="selectedType"
+            <TransactionModal v-else-if="activeModal === 'sell' || activeModal === 'trade'" :transaction-type="activeModal" :card-type="selectedType"
                 :available="hand[selectedType] ?? 1" :points="points" :busy="busy" :popover="true" @confirm="onConfirm($event)"
                 @cancel="closeModal" />
             <div class="mx-auto -mt-0.5 hidden h-1 w-16 rounded-b bg-gray-light xl:block"></div>
@@ -389,7 +444,7 @@ function onEndTurn() {
                 <button type="button" :disabled="busy"
                     :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
                     :title="residence !== '' ? 'Manage residence' : 'You live nowhere'"
-                    @click="emit('residence')"
+                    @click="openResidence""
                     class="flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2 transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50"
                     :class="residence !== ''
                         ? 'border-purple-light hover:brightness-125'
@@ -454,8 +509,9 @@ function onEndTurn() {
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
                                     :trading="activeAction === 'trade' && !isMortgaged(type)"
-                                    :eating="canEat(type)"
-                                    @sell="openModal(type)" @trade="openModal(type)" @eat="openEat(type)" />
+                                    :eating="canEat(type)" :letting="canLet(type)"
+                                    @sell="openModal(type)" @trade="openModal(type)" @eat="openEat(type)"
+                                    @let="openLet(type)" />
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"

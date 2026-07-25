@@ -8,7 +8,6 @@ import PlayerCardHolder from '../Components/PlayerCardHolder.vue'
 import LoadingScreen from '../Components/LoadingScreen.vue'
 import EventLog from '../Components/EventLog.vue'
 import OffersPanel from '../Components/OffersPanel.vue'
-import ResidenceModal from '../Components/Modals/ResidenceModal.vue'
 import { useCardTypesStore } from '../stores/cardTypes'
 import { useGamesStore } from '../stores/games'
 
@@ -171,8 +170,6 @@ const onCancelOffer = (id) => games.cancelOffer(props.code, id)
   Housing. Routed through the same guard as credit: a click that silently does
   nothing is the failure mode worth engineering against.
 */
-const showResidence = ref(false)
-
 const onMoveIn = (cardType) =>
     runCredit('move in', games.moveIn && (() => games.moveIn(props.code, cardType)))
 const onLeaveResidence = () =>
@@ -316,8 +313,13 @@ watch(
                     :mortgage-outstanding="mine?.mortgageOutstanding ?? 0" :mortgage-due="mine?.mortgageDue ?? 0"
                     :residence="mine?.residenceCardType ?? ''" :rooms-total="mine?.roomsTotal ?? 0"
                     :rooms-free="mine?.roomsFree ?? 0" :is-tenant="!!me?.residenceLandlordId"
+                    :rooms-by-card="me?.roomsByCard ?? {}" :rooms-pending-by-card="me?.roomsPendingByCard ?? {}"
+                    :residence-landlord-id="me?.residenceLandlordId ?? null"
+                    :landlord-name="myLandlord?.displayName ?? ''"
+                    :landlord-seat-index="myLandlord?.seatIndex ?? -1" :rent-points="myRentPoints"
                     :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
-                    @eat="onEat" @residence="showResidence = true" @cancel-operation="cancelAction"
+                    @eat="onEat" @move-in="onMoveIn" @leave-residence="onLeaveResidence" @rent-out="onRentOut"
+                    @rent-ask="onRentAsk" @cancel-operation="cancelAction"
                     @transaction="onTransaction" @end-turn="onEndTurn" />
             </div>
         </div>
@@ -328,16 +330,6 @@ watch(
             :mortgage-outstanding="me?.mortgageOutstanding ?? 0" :mortgage-due="me?.mortgageDue ?? 0" :busy="acting"
             @cancel="cancelAction" @confirm="onBuy" @borrow="onBorrow" @repay="onRepay" @mortgage="onMortgage"
             @redeem="onRedeem" />
-
-        <ResidenceModal v-if="showResidence" :busy="acting" :can-act="isMyTurn" :hand="me?.hand ?? {}"
-            :residence-card-type="me?.residenceCardType ?? null"
-            :residence-landlord-id="me?.residenceLandlordId ?? null"
-            :landlord-name="myLandlord?.displayName ?? ''" :landlord-seat-index="myLandlord?.seatIndex ?? -1"
-            :rent-points="myRentPoints" :rent-due="me?.rentDue ?? 0" :rooms-total="me?.roomsTotal ?? 0"
-            :rooms-occupied="me?.roomsOccupied ?? 0" :rooms-free="me?.roomsFree ?? 0"
-            :rooms-by-card="me?.roomsByCard ?? {}" :tenant-count="myTenantCount"
-            @close-modal="showResidence = false" @move-in="onMoveIn" @leave="onLeaveResidence"
-            @rent-out="onRentOut" @rent-ask="onRentAsk" />
 
         <Transition name="toast">
             <div v-if="actionError"
