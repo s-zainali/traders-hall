@@ -76,6 +76,20 @@ class OfferAction(BaseModel):
     # Optional because a landlord with exactly one eligible property does not
     # need to be asked.
     card_type: str | None = Field(default=None, min_length=1, max_length=32)
+    # Which claimant the poster is accepting or declining. Required once more
+    # than one player has claimed; optional when there is only one, so the
+    # obvious case stays a single click.
+    player_id: uuid.UUID | None = None
+
+
+class OfferClaimOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    player_id: uuid.UUID
+    player_name: str
+    seat_index: int
+    # rent_ask only: the property this landlord offered
+    card_type: str | None = None
 
 
 class OfferOut(BaseModel):
@@ -97,8 +111,11 @@ class OfferOut(BaseModel):
     want_card_type: str | None
     want_quantity: int | None
     status: str
-    claimed_by_player_id: uuid.UUID | None
-    claimed_by_name: str | None
-    claimed_by_seat_index: int | None
+    # Everyone with a hand up, oldest first. The poster picks one; the rest see
+    # their own claim reflected so they know they are in the running.
+    claims: list[OfferClaimOut] = []
+    claimed_by_player_id: uuid.UUID | None = None
+    claimed_by_name: str | None = None
+    claimed_by_seat_index: int | None = None
     created_turn: int
     created_at: datetime

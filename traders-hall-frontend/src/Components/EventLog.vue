@@ -62,27 +62,62 @@ const isRentKind = (kind) => kind === 'rent_out' || kind === 'rent_ask'
   v-if branches means adding an event type is one entry, and the colour and the
   wording cannot drift apart.
 */
+/**
+ * Drawn icons, not glyphs.
+ *
+ * The log used a mix of geometric characters and emoji. Emoji render at
+ * whatever weight and hue the platform font decides — the padlock came out
+ * gold on Linux, a colour that appears nowhere in this palette — and the
+ * geometric ones sat on a text baseline while the card chips beside them did
+ * not.
+ *
+ * These are paths on a 16x16 box at stroke-width 1.6, matching the mortgage
+ * padlock on the card decks, and they take their colour from the row's tone
+ * through currentColor.
+ */
+const ICONS = {
+  buy: 'M8 2v7M5 6.5 8 9.5l3-3M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2',
+  sell: 'M8 9.5v-7M5 5.5 8 2.5l3 3M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2',
+  turn: 'M13 8a5 5 0 1 1-1.8-3.9M13 2v3h-3',
+  flag: 'M4 14V3M4 3h8l-1.6 2.6L12 8H4',
+  offer: 'M3 5h10M3 8h10M3 11h6',
+  claim: 'M4 3h8v11l-4-3-4 3z',
+  undo: 'M6 5 3 8l3 3M3 8h7a3 3 0 0 1 0 6',
+  cross: 'M4 4l8 8M12 4l-8 8',
+  swap: 'M3 6h9L9.5 3.5M13 10H4l2.5 2.5',
+  food: 'M13 3c0 5-3.5 8-9 9 0-5 3.5-8 9-9zM4 12l4-4',
+  warn: 'M8 2.5 14 13H2zM8 6.5v2.6M8 11.2v.1',
+  home: 'M2.5 8 8 3l5.5 5M4 7.5V13h8V7.5',
+  plusCircle: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11M8 5.5v5M5.5 8h5',
+  minusCircle: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11M5.5 8h5',
+  bank: 'M2.5 6.5 8 3l5.5 3.5M4.5 7.5v4.5M7 7.5v4.5M9 7.5v4.5M11.5 7.5v4.5M2.5 13.5h11',
+  lock: 'M5 7V5.2a3 3 0 0 1 6 0V7M3.5 7h9v6h-9z',
+  unlock: 'M5 7V5.2a3 3 0 0 1 5.7-1.4M3.5 7h9v6h-9z',
+  // stroke-linecap round turns a zero-length segment into a dot
+  dot: 'M8 8h.01',
+}
+
 const KINDS = {
     // ── bank trades ──────────────────────────────────────────────
     'cards.bought': {
-        icon: '▲',
+        icon: 'buy',
         tone: 'text-emerald-400',
         parts: (p) => [T('bought'), C(p.card_type, p.quantity), T('from the bank for'), P(p.total_cost)],
     },
     'cards.sold': {
-        icon: '▼',
+        icon: 'sell',
         tone: 'text-rose-400',
         parts: (p) => [T('sold'), C(p.card_type, p.quantity), T('to the bank for'), P(p.total_value)],
     },
 
     // ── turn flow ────────────────────────────────────────────────
     'turn.ended': {
-        icon: '⟳',
+        icon: 'turn',
         tone: 'text-teal-light',
         parts: (p) => [T(`ended their turn — round ${p.turn_number}`)],
     },
     'game.ended': {
-        icon: '★',
+        icon: 'flag',
         tone: 'text-amber-400',
         parts: () => [T('the game ended')],
     },
@@ -91,7 +126,7 @@ const KINDS = {
     // price_points is per unit, so the TOTAL is what the claimant actually pays
     // and therefore what the log should show.
     'offer.posted': {
-        icon: '☰',
+        icon: 'offer',
         tone: 'text-gray-2x-light',
         parts: (p) => {
             if (isRentKind(p.kind)) return rentParts(p, p.kind === 'rent_out' ? 'offered' : 'wants')
@@ -104,22 +139,22 @@ const KINDS = {
         },
     },
     'offer.claimed': {
-        icon: '✋',
+        icon: 'claim',
         tone: 'text-amber-400',
         parts: (p) => [T('claimed an offer from'), N(p.poster_player_id)],
     },
     'offer.claim_withdrawn': {
-        icon: '↩',
+        icon: 'undo',
         tone: 'text-gray-x-light',
         parts: () => [T('withdrew their claim')],
     },
     'offer.declined': {
-        icon: '✕',
+        icon: 'cross',
         tone: 'text-rose-400',
         parts: (p) => [T('declined the claim from'), N(p.declined_player_id)],
     },
     'offer.settled': {
-        icon: '⇄',
+        icon: 'swap',
         tone: 'text-emerald-400',
         parts: (p) => {
             if (isRentKind(p.kind)) {
@@ -135,14 +170,14 @@ const KINDS = {
         },
     },
     'offer.cancelled': {
-        icon: '✕',
+        icon: 'cross',
         tone: 'text-gray-x-light',
         parts: () => [T('withdrew an offer')],
     },
 
     // ── upkeep ───────────────────────────────────────────────────
     'food.eaten': {
-        icon: '◆',
+        icon: 'food',
         tone: 'text-cream-light',
         parts: (p) => [
             T('ate'),
@@ -151,7 +186,7 @@ const KINDS = {
         ],
     },
     'food.exhausted': {
-        icon: '⚠',
+        icon: 'warn',
         tone: 'text-amber-400',
         // No actor: upkeep raised this, not the player. subjectOf falls back to
         // payload.player_id so the line still names and colours the right seat.
@@ -160,41 +195,41 @@ const KINDS = {
 
     // ── tenancies ────────────────────────────────────────────────
     'rent.paid': {
-        icon: '⌂',
+        icon: 'home',
         tone: 'text-teal-light',
         parts: (p) => [T('paid'), P(p.rent_points), T('rent to'), N(p.landlord_player_id),
         T(`— next in ${turns(p.next_due_in)}`)],
     },
     'rent.missed': {
-        icon: '⚠',
+        icon: 'warn',
         tone: 'text-rose-400',
         parts: (p) => [T('could not pay'), P(p.rent_points), T('rent to'), N(p.landlord_player_id),
         T(`— ${p.shortfall} short`)],
     },
     'tenancy.ended': {
-        icon: '⌂',
+        icon: 'home',
         tone: 'text-gray-x-light',
         parts: (p) => [T('no longer rents'), C(p.card_type, 1), T('from'), N(p.landlord_player_id)],
     },
     'residence.moved_in': {
-        icon: '⌂',
+        icon: 'home',
         tone: 'text-purple-light',
         parts: (p) => [T('moved into'), C(p.card_type, 1)],
     },
     'residence.left': {
-        icon: '⌂',
+        icon: 'home',
         tone: 'text-gray-x-light',
         parts: (p) => [T('left'), C(p.card_type, 1)],
     },
 
     // ── credit ───────────────────────────────────────────────────
     'loan.borrowed': {
-        icon: '⊕',
+        icon: 'plusCircle',
         tone: 'text-blue-light',
         parts: (p) => [T('borrowed'), P(p.amount), T(`from the bank — due in ${p.due_in_rounds} rounds`)],
     },
     'loan.repaid': {
-        icon: '⊖',
+        icon: 'minusCircle',
         tone: 'text-teal-light',
         // `automatic` distinguishes a player choosing to pay from upkeep collecting
         // on the due date, which reads very differently at the table.
@@ -205,7 +240,7 @@ const KINDS = {
         ],
     },
     'loan.defaulted': {
-        icon: '⚠',
+        icon: 'warn',
         tone: 'text-rose-400',
         parts: (p) => {
             const out = [T('defaulted on'), P(p.owed)]
@@ -220,24 +255,24 @@ const KINDS = {
         },
     },
     'mortgage.opened': {
-        icon: '🏦',
+        icon: 'bank',
         tone: 'text-purple-light',
         parts: (p) => [T('mortgaged'), C(p.card_type, 1), T('for'), P(p.advance), T(`— due in ${p.due_in_rounds} rounds`)],
     },
     'mortgage.redeemed': {
-        icon: '🔓',
+        icon: 'unlock',
         tone: 'text-teal-light',
         parts: (p) => [T(p.automatic ? 'was charged to redeem' : 'redeemed'), C(p.card_type, 1), T('for'), P(p.amount)],
     },
     'mortgage.seized': {
-        icon: '🔒',
+        icon: 'lock',
         tone: 'text-rose-400',
         parts: (p) => [T('lost'), C(p.card_type, 1), T('to the bank —'), P(p.owed), T('unpaid')],
     },
 }
 
 const FALLBACK = {
-    icon: '·',
+    icon: 'dot',
     tone: 'text-gray-x-light',
     // An unknown type still renders something readable rather than a blank row:
     // a new backend event should never make the log look broken.
@@ -375,7 +410,12 @@ const tabClass = (name) =>
                 <div v-for="entry in shown" :key="entry.seq" class="flex items-center">
                     <div
                         class="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg px-2 py-1 text-sm hover:bg-gray-dark/60">
-                        <span :class="entry.tone" class="w-3 shrink-0 text-center font-bold">{{ entry.icon }}</span>
+                        <!-- currentColor, so one icon set serves every tone -->
+                        <svg :class="entry.tone" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="none"
+                            stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+                            aria-hidden="true">
+                            <path :d="ICONS[entry.icon] ?? ICONS.dot" />
+                        </svg>
 
                         <!-- Server-run events (upkeep, seizure) have no actor and read as a
                    complete sentence without one. -->

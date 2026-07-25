@@ -103,9 +103,18 @@ async def withdraw_claim(code: str, offer_id: uuid.UUID, user: CurrentUser, db: 
 
 
 @router.post("/{code}/offers/{offer_id}/decline", response_model=GameStateOut)
-async def decline_claim(code: str, offer_id: uuid.UUID, user: CurrentUser, db: Db):
+async def decline_claim(
+    code: str, offer_id: uuid.UUID, user: CurrentUser, db: Db,
+    # Optional so a decline on a single-claim offer stays a bodyless POST, which
+    # is what the client has always sent. player_id only becomes necessary once
+    # several players are in the running.
+    body: OfferAction | None = None,
+):
     try:
-        await offer_service.decline_claim(db, user=user, code=code, offer_id=offer_id)
+        await offer_service.decline_claim(
+            db, user=user, code=code, offer_id=offer_id,
+            player_id=body.player_id if body else None,
+        )
         return await _state(db, user, code)
     except ActionError as e:
         raise _http(e)

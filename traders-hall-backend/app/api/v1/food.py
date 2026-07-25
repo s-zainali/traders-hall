@@ -46,7 +46,6 @@ async def eat(code: str, body: EatRequest, user: CurrentUser, db: Db):
         await food_service.eat(
             db, user=user, code=code,
             card_type=body.card_type,
-            quantity=body.quantity,
             expected_state_version=body.expected_state_version,
         )
         raw = await game_service.get_game_state(db, user=user, code=code)
