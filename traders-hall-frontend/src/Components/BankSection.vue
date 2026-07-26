@@ -145,7 +145,7 @@ const debtTone = computed(() => {
         it a flex item refuses to shrink below its content, so a tall bank would
         push past the fixed height instead of scrolling inside it.
     -->
-    <div class="relative my-4 flex h-[calc(100%-2rem)] min-h-0 shrink-0 items-stretch">
+    <div class="relative flex h-[calc(100%)] min-h-0 shrink-0 items-stretch">
 
         <!--
             Slide and fade, NOT the grid-column width trick used elsewhere in
