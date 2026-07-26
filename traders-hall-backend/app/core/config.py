@@ -26,14 +26,14 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         if self.DATABASE_URL:
             url = self.DATABASE_URL
+            # Ensure asyncpg driver scheme
             if url.startswith("postgres://"):
                 url = url.replace("postgres://", "postgresql+asyncpg://", 1)
             elif url.startswith("postgresql://") and "+asyncpg" not in url:
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            
             if "?" in url:
-                base_url, query = url.split("?", 1)
-                params = [p for p in query.split("&") if not p.startswith("sslmode=")]
-                url = base_url + ("?" + "&".join(params) if params else "")
+                url = url.split("?", 1)[0]
                 
             return url
 
