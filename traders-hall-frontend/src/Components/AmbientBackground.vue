@@ -60,22 +60,24 @@ function place(f) {
     </div>
 
     <!-- deliberately NOT inset-0 — see .glow-layer -->
-    <div class="glow-layer absolute"></div>
+    <!-- <div class="glow-layer absolute"></div> -->
 
     <!-- drifting cards: each on its own loop, offset by a negative delay so
          they start mid-cycle instead of all rising together -->
-    <div
-      v-for="(f, i) in floaters"
-      :key="i"
-      class="floater absolute rounded-2xl border-4"
-      :class="[sizes[f.size], palettes[f.color]]"
-      :style="{
-        ...place(f),
-        '--rot': `${f.rotate}deg`,
-        animationDelay: f.delay,
-        animationDuration: f.duration,
-      }"
-    ></div>
+    <div class="relative w-full h-[150dvh]">
+        <div
+          v-for="(f, i) in floaters"
+          :key="i"
+          class="floater absolute rounded-2xl border-4"
+          :class="[sizes[f.size], palettes[f.color]]"
+          :style="{
+            ...place(f),
+            '--rot': `${f.rotate}deg`,
+            animationDelay: f.delay,
+            animationDuration: f.duration,
+          }"
+        ></div>
+    </div>
 
     <!-- framing accents, so the viewport reads as composed rather than cropped -->
     <span class="bracket bracket-tl"></span>
@@ -105,13 +107,13 @@ function place(f) {
 
 .aurora-a {
   width: 46rem; height: 34rem;
-  top: -12rem; left: -10rem;
+  top: -5rem; left: -10rem;
   background: radial-gradient(circle, var(--color-purple-light), transparent 65%);
   animation: aurora-a 34s ease-in-out infinite alternate;
 }
 .aurora-b {
   width: 40rem; height: 40rem;
-  top: -6rem; right: -12rem;
+  top: 7rem; right: -12rem;
   background: radial-gradient(circle, var(--color-teal-light), transparent 65%);
   animation: aurora-b 41s ease-in-out infinite alternate;
 }
