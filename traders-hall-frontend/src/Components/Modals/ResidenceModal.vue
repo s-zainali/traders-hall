@@ -223,7 +223,9 @@ const pickerBtn =
                     </span>
                 </span>
             </div>
-
+            <section class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
+                <div class="text-sm tracking-wide  text-center" :class="roomsByCard[residenceCardType] === 0? 'text-rose-400' : 'text-teal-light'">{{ roomsByCard[residenceCardType] }} rooms free</div>
+            </section>
             <!-- occupy: only when homeless and holding a property with a spare room -->
             <section v-if="!isHoused && occupiable.length"
                 class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
@@ -252,8 +254,7 @@ const pickerBtn =
             <section v-if="!isHoused" class="flex flex-col gap-3 border-t-1 border-gray-light pt-4">
                 <span :class="labelClass">Request a room</span>
                 <p class="text-xs leading-relaxed text-gray-x-light">
-                    Broadcast what you will pay. Everyone sees it, but only players with a spare room can
-                    accept — and they pick which property.
+                    Broadcast what you will pay. Everyone sees it.
                 </p>
 
                 <div class="flex gap-4">
