@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings(BaseSettings) :
+class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file = '.env', extra="ignore")
     PROJECT_NAME: str = "Traders Hall"
     API_V1_PREFIX: str = "/api/v1"
@@ -10,7 +10,6 @@ class Settings(BaseSettings) :
     DEBUG: bool = False
     SECRET_KEY: str = "change-me"
 
-    # Allow an explicit DATABASE_URL override (like from Neon/Render)
     DATABASE_URL: Optional[str] = None
 
     POSTGRES_USER: str = "traders"
@@ -31,6 +30,11 @@ class Settings(BaseSettings) :
                 url = url.replace("postgres://", "postgresql+asyncpg://", 1)
             elif url.startswith("postgresql://") and "+asyncpg" not in url:
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            if "?" in url:
+                base_url, query = url.split("?", 1)
+                params = [p for p in query.split("&") if not p.startswith("sslmode=")]
+                url = base_url + ("?" + "&".join(params) if params else "")
+                
             return url
 
         return (
