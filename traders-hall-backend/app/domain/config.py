@@ -14,7 +14,7 @@ MIN_PLAYERS = 2
 MAX_PLAYERS = 4
 
 # --- what each player starts with ---
-STARTING_POINTS = 2
+STARTING_POINTS = 10
 STARTING_HAND = {
     "rice": 1,
     "wheat": 1,
@@ -22,7 +22,7 @@ STARTING_HAND = {
 
 # --- bank stock, PER PLAYER, before the opening deal is taken out of it ---
 BANK_POOL_PER_PLAYER = {
-    "point": 10,
+    "point": 30,
     "house": 1,
     "mansion": 1,
     "tower": 1,

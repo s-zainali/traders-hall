@@ -1,4 +1,5 @@
 <script setup>
+import Card from '../Components/Card.vue'
 import IdeaByMesum from '../Components/IdeaByMesum.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -257,7 +258,7 @@ onUnmounted(() => observer.value?.disconnect())
 
         <section id="how-it-works" class="px-6 pb-16">
             <h2 data-reveal
-                class="reveal mb-8 text-center text-xs font-bold uppercase tracking-[0.4em] text-gray-x-light">How it
+                class="reveal mb-8 text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">How it
                 works</h2>
 
             <div class="mx-auto grid max-w-5xl gap-4 sm:grid-cols-3">
@@ -273,8 +274,8 @@ onUnmounted(() => observer.value?.disconnect())
         </section>
 
         <section id="deck" class="border-t-1 border-gray-light/40 px-6 py-16">
-            <div class="mx-auto max-w-5xl">
-                <h2 data-reveal class="reveal text-center text-xs font-bold uppercase tracking-[0.4em] text-gray-x-light">
+            <div class="mx-auto max-w-7xl">
+                <h2 data-reveal class="reveal text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">
                     The deck
                 </h2>
                 <p data-reveal class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
@@ -287,7 +288,6 @@ onUnmounted(() => observer.value?.disconnect())
                         :style="{ '--delay': `${i * 70}ms` }">
                         <article class="deck-card flex h-full flex-col items-center gap-4 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 px-6 pt-7 pb-6 text-center"
                             :style="{ '--accent': `var(--color-${card.accent})`, '--rot': `${card.rot}deg` }">
-
                             <div class="deck-face flex h-32 w-24 shrink-0 items-center justify-center rounded-2xl border-4 p-5 shadow-xl shadow-black/40"
                                 :style="{
                                     backgroundColor: `var(--color-${card.bg})`,
@@ -315,7 +315,7 @@ onUnmounted(() => observer.value?.disconnect())
 
         <section id="clocks" class="border-t-1 border-gray-light/40 px-6 py-16">
             <div class="mx-auto max-w-5xl">
-                <h2 data-reveal class="reveal text-center text-xs font-bold uppercase tracking-[0.4em] text-gray-x-light">
+                <h2 data-reveal class="reveal text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">
                     Three clocks
                 </h2>
                 <p data-reveal class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
@@ -337,7 +337,7 @@ onUnmounted(() => observer.value?.disconnect())
         <section id="market" class="border-t-1 border-gray-light/40 px-6 py-16">
             <div class="mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-2">
                 <div data-reveal class="reveal flex flex-col gap-5">
-                    <h2 class="text-xs font-bold uppercase tracking-[0.4em] text-gray-x-light">The floor</h2>
+                    <h2 class="text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">The floor</h2>
                     <h3 class="text-4xl font-bold leading-tight tracking-wide text-gray-2x-light">
                         You choose who you<br class="hidden sm:block" /> deal with
                     </h3>

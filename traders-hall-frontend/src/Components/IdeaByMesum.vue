@@ -20,7 +20,7 @@ defineProps({
                 <span class="w-1 h-1 rotate-45 bg-white/20"></span>
 
                 <span
-                    class="mesum-wordmark tracking-wide px-1 transition-transform duration-300 group-hover:scale-120 cursor-pointer" :class="compact? 'text-xl': 'text-3xl'">
+                    class="mesum-wordmark tracking-wide px-1 transition-transform duration-300 group-hover:scale-120 cursor-pointer" :class="compact? 'text-3xl': 'text-3xl'">
                     Mesum
                 </span>
 

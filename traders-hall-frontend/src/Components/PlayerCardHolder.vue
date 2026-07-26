@@ -443,7 +443,7 @@ function onEndTurn() {
                 <button type="button" :disabled="busy"
                     :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
                     :title="residence !== '' ? 'Manage residence' : 'You live nowhere'" @click="openResidence""
-                    class=" flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-2
+                    class=" flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark px-1
                     transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50" :class="residence !== ''
                         ? 'border-purple-light hover:brightness-125'
                         : 'border-purple-light/50 hover:border-purple-light'">
@@ -593,7 +593,7 @@ function onEndTurn() {
                         neither has to fight the card for space.
                     -->
 
-                    <div class="flex items-center rounded-lg border-2 border-purple-light bg-purple-dark px-1 gap-1">
+                    <div class="flex items-center rounded-[0.8rem] border-2 border-purple-light bg-purple-dark gap-1">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
                             mask: `url(/cancel.png) no-repeat center / contain`,
@@ -605,7 +605,7 @@ function onEndTurn() {
                                 <span>on</span>
                                 <span>rent</span>
                             </div>
-                            <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="true" />
+                            <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="true" class="mr-2" />
                         </div>
                     </div>
                 </div>
