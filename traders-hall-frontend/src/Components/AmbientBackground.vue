@@ -259,7 +259,7 @@ function place(f) {
 
 .bracket {
   position: absolute;
-  width: 3.5rem;
+  width: 7rem;
   height: 3.5rem;
   border-color: color-mix(in oklab, var(--color-teal-light) 45%, transparent);
   opacity: 0.5;

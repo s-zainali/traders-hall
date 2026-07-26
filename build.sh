@@ -5,3 +5,4 @@ npm install
 npm run build
 cd ../traders-hall-backend
 pip install -r "requirements.txt"
+alembic upgrade head

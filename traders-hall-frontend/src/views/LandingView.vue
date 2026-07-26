@@ -76,14 +76,14 @@ const clocks = [
     },
     {
         title: 'Rent',
-        accent: 'text-teal-light',
-        border: 'hover:border-teal-light/60',
+        accent: 'text-purple-light',
+        border: 'hover:border-purple-light/60',
         body: 'If you do not own the roof you sleep under, you pay whoever does. The amount and the interval are whatever the two of you agreed — the game sets neither.',
     },
     {
         title: 'Credit',
-        accent: 'text-blue-light',
-        border: 'hover:border-blue-light/60',
+        accent: 'text-teal-light',
+        border: 'hover:border-teal-light/60',
         body: 'The bank lends interest free, and takes property as security. Let a loan run past its term and it collects: your points first, then whatever it can seize to cover the rest.',
     },
 ]
@@ -325,7 +325,7 @@ onUnmounted(() => observer.value?.disconnect())
 
                 <div class="mt-10 grid gap-4 sm:grid-cols-3">
                     <div v-for="(clock, i) in clocks" :key="clock.title" data-reveal
-                        class="reveal flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 p-6 transition duration-300 ease-in-out hover:-translate-y-1"
+                        class="reveal flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 p-6 hover:-translate-y-1 transition duration-300 ease-in-out"
                         :class="clock.border" :style="{ transitionDelay: `${i * 80}ms` }">
                         <h3 class="text-xl font-bold tracking-wide" :class="clock.accent">{{ clock.title }}</h3>
                         <p class="text-sm leading-relaxed text-gray-x-light">{{ clock.body }}</p>
@@ -428,10 +428,6 @@ onUnmounted(() => observer.value?.disconnect())
         <footer class="border-t-1 border-gray-light/40 px-6 py-10">
             <div class="mx-auto flex max-w-5xl flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
                 <span class="font-bold tracking-widest text-gray-2x-light">TRADERS HALL</span>
-                <div class="flex flex-col gap-1 text-xs font-bold uppercase tracking-widest text-gray-light sm:flex-row sm:gap-6">
-                    <span>Concept by <span class="text-purple-light">Mesum</span></span>
-                    <span>Built by <span class="text-teal-light">Zain</span></span>
-                </div>
             </div>
         </footer>
     </div>
