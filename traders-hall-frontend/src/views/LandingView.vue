@@ -1,9 +1,43 @@
 <script setup>
 import Card from '../Components/Card.vue'
 import IdeaByMesum from '../Components/IdeaByMesum.vue'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import LoadingScreen from '../Components/LoadingScreen.vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 
+
+const assetsLoaded = ref(false)
+const assetError = ref('')
+
+const assetImages = [
+    '/wheat.png',
+    '/home.png',
+    '/star.png',
+    '/mansion.png',
+    '/investor.png',
+    '/building.png',
+    '/rice.png',
+]
+
+async function loadAssets() {
+    assetError.value = ''
+    assetsLoaded.value = false
+    try {
+        const promises = assetImages.map((src) => {
+            return new Promise((resolve, reject) => {
+                const img = new Image()
+                img.src = src
+                img.onload = resolve
+                img.onerror = () => reject(new Error(`Failed to load asset: ${src}`))
+            })
+        })
+        await Promise.all(promises)
+        assetsLoaded.value = true
+    } catch (e) {
+        assetError.value = e?.message ?? 'Failed to load landing assets'
+    }
+}
 /*
   The hero fan. Built from plain divs rather than <Card>, deliberately: the
   landing page must render before the card catalogue has been fetched (and for
@@ -146,6 +180,8 @@ const stats = [
 const observer = ref(null)
 
 onMounted(() => {
+    loadAssets()
+
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const targets = document.querySelectorAll('[data-reveal]')
 
@@ -172,6 +208,7 @@ onUnmounted(() => observer.value?.disconnect())
 </script>
 
 <template>
+    <LoadingScreen v-if="!assetsLoaded" message="Loading assets…" :error="assetError" @retry="loadAssets" />
     <div class="flex flex-col">
 
         <header class="grid items-start grid-cols-3 p-6">
@@ -275,10 +312,12 @@ onUnmounted(() => observer.value?.disconnect())
 
         <section id="deck" class="border-t-1 border-gray-light/40 px-6 py-16">
             <div class="mx-auto max-w-7xl">
-                <h2 data-reveal class="reveal text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">
+                <h2 data-reveal
+                    class="reveal text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">
                     The deck
                 </h2>
-                <p data-reveal class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
+                <p data-reveal
+                    class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
                     Seven cards. No filler, no draw pile, nothing you will forget the purpose of by
                     round three.
                 </p>
@@ -286,7 +325,8 @@ onUnmounted(() => observer.value?.disconnect())
                 <div class="mt-12 flex flex-wrap justify-center gap-4">
                     <div v-for="(card, i) in deck" :key="card.name" data-reveal class="deck-slot w-[15.5rem]"
                         :style="{ '--delay': `${i * 70}ms` }">
-                        <article class="deck-card flex h-full flex-col items-center gap-4 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 px-6 pt-7 pb-6 text-center"
+                        <article
+                            class="deck-card flex h-full flex-col items-center gap-4 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 px-6 pt-7 pb-6 text-center"
                             :style="{ '--accent': `var(--color-${card.accent})`, '--rot': `${card.rot}deg` }">
                             <div class="deck-face flex h-32 w-24 shrink-0 items-center justify-center rounded-2xl border-4 p-5 shadow-xl shadow-black/40"
                                 :style="{
@@ -315,10 +355,12 @@ onUnmounted(() => observer.value?.disconnect())
 
         <section id="clocks" class="border-t-1 border-gray-light/40 px-6 py-16">
             <div class="mx-auto max-w-5xl">
-                <h2 data-reveal class="reveal text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">
+                <h2 data-reveal
+                    class="reveal text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">
                     Three clocks
                 </h2>
-                <p data-reveal class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
+                <p data-reveal
+                    class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
                     Everything you own has a cost of carry. Owning the most is not the same as
                     lasting the longest.
                 </p>
@@ -355,13 +397,16 @@ onUnmounted(() => observer.value?.disconnect())
 
                 <div data-reveal class="reveal flex flex-col gap-3">
                     <div v-for="(o, i) in showcase" :key="o.who" class="post-slot" :style="{ '--rot': `${o.rot}deg` }">
-                        <article class="post flex flex-col gap-3 rounded-[1.25rem] border-2 border-gray-light bg-gray-x-dark/90 p-4 shadow-xl shadow-black/30">
+                        <article
+                            class="post flex flex-col gap-3 rounded-[1.25rem] border-2 border-gray-light bg-gray-x-dark/90 p-4 shadow-xl shadow-black/30">
 
                             <div class="flex items-center gap-2">
                                 <span class="h-5 w-5 shrink-0 rounded-md border-2"
                                     :style="{ borderColor: `var(--color-${o.seat})`, backgroundColor: `color-mix(in oklab, var(--color-${o.seat}) 30%, transparent)` }"></span>
-                                <span class="min-w-0 flex-1 truncate text-sm font-bold text-gray-2x-light">{{ o.who }}</span>
-                                <span class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                                <span class="min-w-0 flex-1 truncate text-sm font-bold text-gray-2x-light">{{ o.who
+                                }}</span>
+                                <span
+                                    class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
                                     :class="o.badgeCls">{{ o.badge }}</span>
                             </div>
 
@@ -374,11 +419,12 @@ onUnmounted(() => observer.value?.disconnect())
                                         '-webkit-mask': `url(${o.give.icon}) no-repeat center / contain`,
                                     }"></span>
                                 </span>
-                                <span v-if="o.qty" class="text-sm font-bold tabular-nums text-gray-2x-light">{{ o.qty }}</span>
+                                <span v-if="o.qty" class="text-sm font-bold tabular-nums text-gray-2x-light">{{ o.qty
+                                }}</span>
 
                                 <svg class="h-4 w-4 shrink-0" :class="o.arrow" viewBox="0 0 16 16" fill="none"
-                                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                    aria-hidden="true">
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" aria-hidden="true">
                                     <path d="M2.5 8h11M9.5 4 13.5 8l-4 4" />
                                 </svg>
 
@@ -390,14 +436,17 @@ onUnmounted(() => observer.value?.disconnect())
                                         '-webkit-mask': `url(${o.get.icon}) no-repeat center / contain`,
                                     }"></span>
                                 </span>
-                                <span v-if="o.amount" class="text-sm font-bold tabular-nums text-teal-light">{{ o.amount }}</span>
+                                <span v-if="o.amount" class="text-sm font-bold tabular-nums text-teal-light">{{ o.amount
+                                }}</span>
                             </div>
 
                             <span v-if="o.note"
-                                class="text-[10px] font-bold uppercase tracking-widest text-teal-light">{{ o.note }}</span>
+                                class="text-[10px] font-bold uppercase tracking-widest text-teal-light">{{ o.note
+                                }}</span>
 
                             <div v-if="o.hands.length" class="flex items-center gap-2">
-                                <span class="text-[10px] font-bold uppercase tracking-widest text-gray-light">Hands up</span>
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-gray-light">Hands
+                                    up</span>
                                 <span v-for="(h, j) in o.hands" :key="j" class="h-4 w-4 rounded-md border-2"
                                     :style="{ borderColor: `var(--color-${h})`, backgroundColor: `color-mix(in oklab, var(--color-${h}) 30%, transparent)` }"></span>
                             </div>
@@ -426,7 +475,8 @@ onUnmounted(() => observer.value?.disconnect())
         </section>
 
         <footer class="border-t-1 border-gray-light/40 px-6 py-10">
-            <div class="mx-auto flex max-w-5xl flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
+            <div
+                class="mx-auto flex max-w-5xl flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
                 <span class="font-bold tracking-widest text-gray-2x-light">TRADERS HALL</span>
             </div>
         </footer>
