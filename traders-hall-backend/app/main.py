@@ -21,7 +21,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.PROJECT_NAME, version="0.1.0", lifespan=lifespan)
 
-frontend_dir = "traders-hall-backend/app/dist" 
+frontend_dir = "dist" 
+print(os.path.exists(frontend_dir), "HELLOOOOO")
 
 if os.path.exists(frontend_dir):
     app.frontend("/", directory=frontend_dir, fallback="index.html")
