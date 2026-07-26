@@ -276,7 +276,7 @@ watch(
 </script>
 
 <template>
-    <LoadingScreen v-if="!hasLoadedState || !loaded" message="Taking a seat…" :error="stateError ?? cardError ?? ''"
+    <LoadingScreen v-if="!hasLoadedState || !loaded" message="Loading your game..." :error="stateError ?? cardError ?? ''"
         @retry="load" />
 
     <div v-else class="relative flex h-[100dvh] gap-2 bg-gray-dark p-2 md:gap-3 md:p-3 xl:gap-6 xl:p-6">
