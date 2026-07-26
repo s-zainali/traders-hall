@@ -62,8 +62,14 @@ function place(f) {
     <!-- deliberately NOT inset-0 — see .glow-layer -->
     <!-- <div class="glow-layer absolute"></div> -->
 
+
+    <div class="absolute inset-x-0 top-[35rem] h-px sweep-line"></div>
+    <div class="absolute inset-x-0 top-2/3 h-px sweep-line sweep-line-delayed"></div>
+    
+    
     <!-- drifting cards: each on its own loop, offset by a negative delay so
-         they start mid-cycle instead of all rising together -->
+    they start mid-cycle instead of all rising together -->
+
     <div class="relative w-full h-[150dvh]">
         <div
           v-for="(f, i) in floaters"
@@ -84,9 +90,6 @@ function place(f) {
     <span class="bracket bracket-tr"></span>
     <span class="bracket bracket-bl"></span>
     <span class="bracket bracket-br"></span>
-
-    <div class="absolute inset-x-0 top-1/4 h-px sweep-line"></div>
-    <div class="absolute inset-x-0 top-2/3 h-px sweep-line sweep-line-delayed"></div>
 
     <div class="absolute inset-0 scanlines"></div>
     <div class="absolute inset-0 grain"></div>
