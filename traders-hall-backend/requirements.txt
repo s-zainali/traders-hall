@@ -271,7 +271,6 @@ stem==1.8.3
 stevedore==5.4.1
 systemd-python==235
 tabulate==0.10.0
-TBB @ file:///build/onetbb/src/build/python/python_build
 thrift==0.22.0
 tinycss2==1.5.1
 tldextract==5.3.1
