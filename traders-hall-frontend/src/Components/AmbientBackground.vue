@@ -62,7 +62,7 @@ function place(f) {
 
 
     <div class="absolute inset-x-0 top-[35rem] h-px sweep-line"></div>
-    <div class="absolute inset-x-0 top-2/3 h-px sweep-line sweep-line-delayed"></div>
+    <div class="absolute inset-x-0 top-[61rem] h-px sweep-line sweep-line-delayed"></div>
     
     
     <!-- drifting cards: each on its own loop, offset by a negative delay so
@@ -108,7 +108,7 @@ function place(f) {
 
 .aurora-a {
   width: 46rem; height: 34rem;
-  top: -5rem; left: -10rem;
+  top: 0rem; left: -20rem;
   background: radial-gradient(circle, var(--color-purple-light), transparent 65%);
   animation: aurora-a 34s ease-in-out infinite alternate;
 }

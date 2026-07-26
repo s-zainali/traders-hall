@@ -3,9 +3,18 @@ import Card from '../Components/Card.vue'
 import IdeaByMesum from '../Components/IdeaByMesum.vue'
 import { storeToRefs } from 'pinia'
 import LoadingScreen from '../Components/LoadingScreen.vue'
+import { useCardTypesStore } from '../stores/cardTypes'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import Logo from '../Components/Logo.vue'
 
+const cardTypes = useCardTypesStore()
+
+async function load() {
+    await Promise.all([
+        cardTypes.fetchAll(),
+    ])
+}
 
 const assetsLoaded = ref(false)
 const assetError = ref('')
@@ -104,18 +113,24 @@ const deck = [
 const clocks = [
     {
         title: 'Hunger',
+        cards: ['rice', 'wheat'],
+        underline: 'bg-cream-light',
         accent: 'text-cream-light',
         border: 'hover:border-cream-light/60',
         body: 'Counts down every turn you take. Eat and it resets to the value of what you ate — never higher, so hoarding meals buys you nothing. Reach zero with an empty hand and you are out.',
     },
     {
         title: 'Rent',
+        cards: ['house','mansion', 'tower'],
+        underline: 'bg-purple-light',
         accent: 'text-purple-light',
         border: 'hover:border-purple-light/60',
         body: 'If you do not own the roof you sleep under, you pay whoever does. The amount and the interval are whatever the two of you agreed — the game sets neither.',
     },
     {
         title: 'Credit',
+        cards: ['point'],
+        underline: 'bg-teal-light',
         accent: 'text-teal-light',
         border: 'hover:border-teal-light/60',
         body: 'The bank lends interest free, and takes property as security. Let a loan run past its term and it collects: your points first, then whatever it can seize to cover the rest.',
@@ -180,6 +195,7 @@ const stats = [
 const observer = ref(null)
 
 onMounted(() => {
+    load()
     loadAssets()
 
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -298,14 +314,16 @@ onUnmounted(() => observer.value?.disconnect())
                 class="reveal mb-8 text-center text-lg font-bold uppercase tracking-[0.4em] text-gray-x-light">How it
                 works</h2>
 
-            <div class="mx-auto grid max-w-5xl gap-4 sm:grid-cols-3">
-                <div v-for="(feature, i) in features" :key="feature.title" data-reveal class="reveal group flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light
-                 bg-gray-x-dark/80 p-6 transition duration-300 ease-in-out
-                 hover:-translate-y-1 hover:shadow-2xl" :class="[feature.border, feature.glow]"
-                    :style="{ transitionDelay: `${i * 80}ms` }">
-                    <span class="text-xs font-bold tracking-widest text-gray-light">{{ feature.step }}</span>
-                    <h3 class="text-xl font-bold tracking-wide" :class="feature.accent">{{ feature.title }}</h3>
-                    <p class="text-sm leading-relaxed text-gray-x-light">{{ feature.body }}</p>
+            <div class="mx-auto max-w-5xl">
+                <div class="reveal grid grid-cols-3 gap-4" data-reveal>
+                    <div v-for="(feature, i) in features" :key="feature.title" class=" group flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light
+                     bg-gray-x-dark/80 p-6 transition duration-300 ease-in-out
+                     hover:-translate-y-1 hover:shadow-2xl" :class="[feature.border, feature.glow]"
+                        :style="{ transitionDelay: `${i * 80}ms` }">
+                        <span class="text-xs font-bold tracking-widest text-gray-light">{{ feature.step }}</span>
+                        <h3 class="text-xl font-bold tracking-wide" :class="feature.accent">{{ feature.title }}</h3>
+                        <p class="text-sm leading-relaxed text-gray-x-light">{{ feature.body }}</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -365,12 +383,22 @@ onUnmounted(() => observer.value?.disconnect())
                     lasting the longest.
                 </p>
 
-                <div class="mt-10 grid gap-4 sm:grid-cols-3">
-                    <div v-for="(clock, i) in clocks" :key="clock.title" data-reveal
-                        class="reveal flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 p-6 hover:-translate-y-1 transition duration-300 ease-in-out"
-                        :class="clock.border" :style="{ transitionDelay: `${i * 80}ms` }">
-                        <h3 class="text-xl font-bold tracking-wide" :class="clock.accent">{{ clock.title }}</h3>
-                        <p class="text-sm leading-relaxed text-gray-x-light">{{ clock.body }}</p>
+                <div class="mt-10 gap-4">
+                    <div class="reveal w-full grid grid-cols-3 gap-4" data-reveal="">
+                        <div v-for="(clock, i) in clocks" :key="clock.title" data-reveal
+                            class="flex flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 p-6 hover:-translate-y-1 transition duration-2group00 ease-in-out"
+                            :class="clock.border" :style="{ transitionDelay: `${i * 80}ms` }">
+                            <div class="flex gap-4 justify-between">
+                                <div class="flex flex-col w-[40%] justify-between">
+                                    <h3 class="text-xl font-bold tracking-wide" :class="clock.accent">{{ clock.title }}</h3>
+                                    <div class="rounded-full" :class="`${clock.underline} h-[2px] w-full`"></div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <Card v-for="card in clock.cards" :card-type="card" :large="false"/>
+                                </div>
+                            </div>
+                            <p class="text-sm leading-relaxed text-gray-x-light">{{ clock.body }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
