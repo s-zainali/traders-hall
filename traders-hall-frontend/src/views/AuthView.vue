@@ -120,8 +120,6 @@ const optionalClass = 'normal-case tracking-normal font-normal text-gray-light'
 
 <template>
     <div class="flex flex-1 flex-col">
-      <!-- background and footer come from PublicLayout -->
-
       <header class="p-6">
         <RouterLink
           :to="{ name: 'landing' }"
@@ -286,12 +284,10 @@ const optionalClass = 'normal-case tracking-normal font-normal text-gray-light'
           </p>
         </div>
       </main>
-
   </div>
 </template>
 
 <style scoped>
-/* hint text: slide down as it appears, so the layout shift reads as intentional */
 .hint-enter-active,
 .hint-leave-active {
   transition: opacity 200ms ease, transform 200ms ease;

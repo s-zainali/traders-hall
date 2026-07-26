@@ -208,8 +208,8 @@ onUnmounted(() => observer.value?.disconnect())
 </script>
 
 <template>
-    <LoadingScreen v-if="!assetsLoaded" message="Loading assets…" :error="assetError" @retry="loadAssets" />
     <div class="flex flex-col">
+        <LoadingScreen v-if="!assetsLoaded" message="Loading assets…" :error="assetError" @retry="loadAssets" />
 
         <header class="grid items-start grid-cols-3 p-6">
             <span class="font-bold tracking-widest text-gray-2x-light ml-4 mt-3">TRADERS HALL</span>

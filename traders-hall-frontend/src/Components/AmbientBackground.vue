@@ -45,8 +45,6 @@ function place(f) {
 <template>
   <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
 
-    <!-- aurora: three oversized blurred blobs on long, mismatched cycles, so
-         the colour field never visibly repeats -->
     <div class="aurora aurora-a"></div>
     <div class="aurora aurora-b"></div>
     <div class="aurora aurora-c"></div>
@@ -309,7 +307,8 @@ function place(f) {
 }
 
 .vignette {
-  background: radial-gradient(85% 70% at 50% 45%, transparent 38%, var(--color-gray-dark) 100%);
+  background: radial-gradient(85% 70% at 50% 45%, transparent 38%, var(--color-black) 100%);
+  opacity: 50%;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -255,12 +255,6 @@ const dangerBtn =
 
 <template>
     <div class="mx-auto flex w-full max-w-6xl min-h-0 flex-col gap-4 p-6">
-        <!--
-      min-h-0 on the flex children is what keeps the page from scrolling: a flex
-      item defaults to min-height:auto, refusing to shrink below its content, so
-      a long table list would push the page taller instead of scrolling inside
-      its own panel. The vertical twin of min-w-0.
-    -->
 
         <header class="grid shrink-0 items-center grid-cols-3 rounded-[1.5rem] border-2 border-gray-light
              bg-gray-x-dark/85 p-4 backdrop-blur-xl">
