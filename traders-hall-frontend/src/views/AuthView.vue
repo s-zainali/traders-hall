@@ -280,7 +280,7 @@ const optionalClass = 'normal-case tracking-normal font-normal text-gray-light'
           </div>
 
           <p class="text-center text-xs leading-relaxed text-gray-x-light/60">
-            Lorem ipsum dolor sit amet. By continuing you agree to nothing in particular, yet.
+            By continuing you agree to nothing in particular, yet.
           </p>
         </div>
       </main>

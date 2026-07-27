@@ -294,8 +294,7 @@ onUnmounted(() => observer.value?.disconnect())
                 </RouterLink>
 
                 <a href="#how-it-works" class="rounded-xl border-2 border-gray-light px-8 py-3.5 font-bold text-gray-x-light
-                 transition duration-200 ease-in-out hover:border-gray-x-light hover:text-gray-2x-light">How it
-                    works</a>
+                 transition duration-200 ease-in-out hover:border-gray-x-light hover:text-gray-2x-light">Learn how to play</a>
             </div>
 
             <!-- stats strip -->
