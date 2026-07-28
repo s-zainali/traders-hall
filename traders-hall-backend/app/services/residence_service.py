@@ -130,6 +130,61 @@ async def pending_by_card(
     return {card_type: count for card_type, count in rows if card_type is not None}
 
 
+async def housing_cards_by_card(
+    db: AsyncSession, game: Game, seat: GamePlayer
+) -> dict[str, int]:
+    """How many cards of each property type must STAY in hand to house everyone.
+
+    Occupancy is counted in ROOMS, but a CARD is what gets sold, so the two have
+    to be reconciled. A mansion holds two: one tenant in a mansion commits one
+    card, and so do two of them. Three tenants across two mansions commit both.
+
+    ceil(rooms occupied / rooms per card), because hands are counts rather than
+    instances. Nobody lives in a PARTICULAR mansion, they live in one of yours,
+    so the only honest question is how many you must keep to fit them all.
+    """
+    used = await occupancy_by_card(db, game, seat)
+    out: dict[str, int] = {}
+
+    for code, rooms_used in used.items():
+        if rooms_used < 1:
+            continue
+        card = await db.get(CardType, code)
+        per_card = max(1, (card.rooms if card else 1) or 1)
+        # ceiling division, without importing math for one line
+        out[code] = -(-rooms_used // per_card)
+
+    return out
+
+
+async def movable_quantity(
+    db: AsyncSession, game: Game, seat: GamePlayer, card_type: str
+) -> int:
+    """How many of one card type this player can actually part with.
+
+    Two separate holds, and a card can be under both:
+
+      reserved_quantity   promised to a live offer, or mortgaged as collateral
+      housing             somebody lives in it — a tenant, or the owner
+
+    An occupied property cannot be sold or traded at any price. Selling the roof
+    out from under a tenant is not a trade, and the tenancy would be left
+    pointing at a card its landlord no longer holds.
+    """
+    hand = await db.scalar(
+        select(PlayerHand).where(
+            PlayerHand.game_id == game.id,
+            PlayerHand.player_id == seat.id,
+            PlayerHand.card_type == card_type,
+        )
+    )
+    if hand is None:
+        return 0
+
+    committed = (await housing_cards_by_card(db, game, seat)).get(card_type, 0)
+    return max(0, hand.quantity - hand.reserved_quantity - committed)
+
+
 async def lettable_by_card(
     db: AsyncSession,
     game: Game,

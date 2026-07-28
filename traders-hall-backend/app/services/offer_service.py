@@ -10,7 +10,11 @@ from app.models.player_hand import PlayerHand
 from app.models.offer_claim import OfferClaim
 from app.models.trade_offer import TradeOffer
 from app.models.user import User
-from app.services.residence_service import free_rooms_by_card
+from app.services.residence_service import (
+    free_rooms_by_card,
+    housing_cards_by_card,
+    movable_quantity,
+)
 from app.services.rent_service import open_agreement
 from app.services.action_service import (
     ActionError,
@@ -240,11 +244,16 @@ async def create_offer(
             )
     else:
         hand = await _hand_row(db, game, seat, offer_card_type)
-        available = hand.quantity - hand.reserved_quantity
+        # Held back by a live offer, a mortgage, OR a resident. An occupied
+        # property cannot be put up for sale or trade at all.
+        available = await movable_quantity(db, game, seat, offer_card_type)
         if available < offer_quantity:
+            housed = hand.quantity - hand.reserved_quantity - available
             raise ActionError(
-                "INSUFFICIENT_CARDS",
-                f"You have only {available} free to offer",
+                "PROPERTY_OCCUPIED" if housed > 0 else "INSUFFICIENT_CARDS",
+                "Someone lives in that property"
+                if housed > 0
+                else f"You have only {available} free to offer",
                 available=available,
             )
 
@@ -549,6 +558,23 @@ async def confirm_offer(
 
     if poster_hand.quantity < offer.offer_quantity:
         raise ActionError("INSUFFICIENT_CARDS", "You no longer hold those cards")
+
+    # Re-checked at settle, not only when posted: a tenant can move in between
+    # the two. A reservation holds a card against other OFFERS, not against
+    # somebody coming to live in it.
+    #
+    # Stated directly rather than through movable_quantity, which nets off ALL
+    # reservations — including this offer's own, and any unrelated offer the
+    # poster happens to have open. The only question here is whether enough
+    # cards remain to house everybody once these ones leave.
+    committed = (await housing_cards_by_card(db, game, poster)).get(
+        offer.offer_card_type, 0
+    )
+    if poster_hand.quantity - offer.offer_quantity < committed:
+        raise ActionError(
+            "PROPERTY_OCCUPIED",
+            "Someone moved into that property before you settled",
+        )
 
     poster_hand.quantity -= offer.offer_quantity
     poster_hand.reserved_quantity -= offer.offer_quantity

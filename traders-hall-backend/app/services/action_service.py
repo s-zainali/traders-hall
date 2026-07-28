@@ -283,13 +283,21 @@ async def sell_to_bank(
     total = card.sell_value * quantity
 
     hand = await _hand_row(db, game, seat, card_type)
-    # available, not raw quantity: reserved cards are already promised to an
-    # open market offer, or held as collateral against a mortgage.
-    available = hand.quantity - hand.reserved_quantity
+    # Imported here rather than at module level: residence_service reaches into
+    # this module for the transaction kernel, so a top-level import is a cycle.
+    from app.services.residence_service import movable_quantity
+
+    # Not raw quantity. A card can be held back by a live offer, by a mortgage,
+    # or by somebody living in it — and an occupied property is not for sale at
+    # any price.
+    available = await movable_quantity(db, game, seat, card_type)
     if available < quantity:
+        held = hand.quantity - hand.reserved_quantity - available
         raise ActionError(
-            "INSUFFICIENT_CARDS",
-            f"You have only {available} to sell",
+            "PROPERTY_OCCUPIED" if held > 0 else "INSUFFICIENT_CARDS",
+            f"Someone lives in that {card.title}"
+            if held > 0
+            else f"You have only {available} to sell",
             available=available,
         )
 
