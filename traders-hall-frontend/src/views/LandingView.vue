@@ -578,15 +578,6 @@ onUnmounted(() => observer.value?.disconnect())
             </div>
         </section>
 
-        <footer class="border-t-1 border-gray-light/40 px-6 py-10">
-            <div class="mx-auto flex max-w-5xl flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
-                <span class="font-bold tracking-widest text-gray-2x-light">TRADERS HALL</span>
-                <div class="flex flex-col gap-1 text-xs font-bold uppercase tracking-widest text-gray-light sm:flex-row sm:gap-6">
-                    <span>Concept by <span class="text-purple-light">Mesum</span></span>
-                    <span>Built by <span class="text-teal-light">Zain</span></span>
-                </div>
-            </div>
-        </footer>
     </div>
 </template>
 
