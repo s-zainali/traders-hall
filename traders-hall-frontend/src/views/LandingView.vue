@@ -1,5 +1,6 @@
 <script setup>
 import SeatToken from '../Components/SeatToken.vue'
+import { SEATS } from '../seats'
 import IdeaByMesum from '../Components/IdeaByMesum.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -64,15 +65,19 @@ const meals = [
 ]
 
 /*
-  The four seat colours as the table actually assigns them (seats.js), not theme
-  tokens. A player recognises their own seat by this colour, so the landing page
-  showing different ones would teach the wrong thing before they ever sit down.
+  Seats come from seats.js rather than a copy kept here. A player learns their
+  own seat by its colour and token, so a landing page inventing its own teaches
+  the wrong thing before they ever sit down — and a hand-kept copy drifts: the
+  version this replaces had Anchor set to Diamond's fuchsia.
 */
-const seats = [
-    { hex: '#fb923c', name: 'Crown', out: true },
-    { hex: '#e879f9', name: 'Diamond', out: true },
-    { hex: '#a3e635', name: 'Shield', out: false },
-]
+const WINNER = 2
+
+const seats = SEATS.map((seat) => ({
+    index: seat.index,
+    name: seat.name,
+    hex: seat.hex,
+    out: seat.index !== WINNER,
+}))
 
 /*
   The deck, described by what each card DOES rather than what it costs. Prices
@@ -96,24 +101,47 @@ const deck = [
   Three counters, all running at once. This is the part that makes the game a
   game rather than a market: everything you own has a cost of carry.
 */
+/*
+  Three counters, drawn as counters.
+
+  `left` and `total` drive a dial that unwinds from full to `left` when the card
+  scrolls in, so the section demonstrates the thing it is describing instead of
+  writing it down. The numbers are illustrative states, not rules — a rent
+  interval is whatever two players agreed, so there is no fixed total to quote.
+
+  Rent is deliberately shown one turn from due: it is the clock most likely to
+  catch a player out, and an urgent dial reads differently from a comfortable one.
+*/
 const clocks = [
     {
         title: 'Hunger',
         accent: 'text-cream-light',
-        border: 'hover:border-cream-light/60',
-        body: 'Ticks down every turn. Eat and it resets to whatever you ate, never higher. Hit zero with nothing in hand and you are out.',
+        dial: 'var(--color-cream-light)',
+        left: 3,
+        total: 5,
+        unit: 'turns fed',
+        body: 'Ticks down every turn. Eat and it resets to whatever you ate, never higher. Wheat gets you five turns, rice two.',
+        zero: 'Nothing left to eat, and you are out.',
     },
     {
         title: 'Rent',
-        accent: 'text-teal-light',
-        border: 'hover:border-teal-light/60',
-        body: 'Do not own your room? You pay whoever does. The two of you agree the price and how often. The game does not set either.',
+        accent: 'text-purple-light',
+        dial: 'var(--color-purple-light)',
+        left: 1,
+        total: 3,
+        unit: 'turns to pay',
+        body: 'Do not own your room? You pay whoever does. The two of you agree the price and how often. The game sets neither.',
+        zero: 'Your landlord takes what they are owed.',
     },
     {
         title: 'Credit',
-        accent: 'text-blue-light',
-        border: 'hover:border-blue-light/60',
-        body: 'The bank lends for free but wants it back on time. Miss the date and it takes your points, then your property.',
+        accent: 'text-teal-light',
+        dial: 'var(--color-teal-light)',
+        left: 4,
+        total: 5,
+        unit: 'rounds left',
+        body: 'The bank lends up to five points and charges nothing for them. It only cares about the date.',
+        zero: 'It takes your points, then your property.',
     },
 ]
 
@@ -124,7 +152,7 @@ const clocks = [
 */
 const showcase = [
     {
-        who: 'Mesum', seat: 'purple-light', badge: 'Sell',
+        who: 'Mesum', seatIndex: 1, badge: 'Sell',
         badgeCls: 'border-rose-400/50 bg-rose-400/15 text-rose-400',
         arrow: 'text-rose-400',
         give: { icon: '/mansion.png', accent: 'purple-dark', bg: 'purple-light' },
@@ -132,11 +160,11 @@ const showcase = [
         get: { icon: '/star.png', accent: 'teal-dark', bg: 'teal-light' },
         amount: '3',
         note: '',
-        hands: ['teal-light', 'cream-light'],
+        hands: [2, 3],
         rot: -2,
     },
     {
-        who: 'Bilal', seat: 'teal-light', badge: 'To let',
+        who: 'Bilal', seatIndex: 2, badge: 'To let',
         badgeCls: 'border-teal-light/50 bg-teal-dark/30 text-teal-light',
         arrow: 'text-teal-light',
         give: { icon: '/building.png', accent: 'purple-dark', bg: 'purple-light' },
@@ -144,11 +172,11 @@ const showcase = [
         get: { icon: '/star.png', accent: 'teal-dark', bg: 'teal-light' },
         amount: '2',
         note: 'every 3 turns',
-        hands: ['purple-light'],
+        hands: [1],
         rot: 1.5,
     },
     {
-        who: 'You', seat: 'cream-light', badge: 'Trade',
+        who: 'You', seatIndex: 0, badge: 'Trade',
         badgeCls: 'border-amber-400/50 bg-amber-400/15 text-amber-400',
         arrow: 'text-amber-400',
         give: { icon: '/wheat.png', accent: 'cream-dark', bg: 'cream-light' },
@@ -370,7 +398,7 @@ onUnmounted(() => observer.value?.disconnect())
                                                 class="seat flex flex-col items-center gap-2.5"
                                                 :class="seat.out ? 'is-out' : 'is-in'"
                                                 :style="{ '--seat': seat.hex, '--j': j }">
-                                                <span class="chip"></span>
+                                                <SeatToken :seat-index="seat.index" size="lg" />
                                                 <span class="seat-label">{{ seat.out ? 'Out' : 'Wins' }}</span>
                                             </span>
                                         </div>
@@ -449,17 +477,41 @@ onUnmounted(() => observer.value?.disconnect())
                     Three clocks
                 </h2>
                 <p data-reveal class="reveal mx-auto mt-4 max-w-2xl text-center text-lg leading-relaxed text-gray-x-light">
-                    Everything you own costs something to keep. Owning the most does not mean lasting
-                    the longest.
+                    Three counters run at once, and every one of them takes something off you when it
+                    reaches zero. Owning the most does not mean lasting the longest.
                 </p>
 
-                <div class="mt-10 grid gap-4 sm:grid-cols-3">
+                <div class="mt-12 grid gap-5 sm:grid-cols-3">
                     <div v-for="(clock, i) in clocks" :key="clock.title" data-reveal class="clock-slot"
-                        :style="{ '--delay': `${i * 80}ms` }">
-                        <div class="clock-card flex h-full flex-col gap-3 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 p-6"
-                            :class="clock.border">
+                        :style="{ '--delay': `${i * 110}ms`, '--dial': clock.dial, '--left': clock.left, '--total': clock.total }">
+                        <div class="clock-card flex h-full flex-col items-center gap-4 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark/80 px-6 pb-6 pt-8 text-center">
+
+                            <div class="relative">
+                                <svg viewBox="0 0 100 100" class="dial h-28 w-28" aria-hidden="true">
+                                    <circle class="dial-track" cx="50" cy="50" r="42" />
+                                    <circle class="dial-fill" cx="50" cy="50" r="42" />
+                                </svg>
+
+                                <span class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span class="dial-num text-3xl font-bold tabular-nums">{{ clock.left }}</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-widest text-gray-light">
+                                        of {{ clock.total }}
+                                    </span>
+                                </span>
+                            </div>
+
+                            <span class="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-light">
+                                {{ clock.unit }}
+                            </span>
+
                             <h3 class="text-xl font-bold tracking-wide" :class="clock.accent">{{ clock.title }}</h3>
+
                             <p class="text-sm leading-relaxed text-gray-x-light">{{ clock.body }}</p>
+
+                            <p class="zero mt-auto flex w-full items-start gap-2 rounded-xl border-2 px-3 py-2 text-left text-xs leading-relaxed">
+                                <span class="zero-tag shrink-0 font-bold uppercase tracking-widest">At zero</span>
+                                <span class="text-gray-x-light">{{ clock.zero }}</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -488,8 +540,7 @@ onUnmounted(() => observer.value?.disconnect())
                         <article class="post flex flex-col gap-3 rounded-[1.25rem] border-2 border-gray-light bg-gray-x-dark/90 p-4 shadow-xl shadow-black/30">
 
                             <div class="flex items-center gap-2">
-                                <span class="h-5 w-5 shrink-0 rounded-md border-2"
-                                    :style="{ borderColor: `var(--color-${o.seat})`, backgroundColor: `color-mix(in oklab, var(--color-${o.seat}) 30%, transparent)` }"></span>
+                                <SeatToken :seat-index="o.seatIndex" size="sm" />
                                 <span class="min-w-0 flex-1 truncate text-sm font-bold text-gray-2x-light">{{ o.who }}</span>
                                 <span class="rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
                                     :class="o.badgeCls">{{ o.badge }}</span>
@@ -528,8 +579,7 @@ onUnmounted(() => observer.value?.disconnect())
 
                             <div v-if="o.hands.length" class="flex items-center gap-2">
                                 <span class="text-[10px] font-bold uppercase tracking-widest text-gray-light">Hands up</span>
-                                <span v-for="(h, j) in o.hands" :key="j" class="h-4 w-4 rounded-md border-2"
-                                    :style="{ borderColor: `var(--color-${h})`, backgroundColor: `color-mix(in oklab, var(--color-${h}) 30%, transparent)` }"></span>
+                                <SeatToken v-for="h in o.hands" :key="h" :seat-index="h" size="xs" />
                             </div>
                         </article>
                     </div>
@@ -550,12 +600,12 @@ onUnmounted(() => observer.value?.disconnect())
                             <span v-for="(seat, i) in seats" :key="seat.name"
                                 class="chair flex flex-col items-center gap-2.5"
                                 :style="{ '--seat': seat.hex, '--j': i }">
-                                <SeatToken class="chair-filled-mark" :seat-index="i"/>
+                                <SeatToken class="chair-filled-mark" :seat-index="seat.index" />
                                 <span class="chair-label">{{ seat.name }}</span>
                             </span>
 
                             <span class="chair is-empty flex flex-col items-center gap-2.5">
-                                <span class="chair-mark"></span>
+                                <SeatToken class="chair-empty-mark" :seat-index="-1" />
                                 <span class="chair-label">You</span>
                             </span>
                         </div>
@@ -885,48 +935,23 @@ onUnmounted(() => observer.value?.disconnect())
     mask-image: radial-gradient(80% 70% at 50% 45%, #000, transparent 75%);
 }
 
-/* players already seated, breathing very slightly out of phase */
-.taken {
-    height: 1.6rem;
-    width: 1.6rem;
-    border-radius: 0.55rem;
-    border: 3px solid var(--seat);
-    background-color: color-mix(in oklab, var(--seat) 25%, transparent);
-    opacity: 0.85;
-    animation: seat-breathe 4s ease-in-out infinite alternate;
-    animation-delay: calc(var(--j) * 700ms);
-}
-
-@keyframes seat-breathe {
-    from { transform: translateY(0); opacity: 0.75; }
-    to   { transform: translateY(-3px); opacity: 1; }
-}
-
 .code {
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-teal-light) 20%, transparent);
 }
 
 /*
-  Chairs. Four filled seats in the real palette and one dashed, empty, gently
-  bobbing — the invitation is the composition rather than a line of copy.
+  Chairs. Four seats taken and one free, all drawn by SeatToken so the colour and
+  the glyph are the ones the table will actually give a player.
 
-  The empty chair is dashed AND labelled, not just a different colour: the same
-  reasoning seats.js gives for pairing colour with a token.
+  The empty chair is SeatToken with index -1, which the component already renders
+  as a dashed frame with a neutral dot. Only the animation is added here; drawing
+  a second empty marker by hand is how the two got out of step in the first place.
 */
 .chair-filled-mark {
     animation: chair-breathe 4s ease-in-out infinite alternate;
     animation-delay: calc(var(--j, 0) * 600ms);
 }
-.chair-mark {
-    display: block;
-    height: 2.5rem;
-    width: 2.5rem;
-    border-radius: 0.8rem;
-    border: 3px solid var(--seat);
-    background-color: color-mix(in oklab, var(--seat) 25%, transparent);
-    animation: chair-breathe 4s ease-in-out infinite alternate;
-    animation-delay: calc(var(--j, 0) * 600ms);
-}
+
 
 .chair-label {
     font-size: 0.6rem;
@@ -936,7 +961,7 @@ onUnmounted(() => observer.value?.disconnect())
     color: var(--color-gray-light);
 }
 
-.is-empty .chair-mark {
+.chair-empty-mark {
     border-style: dashed;
     border-color: var(--color-teal-light);
     background-color: transparent;
@@ -1026,20 +1051,7 @@ onUnmounted(() => observer.value?.disconnect())
   without colour alone: the losers are struck through and greyed, the survivor is
   filled and lit.
 */
-.seat .chip {
-    display: block;
-    height: 2.75rem;
-    width: 2.75rem;
-    border-radius: 0.85rem;
-    border: 4px solid var(--seat);
-    background-color: color-mix(in oklab, var(--seat) 22%, transparent);
-    position: relative;
-    transition:
-        opacity 400ms ease,
-        filter 400ms ease,
-        box-shadow 400ms ease,
-        transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
-}
+
 
 .seat-label {
     font-size: 0.6rem;
@@ -1050,13 +1062,14 @@ onUnmounted(() => observer.value?.disconnect())
 }
 
 /* knocked out: desaturated, dropped, and struck — never colour alone */
-.is-out .chip {
+.is-out :deep(.seat-token),
+.is-out > div {
     filter: grayscale(1);
     opacity: 0.3;
     transform: translateY(4px) scale(0.9);
 }
 
-.is-out .chip::after {
+.is-out > div::after {
     content: '';
     position: absolute;
     inset: -2px;
@@ -1075,7 +1088,7 @@ onUnmounted(() => observer.value?.disconnect())
     color: var(--color-gray-light);
 }
 
-.is-in .chip {
+.is-in > div {
     box-shadow: 0 0 0 0 color-mix(in oklab, var(--seat) 55%, transparent);
     animation: seat-pulse 2.6s ease-in-out infinite;
 }
@@ -1122,6 +1135,76 @@ onUnmounted(() => observer.value?.disconnect())
 
 .clock-card {
     transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), border-color 250ms ease;
+}
+
+.clock-slot:hover .clock-card {
+    border-color: color-mix(in oklab, var(--dial) 55%, transparent);
+}
+
+/*
+  The dial. r=42 gives a circumference of 2*pi*42 = 263.9, which every dash
+  length below is a fraction of — hard-coded rather than measured, because
+  reading it back from the DOM would mean a layout pass per card for a number
+  that cannot change.
+
+  Rotated -90deg so the arc starts at twelve o'clock instead of three.
+*/
+.dial {
+    transform: rotate(-90deg);
+    overflow: visible;
+}
+
+.dial-track,
+.dial-fill {
+    fill: none;
+    stroke-width: 7;
+    stroke-linecap: round;
+}
+
+.dial-track {
+    stroke: color-mix(in oklab, var(--color-gray-light) 55%, transparent);
+}
+
+.dial-fill {
+    stroke: var(--dial);
+    stroke-dasharray: 263.9;
+    /* starts wound fully open; the animation takes it down to what is left */
+    stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 6px color-mix(in oklab, var(--dial) 45%, transparent));
+}
+
+/*
+  Unwinds only once the card is on screen, so the counter is seen MOVING rather
+  than found already spent. calc does the fraction inline — no per-card style
+  beyond the two numbers already on the slot.
+*/
+.clock-slot.revealed .dial-fill {
+    animation: unwind 1100ms cubic-bezier(0.34, 1, 0.42, 1) forwards;
+    animation-delay: calc(var(--delay, 0ms) + 220ms);
+}
+
+@keyframes unwind {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: calc(263.9px * (1 - var(--left) / var(--total)));
+    }
+}
+
+.dial-num {
+    color: var(--dial);
+}
+
+/* the consequence, tinted by the same colour as the dial above it */
+.zero {
+    border-color: color-mix(in oklab, var(--dial) 30%, transparent);
+    background-color: color-mix(in oklab, var(--dial) 8%, transparent);
+}
+
+.zero-tag {
+    color: var(--dial);
+    font-size: 0.6rem;
 }
 
 .clock-slot:hover .clock-card {
@@ -1230,13 +1313,19 @@ onUnmounted(() => observer.value?.disconnect())
         transition: none;
     }
 
+    /* land on the final value with no sweep */
+    .clock-slot.revealed .dial-fill {
+        animation: none;
+        stroke-dashoffset: calc(263.9px * (1 - var(--left) / var(--total)));
+    }
+
     .pip {
         opacity: 1;
         transform: none;
         animation: none;
     }
 
-    .is-in .chip {
+    .is-in > div {
         animation: none;
         box-shadow: 0 0 0 4px color-mix(in oklab, var(--seat) 35%, transparent);
     }
@@ -1246,12 +1335,8 @@ onUnmounted(() => observer.value?.disconnect())
         transition: none;
     }
 
-    .taken {
-        animation: none;
-    }
-
-    .chair-mark,
-    .is-empty .chair-mark {
+    .chair-filled-mark,
+    .chair-empty-mark {
         animation: none;
     }
 }
