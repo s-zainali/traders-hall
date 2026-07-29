@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@source "../**/*.{vue,js,ts,jsx,tsx}";
+@source "../../index.html";
+
 @theme static {
     /* Single named colors */
     --color-gray-dark: #1B222B;

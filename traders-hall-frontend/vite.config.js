@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [vueDevTools(), vue(), tailwindcss()],
+    plugins: [tailwindcss(), vueDevTools(), vue()],
     server: {
       proxy: {
         '/api': {
