@@ -442,7 +442,9 @@ onUnmounted(() => observer.value?.disconnect())
                             <p class="text-sm leading-relaxed text-gray-x-light">{{ clock.body }}</p>
 
                             <p class="zero mt-auto flex w-full items-start gap-2 rounded-xl border-2 px-3 py-2 text-left text-xs leading-relaxed">
-                                <span class="zero-tag shrink-0 font-bold uppercase tracking-widest">At zero</span>
+                                <div class=" h-full flex justify-center items-center mr-2">
+                                    <span class="zero-tag shrink-0 font-bold uppercase tracking-widest">At zero</span>
+                                </div>
                                 <span class="text-gray-x-light">{{ clock.zero }}</span>
                             </p>
                         </div>

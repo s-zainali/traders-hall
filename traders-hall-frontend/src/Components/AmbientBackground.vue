@@ -102,13 +102,13 @@ function place(f) {
   position: absolute;
   border-radius: 50%;
   filter: blur(90px);
-  opacity: 0.32;
+  opacity: 0.2;
   will-change: transform;
 }
 
 .aurora-a {
   width: 46rem; height: 34rem;
-  top: 0rem; left: -20rem;
+  top: 0rem; left: -10rem;
   background: radial-gradient(circle, var(--color-purple-light), transparent 65%);
   animation: aurora-a 34s ease-in-out infinite alternate;
 }
@@ -307,7 +307,7 @@ function place(f) {
 }
 
 .vignette {
-  background: radial-gradient(85% 70% at 50% 45%, transparent 38%, var(--color-black) 100%);
+  background: radial-gradient(85% 70% at 50% 45%, transparent 28%, var(--color-black) 100%);
   opacity: 50%;
 }
 
