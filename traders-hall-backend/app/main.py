@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import health
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
+from app.services.card_registry import sync_card_codes
 
 import os
 
@@ -15,6 +16,14 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # The catalogue is the source of truth for cards; the table only needs to
+    # know the codes exist so its foreign keys resolve. Adding a card to
+    # app/domain/cards.py is therefore an edit and a restart, with no migration.
+    async with SessionLocal() as session:
+        added = await sync_card_codes(session)
+        if added:
+            print(f"card registry: added {', '.join(added)}")
+
     yield
     await engine.dispose()
 

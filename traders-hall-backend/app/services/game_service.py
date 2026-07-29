@@ -7,8 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.domain import config
-from app.models.card_type import CardType
+from app.domain import cards, config
 from app.models.game import Game
 from app.models.game_card_pool import GameCardPool
 from app.models.game_player import GamePlayer
@@ -190,7 +189,9 @@ async def _deal(db: AsyncSession, game: Game) -> None:
     # of. Rows at zero are kept deliberately — a sale can then be
     # `UPDATE ... WHERE quantity >= :n`, using the row's existence as a
     # guarantee, with no upsert and no gap between checking and writing.
-    all_codes = list(await db.scalars(select(CardType.code)))
+    # The catalogue, not the table: the table is a registry of valid codes and
+    # the catalogue is the list of cards the game actually deals.
+    all_codes = list(cards.ALL_CODES)
 
     for card_type, quantity in config.bank_pool_for(player_count).items():
         db.add(GameCardPool(game_id=game.id, card_type=card_type, quantity=quantity))
@@ -298,4 +299,22 @@ async def get_game_state(db: AsyncSession, *, user: User, code: str) -> dict:
 
     rooms = {p.id: await room_summary(db, game, p) for p in game.players}
 
-    return {"game": game, "pools": pools, "hands": hands, "me": me, "rooms": rooms}
+    # Live tenancies, so the projection can tell a tenant what they owe and a
+    # landlord who is asking to leave. One query rather than one per player.
+    from app.models.rental_agreement import RentalAgreement
+
+    agreements = list(await db.scalars(
+        select(RentalAgreement).where(
+            RentalAgreement.game_id == game.id,
+            RentalAgreement.status == "active",
+        )
+    ))
+
+    return {
+        "game": game,
+        "pools": pools,
+        "hands": hands,
+        "me": me,
+        "rooms": rooms,
+        "agreements": agreements,
+    }

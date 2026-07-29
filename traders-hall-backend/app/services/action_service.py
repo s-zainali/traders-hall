@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.card_type import CardType
+from app.domain import cards
 from app.models.game import Game
 from app.models.game_card_pool import GameCardPool
 from app.models.game_event import GameEvent
@@ -177,11 +177,22 @@ async def _pool_row(db: AsyncSession, game: Game, card_type: str) -> GameCardPoo
     return row
 
 
-async def _card(db: AsyncSession, card_type: str) -> CardType:
-    card = await db.get(CardType, card_type)
+def card_of(card_type: str) -> cards.Card:
+    """Look a card up in the catalogue.
+
+    Synchronous and not a query: card data is configuration now, so there is
+    nothing to await and nothing that can be stale. Every caller that used to
+    say `await _card(db, code)` says `card_of(code)`.
+    """
+    card = cards.get(card_type)
     if card is None:
         raise ActionError("UNKNOWN_CARD_TYPE", f"No such card type: {card_type}")
     return card
+
+
+async def _card(db: AsyncSession, card_type: str) -> cards.Card:
+    """Kept for callers that still await it. db is ignored."""
+    return card_of(card_type)
 
 
 # ── actions ──────────────────────────────────────────────────────────

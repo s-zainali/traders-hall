@@ -5,28 +5,24 @@ from app.db.base import Base
 
 
 class CardType(Base):
+    """A registry of valid card codes. Nothing more.
+
+    Every number that used to live here — cost, sell value, nutrition, rooms,
+    colours, icon — moved to app/domain/cards.py, so balancing the game is an
+    edit and a restart rather than a migration.
+
+    The table stays because nine foreign keys point at it: player_hands,
+    game_card_pools, trade_offers (offer, want and claim), game_players
+    (mortgage and residence), rental_agreements, offer_claims and
+    ledger_entries. Dropping it would trade referential integrity — the database
+    refusing to store a card that does not exist — for a convenience this
+    one-column version already provides.
+
+    So the database answers "is this a real card?" and the catalogue answers
+    "what does it do?". Neither can contradict the other, because neither knows
+    what the other knows.
+    """
+
     __tablename__ = "card_types"
 
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
-    title: Mapped[str] = mapped_column(String(64))
-    category: Mapped[str] = mapped_column(String(32))
-
-    base_cost: Mapped[int] = mapped_column(default=0)
-    sell_value: Mapped[int] = mapped_column(default=0)
-
-    # food only: how many turns of food_due one card restores
-    nutrition_turns: Mapped[int | None] = mapped_column(default=None)
-    # properties only: points produced per yield interval before investment
-    base_output_points: Mapped[int] = mapped_column(default=0)
-    # properties only: how many people can live here — house 1, mansion 2,
-    # tower 3. Its own column rather than reusing base_output_points, which
-    # currently holds the same numbers: yield and capacity are different rules
-    # and will be balanced apart from each other.
-    rooms: Mapped[int] = mapped_column(default=0)
-
-    icon_url: Mapped[str] = mapped_column(String(255))
-    accent_color: Mapped[str] = mapped_column(String(64))
-    background_color: Mapped[str] = mapped_column(String(64))
-
-    is_tradeable: Mapped[bool] = mapped_column(default=True)
-    sort_order: Mapped[int] = mapped_column(default=0)

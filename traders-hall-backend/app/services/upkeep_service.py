@@ -13,8 +13,7 @@ server is exactly as auditable as an action taken by a player.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain import config
-from app.models.card_type import CardType
+from app.domain import cards, config
 from app.models.game import Game
 from app.models.game_event import GameEvent
 from app.models.game_player import GamePlayer
@@ -190,18 +189,23 @@ async def _seize_property(
     if shortfall <= 0:
         return seized, recovered
 
-    rows = (
-        await db.execute(
-            select(PlayerHand, CardType)
-            .join(CardType, CardType.code == PlayerHand.card_type)
-            .where(
-                PlayerHand.game_id == game.id,
-                PlayerHand.player_id == seat.id,
-                CardType.category == config.SEIZABLE_CATEGORY,
-            )
-            .order_by(CardType.sell_value.desc())
+    # The category filter and the highest-value-first ordering are catalogue
+    # facts, so both move into Python. A hand is at most seven rows; sorting it
+    # here costs nothing and keeps the values in one place.
+    hands = list(await db.scalars(
+        select(PlayerHand).where(
+            PlayerHand.game_id == game.id,
+            PlayerHand.player_id == seat.id,
         )
-    ).all()
+    ))
+
+    rows = [
+        (hand, card)
+        for hand in hands
+        if (card := cards.get(hand.card_type)) is not None
+        and card.category == config.SEIZABLE_CATEGORY
+    ]
+    rows.sort(key=lambda pair: pair[1].sell_value, reverse=True)
 
     for hand, card in rows:
         if recovered >= shortfall:

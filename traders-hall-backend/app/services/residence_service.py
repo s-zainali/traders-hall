@@ -25,7 +25,7 @@ end up housing two tenants.
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.card_type import CardType
+from app.domain import cards
 from app.models.game import Game
 from app.models.game_player import GamePlayer
 from app.models.player_hand import PlayerHand
@@ -49,20 +49,21 @@ async def rooms_by_card(
     db: AsyncSession, game: Game, seat: GamePlayer
 ) -> dict[str, int]:
     """Rooms this player owns, per property type, excluding mortgaged cards."""
-    rows = (
-        await db.execute(
-            select(PlayerHand, CardType)
-            .join(CardType, CardType.code == PlayerHand.card_type)
-            .where(
-                PlayerHand.game_id == game.id,
-                PlayerHand.player_id == seat.id,
-                CardType.rooms > 0,
-            )
+    # No join. Which cards have rooms is configuration, so the filter happens
+    # in Python against the catalogue rather than against columns that no longer
+    # exist.
+    rows = list(await db.scalars(
+        select(PlayerHand).where(
+            PlayerHand.game_id == game.id,
+            PlayerHand.player_id == seat.id,
         )
-    ).all()
+    ))
 
     out: dict[str, int] = {}
-    for hand, card in rows:
+    for hand in rows:
+        card = cards.get(hand.card_type)
+        if card is None or card.rooms < 1:
+            continue
         # Free cards only: a mortgaged property is promised to the bank.
         free = hand.quantity - hand.reserved_quantity
         if free > 0:
@@ -149,7 +150,7 @@ async def housing_cards_by_card(
     for code, rooms_used in used.items():
         if rooms_used < 1:
             continue
-        card = await db.get(CardType, code)
+        card = cards.get(code)
         per_card = max(1, (card.rooms if card else 1) or 1)
         # ceiling division, without importing math for one line
         out[code] = -(-rooms_used // per_card)

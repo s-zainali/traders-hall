@@ -1,16 +1,18 @@
-from typing import Annotated
+"""Reference data for clients.
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+Served from the catalogue rather than the table. The table holds codes only —
+every value below is configuration, so this endpoint reads the same source the
+game rules read and cannot disagree with them.
+"""
 
-from app.db.session import get_db
-from app.models.card_type import CardType
+from fastapi import APIRouter
+
+from app.domain import cards
 from app.schemas.card_type import CardTypeOut
 
 router = APIRouter()
 
+
 @router.get("/card-types", response_model=list[CardTypeOut])
-async def list_card_types(db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(select(CardType).order_by(CardType.sort_order))
-    return result.scalars().all()
+async def list_card_types():
+    return [CardTypeOut.model_validate(card) for card in cards.sorted_cards()]
