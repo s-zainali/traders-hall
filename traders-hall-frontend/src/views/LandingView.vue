@@ -521,8 +521,8 @@ onUnmounted(() => observer.value?.disconnect())
         </section>
 
         <section class="px-6 pb-24 pt-6">
-            <div data-reveal class="reveal mx-auto max-w-3xl flex justify-center">
-                <div class="table relative overflow-hidden rounded-[2rem] border-2 border-teal-light/40 px-8 py-16 text-center sm:px-12">
+            <div data-reveal class="reveal mx-auto max-w-4xl flex justify-center">
+                <div class="table relative overflow-hidden rounded-[2rem] border-2 border-teal-light/40 px-8 py-16 text-center sm:px-32">
 
                     <span aria-hidden="true" class="table-light pointer-events-none absolute inset-0"></span>
                     <span aria-hidden="true" class="table-felt pointer-events-none absolute inset-0"></span>
