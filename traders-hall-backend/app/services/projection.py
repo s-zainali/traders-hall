@@ -1,6 +1,13 @@
 """Turns the raw state dict from game_service into the API response shape."""
 
-from app.schemas.game_state import GameInfo, GameStateOut, PlayerPublic, YouBlock
+from app.schemas.game_state import (
+    GameInfo,
+    GameStateOut,
+    MoveOutRequestOut,
+    PlayerPublic,
+    TenancyOut,
+    YouBlock,
+)
 
 _NO_ROOMS = {
     "rooms_total": 0,
@@ -20,6 +27,45 @@ def build_game_state(raw: dict) -> GameStateOut:
     # supply capacity gets zeros instead of a KeyError, which keeps the whole
     # response alive while the rest catches up.
     rooms = raw.get("rooms", {})
+    agreements = raw.get("agreements", [])
+
+    by_seat = {p.id: p for p in game.players}
+
+    mine = next((a for a in agreements if a.tenant_player_id == me.id), None)
+    tenancy = (
+        TenancyOut(
+            agreement_id=mine.id,
+            landlord_player_id=mine.landlord_player_id,
+            card_type=mine.card_type,
+            rent_points=mine.rent_points,
+            interval_turns=mine.interval_turns,
+            turns_until_due=mine.turns_until_due,
+            moveout_status=mine.moveout_status,
+            moveout_buyout=mine.moveout_buyout,
+        )
+        if mine is not None
+        else None
+    )
+
+    # Only requests still waiting on an answer. A refused one is the tenant's
+    # decision now, and showing it to the landlord as actionable would offer a
+    # button that does nothing.
+    moveout_requests = [
+        MoveOutRequestOut(
+            agreement_id=a.id,
+            tenant_player_id=a.tenant_player_id,
+            tenant_name=by_seat[a.tenant_player_id].display_name
+            if a.tenant_player_id in by_seat
+            else "Unknown",
+            tenant_seat_index=by_seat[a.tenant_player_id].seat_index
+            if a.tenant_player_id in by_seat
+            else -1,
+            card_type=a.card_type,
+            rent_points=a.rent_points,
+        )
+        for a in agreements
+        if a.landlord_player_id == me.id and a.moveout_status == "requested"
+    ]
 
     players = [
         PlayerPublic(
@@ -74,6 +120,8 @@ def build_game_state(raw: dict) -> GameStateOut:
             residence_card_type=me.residence_card_type,
             residence_landlord_id=me.residence_landlord_id,
             **_capacity(rooms.get(me.id), public=False),
+            tenancy=tenancy,
+            moveout_requests=moveout_requests,
             available_points=me.points - me.reserved_points,
         ),
         players=players,

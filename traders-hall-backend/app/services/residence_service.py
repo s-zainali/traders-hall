@@ -316,9 +316,10 @@ async def leave(
 ) -> Game:
     """Vacate the current residence.
 
-    No penalty and no notice period, as specified. If the residence was rented,
-    the tenancy ends here — which also frees the landlord's room, since capacity
-    is derived from live agreements rather than stored.
+    Only owner-occupiers leave freely. A TENANT cannot simply walk: they have
+    occupied the room since their last payment, so leaving the turn before rent
+    falls due would be a free period. Calling this while renting raises a
+    move-out request for the landlord to answer instead of ending anything.
     """
     game = await _lock_game(db, code)
     seat = await _seat_of(db, game, user)
@@ -333,8 +334,13 @@ async def leave(
 
     agreement = await active_tenancy(db, game, seat)
     if agreement is not None:
-        agreement.status = "ended"
-        agreement.ended_at = func.now()
+        # Imported here, not at module level: rent_service reaches into
+        # action_service for the same transaction kernel this module uses, and a
+        # top-level import in both directions is a cycle.
+        from app.services.rent_service import request_moveout
+
+        await request_moveout(db, game, seat, agreement)
+        return game
 
     seat.residence_card_type = None
     seat.residence_landlord_id = None
@@ -348,7 +354,7 @@ async def leave(
         payload={
             "card_type": card_type,
             "landlord_player_id": str(landlord_id) if landlord_id else None,
-            "was_rented": agreement is not None,
+            "was_rented": False,
         },
     )
     return game

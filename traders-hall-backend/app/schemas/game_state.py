@@ -61,6 +61,32 @@ class PlayerPublic(BaseModel):
     rooms_free: int
 
 
+class TenancyOut(BaseModel):
+    """The tenancy you are IN, if any."""
+
+    agreement_id: uuid.UUID
+    landlord_player_id: uuid.UUID
+    card_type: str
+    rent_points: int
+    interval_turns: int
+    turns_until_due: int
+    # None | 'requested' | 'rejected'
+    moveout_status: str | None = None
+    # only quoted once the landlord has refused
+    moveout_buyout: int | None = None
+
+
+class MoveOutRequestOut(BaseModel):
+    """A tenant of YOURS asking to leave."""
+
+    agreement_id: uuid.UUID
+    tenant_player_id: uuid.UUID
+    tenant_name: str
+    tenant_seat_index: int
+    card_type: str
+    rent_points: int
+
+
 class YouBlock(BaseModel):
     """The private slice.
 
@@ -93,6 +119,12 @@ class YouBlock(BaseModel):
     # Per property type, so the "let a room" modal can offer only the properties
     # that actually have capacity left.
     rooms_by_card: dict[str, int]
+
+    # The tenancy you are in, and any your tenants are trying to end. Both are
+    # on `you` rather than the public block: a move-out is a negotiation between
+    # two players, not table information.
+    tenancy: TenancyOut | None = None
+    moveout_requests: list[MoveOutRequestOut] = []
 
     # Spendable balance: points minus anything reserved against an open market
     # claim. The client needs this to disable controls correctly — showing the

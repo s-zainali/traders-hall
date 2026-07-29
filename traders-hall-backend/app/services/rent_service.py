@@ -19,7 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.game import Game
 from app.models.game_player import GamePlayer
 from app.models.rental_agreement import RentalAgreement
-from app.services.action_service import ActionError, _append_event, _ledger
+from app.services.action_service import (
+    ActionError,
+    _append_event,
+    _check_version,
+    _ledger,
+    _lock_game,
+    _require_turn,
+    _seat_of,
+)
+from app.models.user import User
 
 
 async def open_agreement(
@@ -218,3 +227,210 @@ async def _charge(
             points_delta=-rent)
     _ledger(db, game, event, player_id=landlord.id, entry_type="rent",
             points_delta=rent)
+
+
+MOVEOUT_PENALTY_NUMERATOR = 3
+MOVEOUT_PENALTY_DENOMINATOR = 2
+
+
+def buyout_price(rent_points: int) -> int:
+    """What leaving costs once the landlord has refused: 1.5x rent, rounded up.
+
+    Integer arithmetic rather than math.ceil on a float, because points are whole
+    and 1.5 * 3 landing on 4.4999 would quietly undercharge. (3r + 1) // 2 is
+    exactly ceil(1.5r): rent 1 costs 2, rent 2 costs 3, rent 3 costs 5.
+    """
+    return (
+        rent_points * MOVEOUT_PENALTY_NUMERATOR + MOVEOUT_PENALTY_DENOMINATOR - 1
+    ) // MOVEOUT_PENALTY_DENOMINATOR
+
+
+async def _settle_departure(
+    db: AsyncSession,
+    game: Game,
+    tenant: GamePlayer,
+    agreement: RentalAgreement,
+    *,
+    amount: int,
+    event_type: str,
+) -> None:
+    """Pay the landlord, end the tenancy, turn the tenant out.
+
+    Shared by both exits — the landlord agreeing, and the tenant buying their way
+    out after a refusal. Only the amount and the event differ, and keeping one
+    path means the tenancy cannot end by one route with the payment skipped.
+    """
+    landlord = await db.get(GamePlayer, agreement.landlord_player_id)
+    if landlord is None or landlord.status != "active":
+        raise ActionError("LANDLORD_GONE", "That landlord has left the game")
+
+    available = tenant.points - tenant.reserved_points
+    if available < amount:
+        raise ActionError(
+            "INSUFFICIENT_POINTS",
+            f"That costs {amount} points; you have {available} free",
+            required=amount,
+            available=available,
+        )
+
+    tenant.points -= amount
+    landlord.points += amount
+
+    agreement.status = "ended"
+    agreement.ended_at = datetime.now(UTC)
+    agreement.moveout_status = None
+    agreement.moveout_buyout = None
+
+    tenant.residence_card_type = None
+    tenant.residence_landlord_id = None
+    tenant.rent_due = 0
+
+    event = await _append_event(
+        db, game,
+        event_type=event_type,
+        actor_player_id=None,
+        payload={
+            "agreement_id": str(agreement.id),
+            "player_id": str(tenant.id),
+            "landlord_player_id": str(landlord.id),
+            "card_type": agreement.card_type,
+            "amount": amount,
+        },
+    )
+    _ledger(db, game, event, player_id=tenant.id, entry_type="rent",
+            points_delta=-amount)
+    _ledger(db, game, event, player_id=landlord.id, entry_type="rent",
+            points_delta=amount)
+
+
+async def request_moveout(
+    db: AsyncSession, game: Game, tenant: GamePlayer, agreement: RentalAgreement
+) -> None:
+    """Ask the landlord to release you.
+
+    Raised rather than granted: the tenant has occupied the room since their last
+    payment, and walking out unannounced is precisely the hole this closes.
+    """
+    if agreement.moveout_status == "requested":
+        raise ActionError("MOVEOUT_PENDING", "Your landlord has not answered yet")
+    if agreement.moveout_status == "rejected":
+        raise ActionError(
+            "MOVEOUT_REFUSED",
+            "Your landlord refused. Stay, or pay to leave.",
+            buyout=agreement.moveout_buyout,
+        )
+
+    agreement.moveout_status = "requested"
+    agreement.moveout_turn = game.turn_number
+
+    await _append_event(
+        db, game,
+        event_type="tenancy.moveout_requested",
+        actor_player_id=tenant.id,
+        payload={
+            "agreement_id": str(agreement.id),
+            "landlord_player_id": str(agreement.landlord_player_id),
+            "card_type": agreement.card_type,
+            "rent_points": agreement.rent_points,
+        },
+    )
+
+
+async def respond_moveout(
+    db: AsyncSession,
+    *,
+    user: User,
+    code: str,
+    agreement_id,
+    accept: bool,
+    expected_state_version: int | None,
+) -> Game:
+    """The landlord answers. Accepting collects the rent and lets them go.
+
+    Not turn-gated, like settling an offer: a request that could only be answered
+    on the landlord's own turn would stall the tenant for most of a lap.
+    """
+    game = await _lock_game(db, code)
+    landlord = await _seat_of(db, game, user)
+    _check_version(game, expected_state_version)
+
+    agreement = await db.get(RentalAgreement, agreement_id)
+    if agreement is None or agreement.game_id != game.id:
+        raise ActionError("NO_TENANCY", "No such tenancy")
+    if agreement.landlord_player_id != landlord.id:
+        raise ActionError("NOT_LANDLORD", "That is not your property")
+    if agreement.status != "active" or agreement.moveout_status != "requested":
+        raise ActionError("NO_MOVEOUT_REQUEST", "Nobody is asking to leave")
+
+    tenant = await db.get(GamePlayer, agreement.tenant_player_id)
+    if tenant is None:
+        raise ActionError("NO_TENANCY", "That tenant has left the game")
+
+    if accept:
+        await _settle_departure(
+            db, game, tenant, agreement,
+            amount=agreement.rent_points,
+            event_type="tenancy.moveout_accepted",
+        )
+        return game
+
+    agreement.moveout_status = "rejected"
+    agreement.moveout_buyout = buyout_price(agreement.rent_points)
+
+    await _append_event(
+        db, game,
+        event_type="tenancy.moveout_rejected",
+        actor_player_id=landlord.id,
+        payload={
+            "agreement_id": str(agreement.id),
+            "player_id": str(tenant.id),
+            "card_type": agreement.card_type,
+            "rent_points": agreement.rent_points,
+            "buyout": agreement.moveout_buyout,
+        },
+    )
+    return game
+
+
+async def resolve_moveout(
+    db: AsyncSession,
+    *,
+    user: User,
+    code: str,
+    leave: bool,
+    expected_state_version: int | None,
+) -> Game:
+    """After a refusal the tenant picks: stay put, or pay the penalty and go."""
+    game = await _lock_game(db, code)
+    tenant = await _seat_of(db, game, user)
+    _check_version(game, expected_state_version)
+    _require_turn(game, tenant)
+
+    agreement = await active_for_tenant(db, game, tenant)
+    if agreement is None or agreement.moveout_status != "rejected":
+        raise ActionError("NO_MOVEOUT_REFUSAL", "There is nothing to settle")
+
+    if not leave:
+        agreement.moveout_status = None
+        agreement.moveout_buyout = None
+        agreement.moveout_turn = None
+
+        await _append_event(
+            db, game,
+            event_type="tenancy.moveout_withdrawn",
+            actor_player_id=tenant.id,
+            payload={
+                "agreement_id": str(agreement.id),
+                "landlord_player_id": str(agreement.landlord_player_id),
+                "card_type": agreement.card_type,
+            },
+        )
+        return game
+
+    # The quoted price, not a fresh calculation: the tenant agreed to a number.
+    await _settle_departure(
+        db, game, tenant, agreement,
+        amount=agreement.moveout_buyout or buyout_price(agreement.rent_points),
+        event_type="tenancy.moveout_bought_out",
+    )
+    return game

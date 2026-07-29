@@ -35,6 +35,14 @@ class RentalAgreement(Base):
         CheckConstraint(
             "landlord_player_id <> tenant_player_id", name="ck_rent_distinct_parties"
         ),
+        CheckConstraint(
+            "moveout_status IS NULL OR moveout_status IN ('requested', 'rejected')",
+            name="ck_rent_moveout_status",
+        ),
+        CheckConstraint(
+            "moveout_buyout IS NULL OR moveout_status = 'rejected'",
+            name="ck_rent_moveout_buyout_shape",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -67,6 +75,24 @@ class RentalAgreement(Base):
     # Ended agreements are kept rather than deleted: they are the record of who
     # lived where, and the ledger references them through their events.
     status: Mapped[str] = mapped_column(String(16), default="active", index=True)
+
+    # --- moving out ---
+    # A tenant cannot simply walk. Leaving is a request the landlord answers,
+    # because otherwise the turn before rent falls due is a free exit from a
+    # period already lived through.
+    #
+    # NULL       nobody is leaving
+    # requested  waiting on the landlord
+    # rejected   refused; the tenant now chooses to stay or to pay their way out
+    moveout_status: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, default=None
+    )
+    moveout_turn: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    # Frozen when the landlord refuses, so a later rule change cannot reprice a
+    # decision the tenant has already been quoted.
+    moveout_buyout: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
+    )
 
     created_turn: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(

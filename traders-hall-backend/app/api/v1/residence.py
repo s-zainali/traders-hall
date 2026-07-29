@@ -8,8 +8,13 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import CurrentUser, Db
 from app.schemas.game_state import GameStateOut
-from app.schemas.residence import LeaveResidenceRequest, MoveInRequest
-from app.services import game_service, residence_service
+from app.schemas.residence import (
+    LeaveResidenceRequest,
+    MoveInRequest,
+    MoveOutResolveRequest,
+    MoveOutResponseRequest,
+)
+from app.services import game_service, rent_service, residence_service
 from app.services.action_service import ActionError
 from app.services.projection import build_game_state
 
@@ -24,6 +29,13 @@ _STATUS = {
     "STATE_VERSION_CONFLICT": status.HTTP_409_CONFLICT,
     "ALREADY_RESIDING": status.HTTP_409_CONFLICT,
     "NO_RESIDENCE": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "NO_TENANCY": status.HTTP_404_NOT_FOUND,
+    "NOT_LANDLORD": status.HTTP_403_FORBIDDEN,
+    "NO_MOVEOUT_REQUEST": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "NO_MOVEOUT_REFUSAL": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "MOVEOUT_PENDING": status.HTTP_409_CONFLICT,
+    "MOVEOUT_REFUSED": status.HTTP_409_CONFLICT,
+    "LANDLORD_GONE": status.HTTP_409_CONFLICT,
     "NO_FREE_ROOM": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "NOT_HABITABLE": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "INSUFFICIENT_CARDS": status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -66,6 +78,43 @@ async def leave_residence(
     try:
         await residence_service.leave(
             db, user=user, code=code,
+            expected_state_version=body.expected_state_version,
+        )
+        return await _state(db, user, code)
+    except ActionError as e:
+        raise _http(e)
+
+
+@router.post("/{code}/actions/moveout-response", response_model=GameStateOut)
+async def moveout_response(
+    code: str, body: MoveOutResponseRequest, user: CurrentUser, db: Db
+):
+    """Landlord answers a tenant asking to leave.
+
+    Not turn-gated, the same as settling an offer: a request answerable only on
+    the landlord's own turn would strand the tenant for most of a lap.
+    """
+    try:
+        await rent_service.respond_moveout(
+            db, user=user, code=code,
+            agreement_id=body.agreement_id,
+            accept=body.accept,
+            expected_state_version=body.expected_state_version,
+        )
+        return await _state(db, user, code)
+    except ActionError as e:
+        raise _http(e)
+
+
+@router.post("/{code}/actions/moveout-resolve", response_model=GameStateOut)
+async def moveout_resolve(
+    code: str, body: MoveOutResolveRequest, user: CurrentUser, db: Db
+):
+    """Tenant chooses after a refusal: stay, or pay the quoted price and go."""
+    try:
+        await rent_service.resolve_moveout(
+            db, user=user, code=code,
+            leave=body.leave,
             expected_state_version=body.expected_state_version,
         )
         return await _state(db, user, code)
