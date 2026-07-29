@@ -53,6 +53,13 @@ const props = defineProps({
     landlordName: { type: String, default: '' },
     landlordSeatIndex: { type: Number, default: -1 },
     rentPoints: { type: Number, default: 0 },
+    // Move-out state for the tenancy this player is IN, plus every tenancy they
+    // are landlord to. Passed straight through; this component hosts the modal
+    // but does not read them.
+    moveoutStatus: { type: String, default: null },
+    moveoutBuyout: { type: Number, default: 0 },
+    availablePoints: { type: Number, default: 0 },
+    tenants: { type: Array, default: () => [] },
     /** an action is in flight; controls lock so a double-click cannot fire twice */
     busy: { type: Boolean, default: false },
 })
@@ -60,6 +67,7 @@ const props = defineProps({
 const emit = defineEmits([
     'buy', 'sell', 'trade', 'eat', 'residence',
     'moveIn', 'leaveResidence', 'rentOut', 'rentAsk',
+    'respondMoveOut', 'resolveMoveOut', 'evict',
     'cancelOperation', 'transaction', 'endTurn',
 ])
 
@@ -370,9 +378,14 @@ function onEndTurn() {
                 :rooms-pending-for-card="pendingRoomsFor(selectedType)" :residence-card-type="residence || null"
                 :residence-landlord-id="residenceLandlordId" :landlord-name="landlordName"
                 :landlord-seat-index="landlordSeatIndex" :rent-points="rentPoints" :rent-due="rentDue"
+                :moveout-status="moveoutStatus" :moveout-buyout="moveoutBuyout"
+                :available-points="availablePoints" :tenants="tenants"
                 :rooms-by-card="roomsByCard" :busy="busy" :can-act="canAct" @close-modal="closeModal"
                 @move-in="(t) => onHousing('moveIn', t)" @leave="onHousing('leaveResidence')"
-                @rent-out="(p) => onHousing('rentOut', p)" @rent-ask="(p) => onHousing('rentAsk', p)" />
+                @rent-out="(p) => onHousing('rentOut', p)" @rent-ask="(p) => onHousing('rentAsk', p)"
+                @respond-move-out="(p) => onHousing('respondMoveOut', p)"
+                @resolve-move-out="(v) => onHousing('resolveMoveOut', v)"
+                @evict="(id) => onHousing('evict', id)" />
             <EatModal v-else-if="activeModal === 'eat'" :card-type="selectedType" :available="hand[selectedType] ?? 1"
                 :food-due="foodDue" :busy="busy" :popover="true" @confirm="onEat($event)" @cancel="closeModal" />
             <TransactionModal v-else-if="activeModal === 'sell' || activeModal === 'trade'"

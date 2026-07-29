@@ -98,6 +98,30 @@ function toState(s) {
       roomsOccupied: s.you.rooms_occupied ?? 0,
       roomsFree: s.you.rooms_free ?? 0,
       roomsByCard: s.you.rooms_by_card ?? {},
+      // The tenancy you are IN, and the ones you are landlord to. Both drive
+      // controls the UI must disable rather than let fail server-side.
+      tenancy: s.you.tenancy
+        ? {
+            agreementId: s.you.tenancy.agreement_id,
+            landlordPlayerId: s.you.tenancy.landlord_player_id,
+            cardType: s.you.tenancy.card_type,
+            rentPoints: s.you.tenancy.rent_points,
+            intervalTurns: s.you.tenancy.interval_turns,
+            turnsUntilDue: s.you.tenancy.turns_until_due,
+            moveoutStatus: s.you.tenancy.moveout_status,
+            moveoutBuyout: s.you.tenancy.moveout_buyout,
+          }
+        : null,
+      tenants: (s.you.tenants ?? []).map((t) => ({
+        agreementId: t.agreement_id,
+        tenantPlayerId: t.tenant_player_id,
+        tenantName: t.tenant_name,
+        tenantSeatIndex: t.tenant_seat_index,
+        cardType: t.card_type,
+        rentPoints: t.rent_points,
+        turnsUntilDue: t.turns_until_due,
+        moveoutStatus: t.moveout_status,
+      })),
     },
     players: s.players.map((p) => ({
       id: p.id,
@@ -305,7 +329,23 @@ export const useGamesStore = defineStore('games', () => {
     })
 
   const moveIn = (code, cardType) => act(code, 'move-in', { card_type: cardType })
+
+  /*
+    On a rented room this no longer ends anything — the server raises a move-out
+    request for the landlord to answer. Owner-occupiers still leave outright.
+  */
   const leaveResidence = (code) => act(code, 'leave-residence')
+
+  // Landlord answers. Refusing quotes the tenant a buy-out rather than ending it.
+  const respondMoveOut = (code, agreementId, accept) =>
+    act(code, 'moveout-response', { agreement_id: agreementId, accept })
+
+  // Tenant chooses after a refusal: true pays the quoted price and goes.
+  const resolveMoveOut = (code, leave) => act(code, 'moveout-resolve', { leave })
+
+  // Landlord ends it early and forfeits the rent for the period.
+  const evictTenant = (code, agreementId) =>
+    act(code, 'evict', { agreement_id: agreementId })
 
   const tradeOffer = (code, cardType, quantity, wantCardType, wantQuantity) =>
     postOffer(code, {
@@ -516,6 +556,7 @@ export const useGamesStore = defineStore('games', () => {
     buyFromBank, sellToBank, endTurn, eatFood,
     borrow, repayLoan, openMortgage, redeemMortgage,
     sellOffer, tradeOffer, rentOut, rentAsk, moveIn, leaveResidence,
+    respondMoveOut, resolveMoveOut, evictTenant,
     claimOffer, unclaimOffer, declineOffer, confirmOffer, cancelOffer,
     createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }

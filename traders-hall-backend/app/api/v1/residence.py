@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.api.deps import CurrentUser, Db
 from app.schemas.game_state import GameStateOut
 from app.schemas.residence import (
+    EvictRequest,
     LeaveResidenceRequest,
     MoveInRequest,
     MoveOutResolveRequest,
@@ -115,6 +116,20 @@ async def moveout_resolve(
         await rent_service.resolve_moveout(
             db, user=user, code=code,
             leave=body.leave,
+            expected_state_version=body.expected_state_version,
+        )
+        return await _state(db, user, code)
+    except ActionError as e:
+        raise _http(e)
+
+
+@router.post("/{code}/actions/evict", response_model=GameStateOut)
+async def evict(code: str, body: EvictRequest, user: CurrentUser, db: Db):
+    """Landlord ends a tenancy early. The forfeited rent is not collected."""
+    try:
+        await rent_service.evict(
+            db, user=user, code=code,
+            agreement_id=body.agreement_id,
             expected_state_version=body.expected_state_version,
         )
         return await _state(db, user, code)

@@ -38,17 +38,31 @@ const props = defineProps({
     landlordSeatIndex: { type: Number, default: -1 },
     rentPoints: { type: Number, default: 0 },
     rentDue: { type: Number, default: 0 },
+    // null | 'requested' | 'rejected'. Drives which control the tenant gets,
+    // so an impossible action is never offered rather than being refused.
+    moveoutStatus: { type: String, default: null },
+    moveoutBuyout: { type: Number, default: 0 },
+    availablePoints: { type: Number, default: 0 },
+    // every live tenancy this player is landlord to
+    tenants: { type: Array, default: () => [] },
     // lettable rooms per property type, net of tenants, self, and live offers
     roomsByCard: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['closeModal', 'moveIn', 'leave', 'rentOut', 'rentAsk'])
+const emit = defineEmits([
+    'closeModal', 'moveIn', 'leave', 'rentOut', 'rentAsk',
+    'respondMoveOut', 'resolveMoveOut', 'evict',
+])
 
 const cardTypes = useCardTypesStore()
 
 const isLet = computed(() => props.mode === 'let')
 const isHoused = computed(() => !!props.residenceCardType)
 const isTenant = computed(() => isHoused.value && !!props.residenceLandlordId)
+
+const awaitingLandlord = computed(() => props.moveoutStatus === 'requested')
+const wasRefused = computed(() => props.moveoutStatus === 'rejected')
+const canAffordBuyout = computed(() => props.availablePoints >= props.moveoutBuyout)
 
 const titleOf = (code) => cardTypes.get(code)?.title ?? code
 
@@ -287,13 +301,91 @@ const pickerBtn =
             </section>
 
             <section v-if="isHoused" class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
-                <button type="button" :class="[actionButton, ghostBtn, 'w-full']" :disabled="locked"
-                    @click="emit('leave')">
-                    {{ isTenant ? 'End tenancy' : 'Vacate' }}
-                </button>
-                <p class="text-xs text-gray-x-light">
-                    {{ isTenant ? 'Frees your landlord\'s room. No penalty.' : 'Frees the room to let.' }}
-                </p>
+                <template v-if="!isTenant">
+                    <button type="button" :class="[actionButton, ghostBtn, 'w-full']" :disabled="locked"
+                        @click="emit('leave')">
+                        Vacate
+                    </button>
+                    <p class="text-xs text-gray-x-light">Frees the room to let.</p>
+                </template>
+
+                <template v-else-if="awaitingLandlord">
+                    <div class="flex items-center gap-2 rounded-xl border-2 border-amber-400/50 bg-amber-400/10 px-3 py-2">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400">Waiting</span>
+                        <span class="text-xs text-gray-x-light">
+                            {{ landlordName || 'Your landlord' }} has not answered yet.
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-x-light">
+                        Accepting costs you {{ rentPoints }} rent. Refusing lets you buy your way out.
+                    </p>
+                </template>
+
+                <template v-else-if="wasRefused">
+                    <div class="flex items-center gap-2 rounded-xl border-2 border-rose-400/50 bg-rose-400/10 px-3 py-2">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-rose-400">Refused</span>
+                        <span class="text-xs text-gray-x-light">Stay, or pay to go.</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" :class="[actionButton, ghostBtn, 'flex-1']" :disabled="locked"
+                            @click="emit('resolveMoveOut', false)">
+                            Stay
+                        </button>
+                        <button type="button" :class="[actionButton, tealBtn, 'flex-1']"
+                            :disabled="locked || !canAffordBuyout" @click="emit('resolveMoveOut', true)">
+                            Pay {{ moveoutBuyout }}
+                        </button>
+                    </div>
+                    <p v-if="!canAffordBuyout" class="text-xs font-bold text-rose-400">
+                        You need {{ moveoutBuyout }} free points to leave.
+                    </p>
+                </template>
+
+                <template v-else>
+                    <button type="button" :class="[actionButton, ghostBtn, 'w-full']" :disabled="locked"
+                        @click="emit('leave')">
+                        Ask to leave
+                    </button>
+                    <p class="text-xs text-gray-x-light">
+                        Your landlord decides. Accepting costs you {{ rentPoints }} rent; refusing
+                        quotes you a price to go anyway.
+                    </p>
+                </template>
+            </section>
+
+            <section v-if="tenants.length" class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
+                <span :class="labelClass">Your tenants</span>
+                <div v-for="t in tenants" :key="t.agreementId"
+                    class="flex flex-col gap-2 rounded-xl border-2 px-3 py-2"
+                    :class="t.moveoutStatus === 'requested'
+                        ? 'border-amber-400/50 bg-amber-400/10'
+                        : 'border-gray-light'">
+                    <div class="flex items-center gap-2">
+                        <SeatToken :seat-index="t.tenantSeatIndex" size="sm" />
+                        <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-2x-light">
+                            {{ t.tenantName }}
+                        </span>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-x-light">
+                            {{ t.rentPoints }} · {{ turnsLabel(t.turnsUntilDue) }}
+                        </span>
+                    </div>
+
+                    <div v-if="t.moveoutStatus === 'requested'" class="flex gap-2">
+                        <button type="button" :class="[actionButton, ghostBtn, 'flex-1 py-1.5 text-xs']"
+                            :disabled="busy" @click="emit('respondMoveOut', { agreementId: t.agreementId, accept: false })">
+                            Refuse
+                        </button>
+                        <button type="button" :class="[actionButton, tealBtn, 'flex-1 py-1.5 text-xs']"
+                            :disabled="busy" @click="emit('respondMoveOut', { agreementId: t.agreementId, accept: true })">
+                            Let go for {{ t.rentPoints }}
+                        </button>
+                    </div>
+
+                    <button v-else type="button" :class="[actionButton, ghostBtn, 'w-full py-1.5 text-xs']"
+                        :disabled="busy" @click="emit('evict', t.agreementId)">
+                        Evict · forfeit {{ t.rentPoints }}
+                    </button>
+                </div>
             </section>
 
             <p v-if="!isHoused && !occupiable.length" class="text-xs text-gray-light">

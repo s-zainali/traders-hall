@@ -182,6 +182,13 @@ const onLeaveResidence = () =>
     runCredit('leave', games.leaveResidence && (() => games.leaveResidence(props.code)))
 const onRentOut = ({ cardType, rentPoints, intervalTurns }) =>
     runCredit('let a room', games.rentOut && (() => games.rentOut(props.code, cardType, rentPoints, intervalTurns)))
+const onRespondMoveOut = ({ agreementId, accept }) =>
+    runCredit('answer', games.respondMoveOut && (() => games.respondMoveOut(props.code, agreementId, accept)))
+const onResolveMoveOut = (leave) =>
+    runCredit('move out', games.resolveMoveOut && (() => games.resolveMoveOut(props.code, leave)))
+const onEvict = (agreementId) =>
+    runCredit('evict', games.evictTenant && (() => games.evictTenant(props.code, agreementId)))
+
 const onRentAsk = ({ rentPoints, intervalTurns }) =>
     runCredit('request a room', games.rentAsk && (() => games.rentAsk(props.code, rentPoints, intervalTurns)))
 
@@ -324,12 +331,16 @@ watch(
                     :residence="mine?.residenceCardType ?? ''" :rooms-total="mine?.roomsTotal ?? 0"
                     :rooms-free="mine?.roomsFree ?? 0" :is-tenant="!!me?.residenceLandlordId"
                     :rooms-by-card="me?.roomsByCard ?? {}" :rooms-pending-by-card="me?.roomsPendingByCard ?? {}"
+                    :moveout-status="me?.tenancy?.moveoutStatus ?? null"
+                    :moveout-buyout="me?.tenancy?.moveoutBuyout ?? 0"
+                    :available-points="availablePoints" :tenants="me?.tenants ?? []"
                     :residence-landlord-id="me?.residenceLandlordId ?? null"
                     :landlord-name="myLandlord?.displayName ?? ''"
                     :landlord-seat-index="myLandlord?.seatIndex ?? -1" :rent-points="myRentPoints"
                     :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
                     @eat="onEat" @move-in="onMoveIn" @leave-residence="onLeaveResidence" @rent-out="onRentOut"
-                    @rent-ask="onRentAsk" @cancel-operation="cancelAction"
+                    @rent-ask="onRentAsk" @respond-move-out="onRespondMoveOut"
+                    @resolve-move-out="onResolveMoveOut" @evict="onEvict" @cancel-operation="cancelAction"
                     @transaction="onTransaction" @end-turn="onEndTurn" />
             </div>
         </div>

@@ -434,3 +434,63 @@ async def resolve_moveout(
         event_type="tenancy.moveout_bought_out",
     )
     return game
+
+
+async def evict(
+    db: AsyncSession,
+    *,
+    user: User,
+    code: str,
+    agreement_id,
+    expected_state_version: int | None,
+) -> Game:
+    """End a tenancy from the landlord's side, charging nothing.
+
+    Deliberately asymmetric with a tenant leaving. A tenant walking out
+    mid-period owes the rent for the period they lived through; a landlord
+    turning someone out forfeits it. Whoever ends it early bears the cost of
+    ending it early.
+
+    Not turn-gated, like answering a move-out. It also clears any request in
+    flight: a landlord who evicts has answered by other means.
+    """
+    game = await _lock_game(db, code)
+    landlord = await _seat_of(db, game, user)
+    _check_version(game, expected_state_version)
+
+    agreement = await db.get(RentalAgreement, agreement_id)
+    if agreement is None or agreement.game_id != game.id:
+        raise ActionError("NO_TENANCY", "No such tenancy")
+    if agreement.landlord_player_id != landlord.id:
+        raise ActionError("NOT_LANDLORD", "That is not your property")
+    if agreement.status != "active":
+        raise ActionError("NO_TENANCY", "That tenancy has already ended")
+
+    tenant = await db.get(GamePlayer, agreement.tenant_player_id)
+
+    agreement.status = "ended"
+    agreement.ended_at = datetime.now(UTC)
+    agreement.moveout_status = None
+    agreement.moveout_buyout = None
+    agreement.moveout_turn = None
+
+    if tenant is not None:
+        tenant.residence_card_type = None
+        tenant.residence_landlord_id = None
+        tenant.rent_due = 0
+
+    # No ledger rows: nothing changed hands. The forfeited rent was never
+    # collected, so there is nothing to record.
+    await _append_event(
+        db, game,
+        event_type="tenancy.evicted",
+        actor_player_id=landlord.id,
+        payload={
+            "agreement_id": str(agreement.id),
+            "player_id": str(agreement.tenant_player_id),
+            "landlord_player_id": str(landlord.id),
+            "card_type": agreement.card_type,
+            "rent_forfeited": agreement.rent_points,
+        },
+    )
+    return game

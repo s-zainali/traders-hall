@@ -3,7 +3,7 @@
 from app.schemas.game_state import (
     GameInfo,
     GameStateOut,
-    MoveOutRequestOut,
+    TenantOut,
     PlayerPublic,
     TenancyOut,
     YouBlock,
@@ -47,11 +47,11 @@ def build_game_state(raw: dict) -> GameStateOut:
         else None
     )
 
-    # Only requests still waiting on an answer. A refused one is the tenant's
-    # decision now, and showing it to the landlord as actionable would offer a
-    # button that does nothing.
-    moveout_requests = [
-        MoveOutRequestOut(
+    # Every live tenancy of mine, whatever state it is in. The landlord can end
+    # any of them, so filtering to the ones asking to leave would hide the rest
+    # from the only player able to act on them.
+    tenants = [
+        TenantOut(
             agreement_id=a.id,
             tenant_player_id=a.tenant_player_id,
             tenant_name=by_seat[a.tenant_player_id].display_name
@@ -62,9 +62,11 @@ def build_game_state(raw: dict) -> GameStateOut:
             else -1,
             card_type=a.card_type,
             rent_points=a.rent_points,
+            turns_until_due=a.turns_until_due,
+            moveout_status=a.moveout_status,
         )
         for a in agreements
-        if a.landlord_player_id == me.id and a.moveout_status == "requested"
+        if a.landlord_player_id == me.id
     ]
 
     players = [
@@ -121,7 +123,7 @@ def build_game_state(raw: dict) -> GameStateOut:
             residence_landlord_id=me.residence_landlord_id,
             **_capacity(rooms.get(me.id), public=False),
             tenancy=tenancy,
-            moveout_requests=moveout_requests,
+            tenants=tenants,
             available_points=me.points - me.reserved_points,
         ),
         players=players,

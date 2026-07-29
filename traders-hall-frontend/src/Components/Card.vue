@@ -88,7 +88,7 @@ function onClick() {
         class="shrink-0 rounded-xl border-2 p-2 transition-colors duration-200 ease-in-out"
         :class="interactive ? 'cursor-pointer' : ''"
         @mouseenter="isHovered = true" @mouseleave="isHovered = false" @click="onClick">
-        <div class="h-5 w-5">
+        <div class="h-6 w-5">
             <div class="h-full w-full" :style="{
                 backgroundColor: accent,
                 mask: `url(${iconUrl}) no-repeat center / contain`,

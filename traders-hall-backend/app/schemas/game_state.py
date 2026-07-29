@@ -76,8 +76,12 @@ class TenancyOut(BaseModel):
     moveout_buyout: int | None = None
 
 
-class MoveOutRequestOut(BaseModel):
-    """A tenant of YOURS asking to leave."""
+class TenantOut(BaseModel):
+    """Somebody renting a room from YOU.
+
+    Every live tenancy, not only the ones asking to leave — a landlord can end
+    any of them, and moveout_status tells the client which need answering.
+    """
 
     agreement_id: uuid.UUID
     tenant_player_id: uuid.UUID
@@ -85,6 +89,9 @@ class MoveOutRequestOut(BaseModel):
     tenant_seat_index: int
     card_type: str
     rent_points: int
+    turns_until_due: int
+    # None | 'requested' | 'rejected'
+    moveout_status: str | None = None
 
 
 class YouBlock(BaseModel):
@@ -124,7 +131,7 @@ class YouBlock(BaseModel):
     # on `you` rather than the public block: a move-out is a negotiation between
     # two players, not table information.
     tenancy: TenancyOut | None = None
-    moveout_requests: list[MoveOutRequestOut] = []
+    tenants: list[TenantOut] = []
 
     # Spendable balance: points minus anything reserved against an open market
     # claim. The client needs this to disable controls correctly — showing the

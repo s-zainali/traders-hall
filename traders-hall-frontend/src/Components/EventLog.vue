@@ -206,7 +206,38 @@ const KINDS = {
         parts: (p) => [T('could not pay'), P(p.rent_points), T('rent to'), N(p.landlord_player_id),
         T(`— ${p.shortfall} short`)],
     },
-    'tenancy.ended': {
+    'tenancy.moveout_requested': {
+    icon: 'undo',
+    tone: 'text-amber-400',
+    parts: (p) => [T('asked'), N(p.landlord_player_id), T('to let them out of'), C(p.card_type, 1)],
+  },
+  'tenancy.moveout_accepted': {
+    icon: 'home',
+    tone: 'text-teal-light',
+    parts: (p) => [T('paid'), P(p.amount), T('to'), N(p.landlord_player_id), T('and moved out')],
+  },
+  'tenancy.moveout_rejected': {
+    icon: 'cross',
+    tone: 'text-rose-400',
+    parts: (p) => [T('refused to release'), N(p.player_id), T('— leaving now costs'), P(p.buyout)],
+  },
+  'tenancy.moveout_bought_out': {
+    icon: 'home',
+    tone: 'text-amber-400',
+    parts: (p) => [T('paid'), P(p.amount), T('to walk out on'), N(p.landlord_player_id)],
+  },
+  'tenancy.moveout_withdrawn': {
+    icon: 'home',
+    tone: 'text-gray-x-light',
+    parts: () => [T('decided to stay put')],
+  },
+  'tenancy.evicted': {
+    icon: 'cross',
+    tone: 'text-rose-400',
+    parts: (p) => [T('evicted'), N(p.player_id), T('from'), C(p.card_type, 1),
+                   T(`— ${p.rent_forfeited} rent forfeited`)],
+  },
+  'tenancy.ended': {
         icon: 'home',
         tone: 'text-gray-x-light',
         parts: (p) => [T('no longer rents'), C(p.card_type, 1), T('from'), N(p.landlord_player_id)],
