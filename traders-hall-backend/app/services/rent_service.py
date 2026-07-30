@@ -179,16 +179,18 @@ async def _charge(
     available = tenant.points - tenant.reserved_points
 
     if available < rent:
-        # The counter stays at zero so the debt is still visible and will be
-        # retried on the tenant's next turn.
-        #
-        # SEIZURE IS NOT IMPLEMENTED. The rule is that the tenant goes bankrupt
-        # and the LANDLORD chooses which cards to take, which needs a pending
-        # obligation the game freezes on while another player decides — plus
-        # elimination when the cards do not cover the debt. None of that exists
-        # yet, so this records the miss and changes nothing else rather than
-        # inventing a different penalty.
-        await _append_event(
+        # Points first, then cards. Whatever points they have go straight over —
+        # there is no reason to make the landlord pick those.
+        from app.services.elimination_service import eliminate, seizable_value
+
+        taken = available
+        shortfall = rent - taken
+
+        if taken > 0:
+            tenant.points -= taken
+            landlord.points += taken
+
+        event = await _append_event(
             db, game,
             event_type="rent.missed",
             actor_player_id=None,
@@ -198,8 +200,40 @@ async def _charge(
                 "landlord_player_id": str(landlord.id),
                 "card_type": agreement.card_type,
                 "rent_points": rent,
-                "available": available,
-                "shortfall": rent - available,
+                "points_taken": taken,
+                "shortfall": shortfall,
+            },
+        )
+        if taken > 0:
+            _ledger(db, game, event, player_id=tenant.id, entry_type="rent",
+                    points_delta=-taken)
+            _ledger(db, game, event, player_id=landlord.id, entry_type="rent",
+                    points_delta=taken)
+
+        # Can their cards cover the rest at all? If not the outcome is already
+        # decided, so there is nothing to freeze the game over and nothing for
+        # the landlord to choose between — everything they own goes to the
+        # landlord and they are out.
+        if await seizable_value(db, game, tenant) < shortfall:
+            await eliminate(db, game, tenant, reason="rent_default", creditor=landlord)
+            return
+
+        # Otherwise the landlord picks which cards to take, and the game waits.
+        # Freezing is what makes that decision safe: nobody can move value out
+        # from under it while it is pending.
+        agreement.seizure_debt = shortfall
+        game.phase = "seizure"
+        game.seizure_agreement_id = agreement.id
+
+        await _append_event(
+            db, game,
+            event_type="rent.seizure_opened",
+            actor_player_id=None,
+            payload={
+                "agreement_id": str(agreement.id),
+                "player_id": str(tenant.id),
+                "landlord_player_id": str(landlord.id),
+                "debt": shortfall,
             },
         )
         return

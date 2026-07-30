@@ -43,6 +43,10 @@ class RentalAgreement(Base):
             "moveout_buyout IS NULL OR moveout_status = 'rejected'",
             name="ck_rent_moveout_buyout_shape",
         ),
+        CheckConstraint(
+            "seizure_debt IS NULL OR seizure_debt > 0",
+            name="ck_rent_seizure_debt_positive",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -91,6 +95,12 @@ class RentalAgreement(Base):
     # Frozen when the landlord refuses, so a later rule change cannot reprice a
     # decision the tenant has already been quoted.
     moveout_buyout: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
+    )
+
+    # What is still owed once the tenant's points have been taken. Set only while
+    # a seizure is open, and cleared when it resolves.
+    seizure_debt: Mapped[int | None] = mapped_column(
         Integer, nullable=True, default=None
     )
 

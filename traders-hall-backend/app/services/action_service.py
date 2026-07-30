@@ -41,7 +41,9 @@ class ActionError(Exception):
 # ── shared plumbing ──────────────────────────────────────────────────
 
 
-async def _lock_game(db: AsyncSession, code: str) -> Game:
+async def _lock_game(
+    db: AsyncSession, code: str, *, allow_frozen: bool = False
+) -> Game:
     """Load the game and hold a row lock for the rest of the transaction.
 
     with_for_update() blocks any other request touching this game until we
@@ -55,6 +57,21 @@ async def _lock_game(db: AsyncSession, code: str) -> Game:
         raise ActionError("GAME_NOT_FOUND", "No game with that code")
     if game.status != "in_progress":
         raise ActionError("GAME_NOT_RUNNING", "That game is not in progress")
+
+    # The freeze is enforced in ONE place on purpose. Every mutation in every
+    # service goes through this function, so gating here means no action can slip
+    # past a pending seizure — and a new one cannot be added that forgets to
+    # check. allow_frozen is for the seizure resolution itself, which is the only
+    # thing that can end the freeze.
+    if game.phase == "seizure" and not allow_frozen:
+        raise ActionError(
+            "GAME_FROZEN",
+            "The game is paused while a landlord seizes cards",
+            agreement_id=str(game.seizure_agreement_id)
+            if game.seizure_agreement_id
+            else None,
+        )
+
     return game
 
 

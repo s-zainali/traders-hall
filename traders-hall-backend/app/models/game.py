@@ -42,6 +42,15 @@ class Game(Base):
     # concurrency token from the design doc
     state_version: Mapped[int] = mapped_column(default=0)
 
+    # Which tenancy the game is frozen on, if any. phase == 'seizure' and this
+    # being set travel together: the landlord is choosing which of their tenant's
+    # cards to take, and nothing else may move until they have.
+    seizure_agreement_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("rental_agreements.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

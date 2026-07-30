@@ -60,8 +60,12 @@ async def _tick_food(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
     would bury the log, and the panel already shows the counter in red.
     """
     if seat.food_due <= 0:
-        # Already out of food. The consequence of staying here is the open
-        # question below, not something to re-log each turn.
+        # Already at zero when the turn ended, which means they had a full turn
+        # to eat and did not. Holding grain is no defence — the counter is what
+        # keeps you alive, not the card.
+        from app.services.elimination_service import eliminate
+
+        await eliminate(db, game, seat, reason="starvation")
         return
 
     seat.food_due -= 1
@@ -75,16 +79,32 @@ async def _tick_food(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
         payload={"player_id": str(seat.id)},
     )
 
-    # ── starvation ───────────────────────────────────────────────────
-    # This is where the penalty goes. It is NOT implemented because the rule is
-    # "you lose the game", and losing does not exist yet: nothing sets
-    # status='eliminated', nothing releases an eliminated player's offers or
-    # skips their seat, and nothing decides what ends the match.
-    #
-    # game_players.status already has room for it and the frontend already
-    # renders an `eliminated` state, so the wiring is short — but it is the win
-    # condition, and inventing one silently would be worse than a counter that
-    # sits at zero.
+    # Reaching zero is survivable only if you hold food. Nothing eats for you,
+    # so a hand with no food at zero is the end of it.
+    if not await _has_food(db, game, seat):
+        from app.services.elimination_service import eliminate
+
+        await eliminate(db, game, seat, reason="starvation")
+
+
+async def _has_food(db: AsyncSession, game: Game, seat: GamePlayer) -> bool:
+    """Does this player hold anything they could actually eat?
+
+    Free cards only: grain promised to an open offer cannot also be dinner.
+    """
+    hands = list(await db.scalars(
+        select(PlayerHand).where(
+            PlayerHand.game_id == game.id,
+            PlayerHand.player_id == seat.id,
+        )
+    ))
+    for hand in hands:
+        card = cards.get(hand.card_type)
+        if card is None or not card.nutrition_turns:
+            continue
+        if hand.quantity - hand.reserved_quantity > 0:
+            return True
+    return False
 
 
 async def _settle_loan(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
@@ -160,14 +180,23 @@ async def _settle_loan(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
     # JSONB is not mutation-tracked by SQLAlchemy: reassigning the whole dict is
     # what marks the attribute dirty. Mutating payload["seized_cards"] in place
     # would be silently dropped at flush.
+    outstanding = max(0, shortfall - recovered)
     event.payload = {
         **event.payload,
         "seized_cards": seized_cards,
-        "written_off": max(0, shortfall - recovered),
+        "written_off": outstanding,
     }
 
     seat.loan_outstanding = 0
     seat.loan_due = 0
+
+    # Losing everything is survivable; still being short after the bank has taken
+    # everything it can is not. Nothing remains to collect from, so the debt is
+    # not carried — the player is.
+    if outstanding > 0:
+        from app.services.elimination_service import eliminate
+
+        await eliminate(db, game, seat, reason="loan_default")
 
 
 async def _seize_property(
