@@ -380,7 +380,7 @@ watch(
 
                 <DiceSection :can-roll="me?.canRollIncome ?? false" :dice="me?.lastDice ?? []"
                     :income="me?.lastIncome ?? 0" :busy="acting" :others="otherRolls"
-                    @roll="onRollIncome" />
+                    @roll="onRollIncome" :isMyTurn="isMyTurn" />
                 </div>
 
                 <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"

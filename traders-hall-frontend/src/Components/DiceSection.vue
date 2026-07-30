@@ -20,6 +20,7 @@ const props = defineProps({
     dice: { type: Array, default: () => [] },
     income: { type: Number, default: 0 },
     busy: { type: Boolean, default: false },
+    isMyTurn : { type: Boolean},
     // opponents' most recent rolls, so the table can see everyone's luck
     others: { type: Array, default: () => [] },
 })
@@ -107,8 +108,8 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
                 </div>
             </div>
 
-            <div class="flex min-w-0 flex-1 flex-col leading-tight">
-                <span class="text-[10px] font-bold uppercase tracking-widest text-gray-light">
+            <div class="flex flex-1 flex-col leading-tight">
+                <span class="text-[10px] mb-2 font-bold uppercase tracking-widest text-gray-light">
                     {{ dice.length ? `Rolled ${total}` : 'Not rolled' }}
                 </span>
                 <span v-if="dice.length" class="flex items-center gap-1.5">
@@ -118,6 +119,9 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
                 <span v-else class="text-xs text-gray-x-light">Two dice, once a round.</span>
             </div>
 
+            <p v-if="!canRoll && dice.length" class="text-[10px] font-bold uppercase tracking-widest text-gray-light">
+                {{ isMyTurn? 'Taken this round': 'Not Your Turn' }}
+            </p>
             <button type="button" :disabled="!canRoll || busy || tumbling" @click="roll"
                 class="shrink-0 rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
                 :class="canRoll && !busy && !tumbling
@@ -127,9 +131,6 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
             </button>
         </div>
 
-        <p v-if="!canRoll && dice.length" class="text-[10px] font-bold uppercase tracking-widest text-gray-light">
-            Taken this round
-        </p>
 
         <!-- Everyone else's last roll. Income is public, and knowing a rival just
              pulled 3 is part of reading the table. -->
