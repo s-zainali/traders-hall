@@ -3,6 +3,7 @@
 from app.schemas.game_state import (
     GameInfo,
     GameStateOut,
+    SeizureOut,
     TenantOut,
     PlayerPublic,
     TenancyOut,
@@ -30,6 +31,36 @@ def build_game_state(raw: dict) -> GameStateOut:
     agreements = raw.get("agreements", [])
 
     by_seat = {p.id: p for p in game.players}
+
+    # Exactly one active seat remains once a game completes, and that is the
+    # winner.
+    active = [p for p in game.players if p.status == "active"]
+    winner = active[0] if game.status == "completed" and len(active) == 1 else None
+
+    frozen = next(
+        (a for a in agreements if a.id == game.seizure_agreement_id),
+        None,
+    ) if game.phase == "seizure" and game.seizure_agreement_id else None
+
+    seizure = None
+    if frozen is not None:
+        debtor = by_seat.get(frozen.tenant_player_id)
+        landlord = by_seat.get(frozen.landlord_player_id)
+        is_mine = frozen.landlord_player_id == me.id
+        seizure = SeizureOut(
+            agreement_id=frozen.id,
+            debtor_player_id=frozen.tenant_player_id,
+            debtor_name=debtor.display_name if debtor else "Unknown",
+            debtor_seat_index=debtor.seat_index if debtor else -1,
+            landlord_player_id=frozen.landlord_player_id,
+            landlord_name=landlord.display_name if landlord else "Unknown",
+            landlord_seat_index=landlord.seat_index if landlord else -1,
+            debt=frozen.seizure_debt or 0,
+            card_type=frozen.card_type,
+            mine=is_mine,
+            # Only the landlord gets the list; it is theirs to choose from.
+            seizable=raw.get("seizable", {}) if is_mine else {},
+        )
 
     mine = next((a for a in agreements if a.tenant_player_id == me.id), None)
     tenancy = (
@@ -104,6 +135,8 @@ def build_game_state(raw: dict) -> GameStateOut:
             max_players=game.max_players,
             host_user_id=game.host_user_id,
             started_at=game.started_at,
+            winner_player_id=winner.id if winner else None,
+            winner_name=winner.display_name if winner else None,
         ),
         bank=pools,
         you=YouBlock(
@@ -114,6 +147,8 @@ def build_game_state(raw: dict) -> GameStateOut:
             food_due=me.food_due,
             rent_due=me.rent_due,
             is_my_turn=game.current_player_id == me.id,
+            status=me.status,
+            seizure=seizure,
             loan_outstanding=me.loan_outstanding,
             loan_due=me.loan_due,
             mortgage_card_type=me.mortgage_card_type,

@@ -303,12 +303,25 @@ async def get_game_state(db: AsyncSession, *, user: User, code: str) -> dict:
     # landlord who is asking to leave. One query rather than one per player.
     from app.models.rental_agreement import RentalAgreement
 
+    seizable: dict[str, int] = {}
+
     agreements = list(await db.scalars(
         select(RentalAgreement).where(
             RentalAgreement.game_id == game.id,
             RentalAgreement.status == "active",
         )
     ))
+
+    if game.phase == "seizure" and game.seizure_agreement_id:
+        frozen = next((a for a in agreements if a.id == game.seizure_agreement_id), None)
+        if frozen is not None and frozen.landlord_player_id == me.id:
+            from app.services.seizure_service import seizable_hand
+
+            debtor = next(
+                (p for p in game.players if p.id == frozen.tenant_player_id), None
+            )
+            if debtor is not None:
+                seizable = await seizable_hand(db, game, debtor)
 
     return {
         "game": game,
@@ -317,4 +330,7 @@ async def get_game_state(db: AsyncSession, *, user: User, code: str) -> dict:
         "me": me,
         "rooms": rooms,
         "agreements": agreements,
+        # Only meaningful while frozen, and only for the landlord — computed here
+        # because the projection is synchronous and this needs a query.
+        "seizable": seizable,
     }

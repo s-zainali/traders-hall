@@ -22,6 +22,11 @@ class GameInfo(BaseModel):
     max_players: int
     host_user_id: uuid.UUID
     started_at: datetime | None
+    # Derived, not stored: when a game completes there is exactly one active
+    # player left, and that is the winner. Storing it would be a second source of
+    # truth for something the seats already say.
+    winner_player_id: uuid.UUID | None = None
+    winner_name: str | None = None
 
 
 class PlayerPublic(BaseModel):
@@ -76,6 +81,29 @@ class TenancyOut(BaseModel):
     moveout_buyout: int | None = None
 
 
+class SeizureOut(BaseModel):
+    """The seizure the game is frozen on.
+
+    Sent to everyone, not just the landlord: every other player needs to know why
+    nothing responds, and who they are waiting for.
+    """
+
+    agreement_id: uuid.UUID
+    debtor_player_id: uuid.UUID
+    debtor_name: str
+    debtor_seat_index: int
+    landlord_player_id: uuid.UUID
+    landlord_name: str
+    landlord_seat_index: int
+    debt: int
+    card_type: str
+    # True when the recipient is the one who has to choose.
+    mine: bool = False
+    # What may be taken: free cards with a sell value. Only populated for the
+    # landlord — it is their hand to pick from, and nobody else needs the list.
+    seizable: dict[str, int] = {}
+
+
 class TenantOut(BaseModel):
     """Somebody renting a room from YOU.
 
@@ -109,6 +137,10 @@ class YouBlock(BaseModel):
     food_due: int
     rent_due: int
     is_my_turn: bool
+    # 'active' | 'eliminated' | 'resigned'. On `you` as well as in `players`
+    # because the defeat screen keys off it and should not have to find itself in
+    # a list.
+    status: str = "active"
 
     # --- credit ---
     loan_outstanding: int
@@ -130,6 +162,10 @@ class YouBlock(BaseModel):
     # The tenancy you are in, and any your tenants are trying to end. Both are
     # on `you` rather than the public block: a move-out is a negotiation between
     # two players, not table information.
+    # Set only while the game is frozen. Its presence IS the freeze, so the
+    # client does not have to interpret game.phase.
+    seizure: SeizureOut | None = None
+
     tenancy: TenancyOut | None = None
     tenants: list[TenantOut] = []
 
