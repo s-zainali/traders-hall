@@ -33,7 +33,7 @@ const year = new Date().getFullYear()
           href="https://www.linkedin.com/in/s-zain-ali/"
           target="_blank"
           rel="noopener noreferrer"
-          class="zain-wordmark text-xl font-black uppercase tracking-[0.3em] pl-[0.3em] transition-transform duration-300 group-hover:scale-105"
+          class="zain-wordmark text-xl font-black uppercase tracking-[0.3em] pl-[0.3em] transition-transform duration-300 group-hover:scale-115"
         >
           Zain
         </a>
