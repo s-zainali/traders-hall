@@ -13,10 +13,11 @@ defineEmits(['retry'])
     <template v-if="error">
       <p class="text-rose-400 font-bold">{{ error }}</p>
       <button
-        class="px-6 py-3 rounded-xl font-bold cursor-pointer bg-gray-2x-light text-gray-dark
-               hover:scale-105 transition duration-300 ease-in-out"
+        class="px-6 py-3 rounded-xl font-bold cursor-pointer bg-gray-2x-light text-gray-dark hover:scale-105 transition duration-300 ease-in-out"
         @click="$emit('retry')"
-      >Retry</button>
+      >
+        Retry
+      </button>
     </template>
 
     <template v-else>

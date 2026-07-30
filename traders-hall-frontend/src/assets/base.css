@@ -1,49 +1,48 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @source "../**/*.{vue,js,ts,jsx,tsx}";
 @source "../../index.html";
 
 @theme static {
-    /* Single named colors */
-    --color-gray-dark: #101318;
-    /* --color-gray-dark: #1B222B; */
-    /* --color-gray-dark: #222831; */
-    --color-gray-x-dark: #161A20;
-    --color-gray-light: #40464C;
-    --color-gray-x-light: #9199A2;
-    --color-gray-2x-light: #CAD1D8;
-    --color-cream-dark: #948979;
-    --color-cream-light: #DFD0B8;
-    --color-purple-light: #BB97FF;
-    --color-purple-dark: #7E41C7;
-    --color-teal-light: #60A99C;
-    --color-teal-dark: #2D6E62;
-    --color-blue-light: #75CDFF;
-    --color-blue-dark: #3E7CA9;
-    --color-green-dark: #398A7B;
-    --color-green-light: #64B8A9;
+  /* Single named colors */
+  --color-gray-dark: #101318;
+  /* --color-gray-dark: #1B222B; */
+  /* --color-gray-dark: #222831; */
+  --color-gray-x-dark: #161a20;
+  --color-gray-light: #40464c;
+  --color-gray-x-light: #9199a2;
+  --color-gray-2x-light: #cad1d8;
+  --color-cream-dark: #948979;
+  --color-cream-light: #dfd0b8;
+  --color-purple-light: #bb97ff;
+  --color-purple-dark: #7e41c7;
+  --color-teal-light: #60a99c;
+  --color-teal-dark: #2d6e62;
+  --color-blue-light: #75cdff;
+  --color-blue-dark: #3e7ca9;
+  --color-green-dark: #398a7b;
+  --color-green-light: #64b8a9;
 
-    /* Color scale shades */
-    --color-chocolate-50: #fbf7f5;
-    --color-chocolate-500: #7c2d12;
-    --color-chocolate-900: #431407;
-
+  /* Color scale shades */
+  --color-chocolate-50: #fbf7f5;
+  --color-chocolate-500: #7c2d12;
+  --color-chocolate-900: #431407;
 }
 
 html,
 body,
 #app {
-    background-color: var(--color-gray-dark);
-    min-height: 100dvh;
+  background-color: var(--color-gray-dark);
+  min-height: 100dvh;
 }
 
 body {
-    color: var(--color-gray-2x-light);
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+  color: var(--color-gray-2x-light);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Dark scrollbars, so they do not read as a bright seam on a dark page. */
 * {
-    scrollbar-color: var(--color-gray-light) transparent;
+  scrollbar-color: var(--color-gray-light) transparent;
 }

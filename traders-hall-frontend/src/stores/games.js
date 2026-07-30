@@ -271,7 +271,7 @@ export const useGamesStore = defineStore('games', () => {
                 ...extra,
               })
             : undefined,
-        }
+        },
       )
       state.value = toState(fresh)
       await fetchOffers(code)
@@ -316,16 +316,21 @@ export const useGamesStore = defineStore('games', () => {
 
   const rentOut = (code, cardType, rentPoints, intervalTurns) =>
     postOffer(code, {
-      kind: 'rent_out', offer_card_type: cardType, offer_quantity: 1,
-      price_points: rentPoints, rent_interval_turns: intervalTurns,
+      kind: 'rent_out',
+      offer_card_type: cardType,
+      offer_quantity: 1,
+      price_points: rentPoints,
+      rent_interval_turns: intervalTurns,
     })
 
   // No card: the request goes to every landlord, and whoever answers names the
   // property themselves.
   const rentAsk = (code, rentPoints, intervalTurns) =>
     postOffer(code, {
-      kind: 'rent_ask', offer_quantity: 1,
-      price_points: rentPoints, rent_interval_turns: intervalTurns,
+      kind: 'rent_ask',
+      offer_quantity: 1,
+      price_points: rentPoints,
+      rent_interval_turns: intervalTurns,
     })
 
   const moveIn = (code, cardType) => act(code, 'move-in', { card_type: cardType })
@@ -344,8 +349,7 @@ export const useGamesStore = defineStore('games', () => {
   const resolveMoveOut = (code, leave) => act(code, 'moveout-resolve', { leave })
 
   // Landlord ends it early and forfeits the rent for the period.
-  const evictTenant = (code, agreementId) =>
-    act(code, 'evict', { agreement_id: agreementId })
+  const evictTenant = (code, agreementId) => act(code, 'evict', { agreement_id: agreementId })
 
   const tradeOffer = (code, cardType, quantity, wantCardType, wantQuantity) =>
     postOffer(code, {
@@ -494,7 +498,7 @@ export const useGamesStore = defineStore('games', () => {
     error.value = null
     try {
       current.value = toGame(
-        await apiJson(`/api/v1/games/${code.toUpperCase()}/start`, { method: 'POST' })
+        await apiJson(`/api/v1/games/${code.toUpperCase()}/start`, { method: 'POST' }),
       )
       return current.value
     } catch (e) {
@@ -549,15 +553,55 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   return {
-    myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
-    busy, acting, error, stateError, actionError,
-    events, lastSeq, sendingChat, offers,
-    fetchMine, fetchState, fetchEvents, fetchOffers, sendChat, clearState, act,
-    buyFromBank, sellToBank, endTurn, eatFood,
-    borrow, repayLoan, openMortgage, redeemMortgage,
-    sellOffer, tradeOffer, rentOut, rentAsk, moveIn, leaveResidence,
-    respondMoveOut, resolveMoveOut, evictTenant,
-    claimOffer, unclaimOffer, declineOffer, confirmOffer, cancelOffer,
-    createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
+    myGames,
+    current,
+    state,
+    loadingMine,
+    hasLoadedMine,
+    hasLoadedState,
+    busy,
+    acting,
+    error,
+    stateError,
+    actionError,
+    events,
+    lastSeq,
+    sendingChat,
+    offers,
+    fetchMine,
+    fetchState,
+    fetchEvents,
+    fetchOffers,
+    sendChat,
+    clearState,
+    act,
+    buyFromBank,
+    sellToBank,
+    endTurn,
+    eatFood,
+    borrow,
+    repayLoan,
+    openMortgage,
+    redeemMortgage,
+    sellOffer,
+    tradeOffer,
+    rentOut,
+    rentAsk,
+    moveIn,
+    leaveResidence,
+    respondMoveOut,
+    resolveMoveOut,
+    evictTenant,
+    claimOffer,
+    unclaimOffer,
+    declineOffer,
+    confirmOffer,
+    cancelOffer,
+    createGame,
+    joinGame,
+    fetchGame,
+    startGame,
+    closeGame,
+    leaveGame,
   }
 })

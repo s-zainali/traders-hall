@@ -17,13 +17,61 @@
   exceed it no matter how wide the viewport is.
 */
 const floaters = [
-  { top: '12%', left: '8%',   size: 'lg', color: 'purple', rotate: -14, delay: '0s',   duration: '13s' },
-  { top: '62%', left: '4%',   size: 'md', color: 'cream',  rotate: 9,   delay: '-4s',  duration: '16s' },
-  { top: '22%', right: '14%', size: 'lg', color: 'teal',   rotate: 12,  delay: '-8s',  duration: '14s' },
-  { top: '68%', right: '6%',  size: 'md', color: 'purple', rotate: -8,  delay: '-2s',  duration: '17s' },
-  { top: '44%', right: '2%',  size: 'sm', color: 'cream',  rotate: 18,  delay: '-11s', duration: '11s' },
-  { top: '80%', left: '46%',  size: 'sm', color: 'teal',   rotate: -20, delay: '-6s',  duration: '18s' },
-  { top: '6%',  left: '52%',  size: 'sm', color: 'purple', rotate: 22,  delay: '-14s', duration: '12s' },
+  {
+    top: '12%',
+    left: '8%',
+    size: 'lg',
+    color: 'purple',
+    rotate: -14,
+    delay: '0s',
+    duration: '13s',
+  },
+  { top: '62%', left: '4%', size: 'md', color: 'cream', rotate: 9, delay: '-4s', duration: '16s' },
+  {
+    top: '22%',
+    right: '14%',
+    size: 'lg',
+    color: 'teal',
+    rotate: 12,
+    delay: '-8s',
+    duration: '14s',
+  },
+  {
+    top: '68%',
+    right: '6%',
+    size: 'md',
+    color: 'purple',
+    rotate: -8,
+    delay: '-2s',
+    duration: '17s',
+  },
+  {
+    top: '44%',
+    right: '2%',
+    size: 'sm',
+    color: 'cream',
+    rotate: 18,
+    delay: '-11s',
+    duration: '11s',
+  },
+  {
+    top: '80%',
+    left: '46%',
+    size: 'sm',
+    color: 'teal',
+    rotate: -20,
+    delay: '-6s',
+    duration: '18s',
+  },
+  {
+    top: '6%',
+    left: '52%',
+    size: 'sm',
+    color: 'purple',
+    rotate: 22,
+    delay: '-14s',
+    duration: '12s',
+  },
 ]
 
 const sizes = { sm: 'w-16 h-22', md: 'w-24 h-32', lg: 'w-32 h-44' }
@@ -44,7 +92,6 @@ function place(f) {
 
 <template>
   <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-
     <div class="aurora aurora-a"></div>
     <div class="aurora aurora-b"></div>
     <div class="aurora aurora-c"></div>
@@ -60,27 +107,25 @@ function place(f) {
     <!-- deliberately NOT inset-0 — see .glow-layer -->
     <!-- <div class="glow-layer absolute"></div> -->
 
-
     <div class="absolute inset-x-0 top-[35rem] h-px sweep-line"></div>
     <div class="absolute inset-x-0 top-[61rem] h-px sweep-line sweep-line-delayed"></div>
-    
-    
+
     <!-- drifting cards: each on its own loop, offset by a negative delay so
     they start mid-cycle instead of all rising together -->
 
     <div class="relative w-full h-[150dvh]">
-        <div
-          v-for="(f, i) in floaters"
-          :key="i"
-          class="floater absolute rounded-2xl border-4"
-          :class="[sizes[f.size], palettes[f.color]]"
-          :style="{
-            ...place(f),
-            '--rot': `${f.rotate}deg`,
-            animationDelay: f.delay,
-            animationDuration: f.duration,
-          }"
-        ></div>
+      <div
+        v-for="(f, i) in floaters"
+        :key="i"
+        class="floater absolute rounded-2xl border-4"
+        :class="[sizes[f.size], palettes[f.color]]"
+        :style="{
+          ...place(f),
+          '--rot': `${f.rotate}deg`,
+          animationDelay: f.delay,
+          animationDuration: f.duration,
+        }"
+      ></div>
     </div>
 
     <!-- framing accents, so the viewport reads as composed rather than cropped -->
@@ -107,36 +152,54 @@ function place(f) {
 }
 
 .aurora-a {
-  width: 46rem; height: 34rem;
-  top: 0rem; left: -10rem;
+  width: 46rem;
+  height: 34rem;
+  top: 0rem;
+  left: -10rem;
   background: radial-gradient(circle, var(--color-purple-light), transparent 65%);
   animation: aurora-a 34s ease-in-out infinite alternate;
 }
 .aurora-b {
-  width: 40rem; height: 40rem;
-  top: 7rem; right: -12rem;
+  width: 40rem;
+  height: 40rem;
+  top: 7rem;
+  right: -12rem;
   background: radial-gradient(circle, var(--color-teal-light), transparent 65%);
   animation: aurora-b 41s ease-in-out infinite alternate;
 }
 .aurora-c {
-  width: 52rem; height: 30rem;
-  bottom: -14rem; left: 25%;
+  width: 52rem;
+  height: 30rem;
+  bottom: -14rem;
+  left: 25%;
   background: radial-gradient(circle, var(--color-cream-dark), transparent 68%);
   animation: aurora-c 47s ease-in-out infinite alternate;
   opacity: 0.2;
 }
 
 @keyframes aurora-a {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(6rem, 4rem, 0) scale(1.18); }
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6rem, 4rem, 0) scale(1.18);
+  }
 }
 @keyframes aurora-b {
-  from { transform: translate3d(0, 0, 0) scale(1.1); }
-  to   { transform: translate3d(-5rem, 6rem, 0) scale(0.92); }
+  from {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  to {
+    transform: translate3d(-5rem, 6rem, 0) scale(0.92);
+  }
 }
 @keyframes aurora-c {
-  from { transform: translate3d(0, 0, 0) scale(0.95); }
-  to   { transform: translate3d(-7rem, -3rem, 0) scale(1.15); }
+  from {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  to {
+    transform: translate3d(-7rem, -3rem, 0) scale(1.15);
+  }
 }
 
 /* ── dot matrix ───────────────────────────────────────────── */
@@ -189,8 +252,16 @@ function place(f) {
 }
 
 @keyframes floor-travel {
-  from { background-position: 0 0, 0 0; }
-  to   { background-position: 0 0, 0 5rem; }
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      0 0,
+      0 5rem;
+  }
 }
 
 /* ── glows ────────────────────────────────────────────────── */
@@ -205,15 +276,31 @@ function place(f) {
 .glow-layer {
   inset: -10%;
   background:
-    radial-gradient(60rem 40rem at 15% 20%, color-mix(in oklab, var(--color-purple-light) 20%, transparent), transparent 70%),
-    radial-gradient(50rem 35rem at 85% 25%, color-mix(in oklab, var(--color-teal-light) 18%, transparent), transparent 70%),
-    radial-gradient(70rem 45rem at 50% 100%, color-mix(in oklab, var(--color-cream-dark) 10%, transparent), transparent 70%);
+    radial-gradient(
+      60rem 40rem at 15% 20%,
+      color-mix(in oklab, var(--color-purple-light) 20%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50rem 35rem at 85% 25%,
+      color-mix(in oklab, var(--color-teal-light) 18%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      70rem 45rem at 50% 100%,
+      color-mix(in oklab, var(--color-cream-dark) 10%, transparent),
+      transparent 70%
+    );
   animation: glow-drift 24s ease-in-out infinite alternate;
 }
 
 @keyframes glow-drift {
-  from { transform: translate3d(-1.5%, -1%, 0) scale(1); }
-  to   { transform: translate3d(1.5%, 1%, 0) scale(1.06); }
+  from {
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(1.5%, 1%, 0) scale(1.06);
+  }
 }
 
 /* ── drifting cards ───────────────────────────────────────── */
@@ -249,8 +336,12 @@ function place(f) {
 /* travel roughly doubled, rotation doubled, and the durations above cut by a
    third — noticeably livelier without becoming distracting */
 @keyframes float {
-  from { transform: translate3d(-14px, -28px, 0) rotate(calc(var(--rot) - 3deg)); }
-  to   { transform: translate3d(14px, 28px, 0) rotate(calc(var(--rot) + 3deg)); }
+  from {
+    transform: translate3d(-14px, -28px, 0) rotate(calc(var(--rot) - 3deg));
+  }
+  to {
+    transform: translate3d(14px, 28px, 0) rotate(calc(var(--rot) + 3deg));
+  }
 }
 
 /* ── corner brackets ──────────────────────────────────────── */
@@ -262,10 +353,34 @@ function place(f) {
   border-color: color-mix(in oklab, var(--color-teal-light) 45%, transparent);
   opacity: 0.5;
 }
-.bracket-tl { top: 1.25rem; left: 1.25rem;  border-top: 2px solid; border-left: 2px solid;  border-top-left-radius: 1rem; }
-.bracket-tr { top: 1.25rem; right: 1.25rem; border-top: 2px solid; border-right: 2px solid; border-top-right-radius: 1rem; }
-.bracket-bl { bottom: 1.25rem; left: 1.25rem;  border-bottom: 2px solid; border-left: 2px solid;  border-bottom-left-radius: 1rem; }
-.bracket-br { bottom: 1.25rem; right: 1.25rem; border-bottom: 2px solid; border-right: 2px solid; border-bottom-right-radius: 1rem; }
+.bracket-tl {
+  top: 1.25rem;
+  left: 1.25rem;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: 1rem;
+}
+.bracket-tr {
+  top: 1.25rem;
+  right: 1.25rem;
+  border-top: 2px solid;
+  border-right: 2px solid;
+  border-top-right-radius: 1rem;
+}
+.bracket-bl {
+  bottom: 1.25rem;
+  left: 1.25rem;
+  border-bottom: 2px solid;
+  border-left: 2px solid;
+  border-bottom-left-radius: 1rem;
+}
+.bracket-br {
+  bottom: 1.25rem;
+  right: 1.25rem;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+  border-bottom-right-radius: 1rem;
+}
 
 /* ── sweeping light lines ─────────────────────────────────── */
 
@@ -279,22 +394,29 @@ function place(f) {
   animation: line-sweep 14s ease-in-out infinite;
   opacity: 0;
 }
-.sweep-line-delayed { animation-delay: 7s; }
+.sweep-line-delayed {
+  animation-delay: 7s;
+}
 
 @keyframes line-sweep {
-  0%        { transform: translateX(-100%); opacity: 0; }
-  15%, 70%  { opacity: 0.5; }
-  100%      { transform: translateX(100%); opacity: 0; }
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
 }
 
 /* ── overlays ─────────────────────────────────────────────── */
 
 .scanlines {
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0 3px,
-    rgb(0 0 0 / 0.12) 3px 4px
-  );
+  background: repeating-linear-gradient(to bottom, transparent 0 3px, rgb(0 0 0 / 0.12) 3px 4px);
   opacity: 0.35;
   mix-blend-mode: multiply;
 }
@@ -316,7 +438,11 @@ function place(f) {
   .glow-layer,
   .floater,
   .floor,
-  .sweep-line { animation: none; }
-  .sweep-line { opacity: 0.25; }
+  .sweep-line {
+    animation: none;
+  }
+  .sweep-line {
+    opacity: 0.25;
+  }
 }
 </style>

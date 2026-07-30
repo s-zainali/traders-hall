@@ -10,16 +10,14 @@ import { ref, computed } from 'vue'
  */
 export const useCardTypesStore = defineStore('cardTypes', () => {
   // ---- state ----
-  const byCode = ref({})        // { house: {...}, rice: {...}, ... }
-  const loaded = ref(false)     // true once a fetch has succeeded
-  const loading = ref(false)    // true while a fetch is in flight
+  const byCode = ref({}) // { house: {...}, rice: {...}, ... }
+  const loaded = ref(false) // true once a fetch has succeeded
+  const loading = ref(false) // true while a fetch is in flight
   const error = ref(null)
 
   // ---- getters ----
   // sorted list, for anywhere that needs to iterate the catalogue
-  const all = computed(() =>
-    Object.values(byCode.value).sort((a, b) => a.sortOrder - b.sortOrder)
-  )
+  const all = computed(() => Object.values(byCode.value).sort((a, b) => a.sortOrder - b.sortOrder))
 
   // ---- actions ----
   async function fetchAll() {
@@ -56,7 +54,7 @@ export const useCardTypesStore = defineStore('cardTypes', () => {
             isTradeable: c.is_tradeable,
             sortOrder: c.sort_order,
           },
-        ])
+        ]),
       )
 
       loaded.value = true

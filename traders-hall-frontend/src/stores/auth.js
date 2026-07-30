@@ -9,7 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem(ACCESS_KEY))
   const refreshToken = ref(localStorage.getItem(REFRESH_KEY))
   const user = ref(null)
-  const ready = ref(false)      // true once we've settled whether a session exists
+  const ready = ref(false) // true once we've settled whether a session exists
   const error = ref(null)
 
   const isAuthenticated = computed(() => user.value !== null)
@@ -60,14 +60,14 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
   }
-  
+
   async function register(username, password, email, displayName) {
     error.value = null
     try {
       const tokens = await post('/api/v1/auth/register', {
         username,
         password,
-        email: email || null,        // '' would fail EmailStr validation
+        email: email || null, // '' would fail EmailStr validation
         display_name: displayName || null,
       })
       setTokens(tokens.access_token, tokens.refresh_token)
@@ -81,7 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refresh() {
     if (!refreshToken.value) return false
-    if (refreshPromise) return refreshPromise   // join the in-flight one
+    if (refreshPromise) return refreshPromise // join the in-flight one
 
     refreshPromise = (async () => {
       try {
@@ -114,8 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout() {
     if (refreshToken.value) {
-      await post('/api/v1/auth/logout', { refresh_token: refreshToken.value })
-        .catch(() => {})   // clear locally regardless of what the server says
+      await post('/api/v1/auth/logout', { refresh_token: refreshToken.value }).catch(() => {}) // clear locally regardless of what the server says
     }
     clear()
   }
@@ -127,7 +126,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    accessToken, refreshToken, user, ready, error, isAuthenticated,
-    register, login, logout, refresh, fetchMe, init, clear,
+    accessToken,
+    refreshToken,
+    user,
+    ready,
+    error,
+    isAuthenticated,
+    register,
+    login,
+    logout,
+    refresh,
+    fetchMe,
+    init,
+    clear,
   }
 })

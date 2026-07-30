@@ -52,7 +52,7 @@ export async function apiJson(path, options = {}) {
       `HTTP ${response.status}`
     const error = new Error(message)
     error.status = response.status
-    error.code = detail?.code            // e.g. GAME_FULL, NOT_HOST
+    error.code = detail?.code // e.g. GAME_FULL, NOT_HOST
     throw error
   }
 

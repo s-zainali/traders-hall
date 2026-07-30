@@ -2,8 +2,8 @@
 import { computed, useSlots, Fragment, Comment, Text } from 'vue'
 
 const props = defineProps({
-  maxVisible: { type: Number, default: 5 },  // how many cards are actually rendered/stacked
-  contentSmall: { type: Boolean, default: false }
+  maxVisible: { type: Number, default: 5 }, // how many cards are actually rendered/stacked
+  contentSmall: { type: Boolean, default: false },
 })
 
 const offsetX = props.contentSmall ? 4 : 7
@@ -43,8 +43,12 @@ const deckPadding = computed(() => ({
 </script>
 
 <template>
-  <div v-if="total !== 0" class="inline-flex items-center" :class="[(isSmallPoint ? 'flex-row-reverse' : 'flex-col'), (contentSmall? 'gap-1' : 'gap-2')]">
-    <span class="font-bold text-gray-x-light" :class="contentSmall? 'text-xs' : ''">
+  <div
+    v-if="total !== 0"
+    class="inline-flex items-center"
+    :class="[isSmallPoint ? 'flex-row-reverse' : 'flex-col', contentSmall ? 'gap-1' : 'gap-2']"
+  >
+    <span class="font-bold text-gray-x-light" :class="contentSmall ? 'text-xs' : ''">
       {{ total }} {{ contentSmall ? '' : total === 1 ? 'card' : 'cards' }}
     </span>
     <div class="relative" :style="deckPadding">

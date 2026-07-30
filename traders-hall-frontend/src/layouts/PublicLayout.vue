@@ -37,7 +37,9 @@ const fitViewport = computed(() => route.meta.fitViewport === true)
 <style scoped>
 .page-enter-active,
 .page-leave-active {
-  transition: opacity 250ms ease, transform 250ms ease;
+  transition:
+    opacity 250ms ease,
+    transform 250ms ease;
 }
 .page-enter-from {
   opacity: 0;
@@ -50,6 +52,8 @@ const fitViewport = computed(() => route.meta.fitViewport === true)
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter-active,
-  .page-leave-active { transition: none; }
+  .page-leave-active {
+    transition: none;
+  }
 }
 </style>
