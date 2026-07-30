@@ -66,13 +66,13 @@ function onClick() {
 <template>
   <div v-if="large" class="flex flex-col items-center">
     <div
-      class="flex h-[7rem] w-[5.5rem] shrink-0 cursor-pointer flex-col items-center justify-between rounded-xl border-4 p-3 transition duration-300 ease-in-out hover:scale-110"
+      class="flex h-[7.5rem] w-[5.5rem] shrink-0 cursor-pointer flex-col items-center justify-between rounded-2xl border-4 p-3 transition duration-300 ease-in-out hover:scale-110"
       :style="{ borderColor: accent, backgroundColor: background }"
       @mouseenter="isHovered = true"
       @mouseleave="isHovered = false"
       @click="onClick"
     >
-      <span class="pb-2 text-sm font-bold uppercase" :style="{ color: accent }">{{ title }}</span>
+      <span class="pb-2 text-xs tracking-widest font-bold uppercase" :style="{ color: accent }">{{ title }}</span>
       <div class="h-full w-full">
         <div
           class="h-full w-full"
