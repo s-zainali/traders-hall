@@ -68,6 +68,8 @@ function toState(s) {
       maxPlayers: s.game.max_players,
       hostUserId: s.game.host_user_id,
       startedAt: s.game.started_at,
+      winnerPlayerId: s.game.winner_player_id ?? null,
+      winnerName: s.game.winner_name ?? null,
     },
     bank: s.bank,
     you: {
@@ -87,6 +89,31 @@ function toState(s) {
       foodDue: s.you.food_due,
       rentDue: s.you.rent_due,
       isMyTurn: s.you.is_my_turn,
+      // 'active' | 'eliminated' | 'resigned'. The defeat screen keys off this.
+      status: s.you.status ?? 'active',
+      canRollIncome: s.you.can_roll_income ?? false,
+      lastDice: s.you.last_dice ?? [],
+      lastIncome: s.you.last_income ?? 0,
+      /*
+        Present only while the game is frozen on a seizure — its presence IS the
+        freeze, so nothing has to interpret game.phase. `mine` says whether this
+        player is the one who has to choose; `seizable` is only populated for them.
+      */
+      seizure: s.you.seizure
+        ? {
+            agreementId: s.you.seizure.agreement_id,
+            debtorPlayerId: s.you.seizure.debtor_player_id,
+            debtorName: s.you.seizure.debtor_name,
+            debtorSeatIndex: s.you.seizure.debtor_seat_index,
+            landlordPlayerId: s.you.seizure.landlord_player_id,
+            landlordName: s.you.seizure.landlord_name,
+            landlordSeatIndex: s.you.seizure.landlord_seat_index,
+            debt: s.you.seizure.debt,
+            cardType: s.you.seizure.card_type,
+            mine: s.you.seizure.mine,
+            seizable: s.you.seizure.seizable ?? {},
+          }
+        : null,
       loanOutstanding: s.you.loan_outstanding,
       loanDue: s.you.loan_due,
       mortgageCardType: s.you.mortgage_card_type,
@@ -132,6 +159,7 @@ function toState(s) {
       points: p.points,
       foodDue: p.food_due,
       rentDue: p.rent_due,
+      lastDice: p.last_dice ?? [],
       hand: p.hand,
       // Debt is public on purpose: knowing an opponent has one round left on a
       // loan is exactly the kind of thing the table should trade on.
@@ -271,7 +299,7 @@ export const useGamesStore = defineStore('games', () => {
                 ...extra,
               })
             : undefined,
-        },
+        }
       )
       state.value = toState(fresh)
       await fetchOffers(code)
@@ -316,21 +344,16 @@ export const useGamesStore = defineStore('games', () => {
 
   const rentOut = (code, cardType, rentPoints, intervalTurns) =>
     postOffer(code, {
-      kind: 'rent_out',
-      offer_card_type: cardType,
-      offer_quantity: 1,
-      price_points: rentPoints,
-      rent_interval_turns: intervalTurns,
+      kind: 'rent_out', offer_card_type: cardType, offer_quantity: 1,
+      price_points: rentPoints, rent_interval_turns: intervalTurns,
     })
 
   // No card: the request goes to every landlord, and whoever answers names the
   // property themselves.
   const rentAsk = (code, rentPoints, intervalTurns) =>
     postOffer(code, {
-      kind: 'rent_ask',
-      offer_quantity: 1,
-      price_points: rentPoints,
-      rent_interval_turns: intervalTurns,
+      kind: 'rent_ask', offer_quantity: 1,
+      price_points: rentPoints, rent_interval_turns: intervalTurns,
     })
 
   const moveIn = (code, cardType) => act(code, 'move-in', { card_type: cardType })
@@ -349,7 +372,16 @@ export const useGamesStore = defineStore('games', () => {
   const resolveMoveOut = (code, leave) => act(code, 'moveout-resolve', { leave })
 
   // Landlord ends it early and forfeits the rent for the period.
-  const evictTenant = (code, agreementId) => act(code, 'evict', { agreement_id: agreementId })
+  const evictTenant = (code, agreementId) =>
+    act(code, 'evict', { agreement_id: agreementId })
+
+  /*
+    The only two actions that work on a frozen game. Everything else comes back
+    GAME_FROZEN until one of these resolves it.
+  */
+  const seizeCards = (code, picks) => act(code, 'seize', { picks })
+
+  const waiveSeizure = (code) => act(code, 'waive-seizure')
 
   const tradeOffer = (code, cardType, quantity, wantCardType, wantQuantity) =>
     postOffer(code, {
@@ -420,6 +452,9 @@ export const useGamesStore = defineStore('games', () => {
     act(code, 'sell-to-bank', { card_type: cardType, quantity })
 
   const endTurn = (code) => act(code, 'end-turn')
+
+  // Two dice, once a round. The server rolls; the client only asks.
+  const rollIncome = (code) => act(code, 'roll-income')
 
   /* ── upkeep ───────────────────────────────────────────────────────
      Eating is a player action, not something the server does at end of turn:
@@ -498,7 +533,7 @@ export const useGamesStore = defineStore('games', () => {
     error.value = null
     try {
       current.value = toGame(
-        await apiJson(`/api/v1/games/${code.toUpperCase()}/start`, { method: 'POST' }),
+        await apiJson(`/api/v1/games/${code.toUpperCase()}/start`, { method: 'POST' })
       )
       return current.value
     } catch (e) {
@@ -553,55 +588,15 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   return {
-    myGames,
-    current,
-    state,
-    loadingMine,
-    hasLoadedMine,
-    hasLoadedState,
-    busy,
-    acting,
-    error,
-    stateError,
-    actionError,
-    events,
-    lastSeq,
-    sendingChat,
-    offers,
-    fetchMine,
-    fetchState,
-    fetchEvents,
-    fetchOffers,
-    sendChat,
-    clearState,
-    act,
-    buyFromBank,
-    sellToBank,
-    endTurn,
-    eatFood,
-    borrow,
-    repayLoan,
-    openMortgage,
-    redeemMortgage,
-    sellOffer,
-    tradeOffer,
-    rentOut,
-    rentAsk,
-    moveIn,
-    leaveResidence,
-    respondMoveOut,
-    resolveMoveOut,
-    evictTenant,
-    claimOffer,
-    unclaimOffer,
-    declineOffer,
-    confirmOffer,
-    cancelOffer,
-    createGame,
-    joinGame,
-    fetchGame,
-    startGame,
-    closeGame,
-    leaveGame,
+    myGames, current, state, loadingMine, hasLoadedMine, hasLoadedState,
+    busy, acting, error, stateError, actionError,
+    events, lastSeq, sendingChat, offers,
+    fetchMine, fetchState, fetchEvents, fetchOffers, sendChat, clearState, act,
+    buyFromBank, sellToBank, endTurn, eatFood, rollIncome,
+    borrow, repayLoan, openMortgage, redeemMortgage,
+    sellOffer, tradeOffer, rentOut, rentAsk, moveIn, leaveResidence,
+    respondMoveOut, resolveMoveOut, evictTenant, seizeCards, waiveSeizure,
+    claimOffer, unclaimOffer, declineOffer, confirmOffer, cancelOffer,
+    createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }
 })

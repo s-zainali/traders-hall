@@ -429,7 +429,7 @@ function place(f) {
 }
 
 .vignette {
-  background: radial-gradient(85% 70% at 50% 45%, transparent 28%, var(--color-black) 100%);
+  background: radial-gradient(85% 70% at 50% 45%, transparent 28%, var(--color-gray-dark) 100%);
   opacity: 50%;
 }
 

@@ -93,3 +93,21 @@ def bank_pool_for(player_count: int) -> dict[str, int]:
             raise ValueError(f"bank pool for {code!r} would be negative ({qty})")
 
     return pool
+
+
+# --- income -----------------------------------------------------------------
+#
+# Two dice, once per round, paid out of the bank's point pile.
+#
+# The payout is floor(SUM / INCOME_DIVISOR), not per-die. Summing is what makes a
+# second die worth rolling: 2-12 is a bell curve centred on 7, so the common roll
+# pays 1 and the tails pay 0 or 3. Dividing each die separately would make both
+# of them near coin-flips and flatten the whole thing.
+#
+#   sum   2-3  4-7  8-11  12
+#   pays   0    1     2    3
+#
+# Expected income is about 1.44 a round.
+INCOME_DICE = 2
+INCOME_DIE_FACES = 6
+INCOME_DIVISOR = 4

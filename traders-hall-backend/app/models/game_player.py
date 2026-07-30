@@ -51,6 +51,11 @@ class GamePlayer(Base):
             "residence_landlord_id IS NULL OR residence_landlord_id <> id",
             name="ck_player_not_own_landlord",
         ),
+        CheckConstraint(
+            "(last_die_a IS NULL OR last_die_a BETWEEN 1 AND 6)"
+            " AND (last_die_b IS NULL OR last_die_b BETWEEN 1 AND 6)",
+            name="ck_player_dice_range",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -108,6 +113,16 @@ class GamePlayer(Base):
     residence_landlord_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("game_players.id", ondelete="SET NULL"), nullable=True, default=None
     )
+
+    # --- income ---
+    # The round in which this player last rolled. Compared against
+    # games.turn_number, which advances once per lap, so "already rolled this
+    # round" needs no flag that something has to remember to clear.
+    income_round: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    # Kept so the dice can still be shown after a refresh without replaying the
+    # event log for them.
+    last_die_a: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    last_die_b: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
 
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

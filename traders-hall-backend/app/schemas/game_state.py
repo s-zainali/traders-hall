@@ -44,6 +44,8 @@ class PlayerPublic(BaseModel):
     is_bot: bool
     points: int
     food_due: int
+    # Public: everyone watches everyone else's luck.
+    last_dice: list[int] = []
     rent_due: int
     hand: dict[str, int]
 
@@ -141,6 +143,14 @@ class YouBlock(BaseModel):
     # because the defeat screen keys off it and should not have to find itself in
     # a list.
     status: str = "active"
+
+    # --- income ---
+    # Whether this round's roll is still available, and what the last one was.
+    # can_roll is computed server-side so the client never has to know that
+    # turn_number advances per lap.
+    can_roll_income: bool = False
+    last_dice: list[int] = []
+    last_income: int = 0
 
     # --- credit ---
     loan_outstanding: int

@@ -175,7 +175,18 @@ const KINDS = {
         parts: () => [T('withdrew an offer')],
     },
 
-    // ── upkeep ───────────────────────────────────────────────────
+    'income.rolled': {
+    icon: 'plusCircle',
+    tone: 'text-teal-light',
+    parts: (p) => {
+      const out = [T(`rolled ${(p.dice ?? []).join(' + ')} =`), T(String(p.total)),
+                   T('and took'), P(p.paid)]
+      if (p.shortfall) out.push(T(`— the bank was ${p.shortfall} short`))
+      return out
+    },
+  },
+
+  // ── upkeep ───────────────────────────────────────────────────
     'food.eaten': {
         icon: 'food',
         tone: 'text-cream-light',

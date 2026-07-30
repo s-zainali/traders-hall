@@ -109,6 +109,7 @@ def build_game_state(raw: dict) -> GameStateOut:
             is_bot=p.is_bot,
             points=p.points,
             food_due=p.food_due,
+            last_dice=[d for d in (p.last_die_a, p.last_die_b) if d is not None],
             rent_due=p.rent_due,
             hand=hands.get(p.id, {}),
             loan_outstanding=p.loan_outstanding,
@@ -148,6 +149,19 @@ def build_game_state(raw: dict) -> GameStateOut:
             rent_due=me.rent_due,
             is_my_turn=game.current_player_id == me.id,
             status=me.status,
+            can_roll_income=(
+                me.status == "active"
+                and game.status == "in_progress"
+                and game.phase != "seizure"
+                and game.current_player_id == me.id
+                and me.income_round != game.turn_number
+            ),
+            last_dice=[d for d in (me.last_die_a, me.last_die_b) if d is not None],
+            last_income=(
+                (me.last_die_a + me.last_die_b) // 4
+                if me.last_die_a is not None and me.last_die_b is not None
+                else 0
+            ),
             seizure=seizure,
             loan_outstanding=me.loan_outstanding,
             loan_due=me.loan_due,

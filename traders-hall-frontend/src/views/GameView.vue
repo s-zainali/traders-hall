@@ -10,6 +10,7 @@ import EventLog from '../Components/EventLog.vue'
 import OffersPanel from '../Components/OffersPanel.vue'
 import SeizureModal from '../Components/Modals/SeizureModal.vue'
 import OutcomeModal from '../Components/Modals/OutcomeModal.vue'
+import DiceSection from '../Components/DiceSection.vue'
 import { useCardTypesStore } from '../stores/cardTypes'
 import { useGamesStore } from '../stores/games'
 
@@ -188,6 +189,18 @@ const onRespondMoveOut = ({ agreementId, accept }) =>
     runCredit('answer', games.respondMoveOut && (() => games.respondMoveOut(props.code, agreementId, accept)))
 const onResolveMoveOut = (leave) =>
     runCredit('move out', games.resolveMoveOut && (() => games.resolveMoveOut(props.code, leave)))
+const onRollIncome = () =>
+    runCredit('roll', games.rollIncome && (() => games.rollIncome(props.code)))
+
+// Opponents who have rolled at least once, for the row under the dice.
+const otherRolls = computed(() =>
+    (state.value?.players ?? [])
+        .filter((p) => p.id !== me.value?.playerId && (p.lastDice ?? []).length)
+        .map((p) => ({
+            id: p.id, name: p.displayName, seatIndex: p.seatIndex, dice: p.lastDice,
+        }))
+)
+
 const onSeize = (picks) =>
     runCredit('seize', games.seizeCards && (() => games.seizeCards(props.code, picks)))
 const onWaiveSeizure = () =>
@@ -360,9 +373,15 @@ watch(
                         class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1 xl:w-full xl:flex-none" />
                 </div>
 
-                <EventLog class="area-log min-h-0 min-w-0" :events="events" :seat-by-player="seatByPlayer"
+                <div class="area-log flex min-h-0 min-w-0 flex-col gap-2 md:gap-3">
+                <EventLog class="min-h-0 min-w-0 flex-1" :events="events" :seat-by-player="seatByPlayer"
                     :name-by-player="nameByPlayer" :sending="sendingChat"
                     @send="(text) => games.sendChat(code, text)" />
+
+                <DiceSection :can-roll="me?.canRollIncome ?? false" :dice="me?.lastDice ?? []"
+                    :income="me?.lastIncome ?? 0" :busy="acting" :others="otherRolls"
+                    @roll="onRollIncome" />
+                </div>
 
                 <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"
                     :my-points="availablePoints" :my-hand="me?.hand ?? {}"
