@@ -84,6 +84,13 @@ const activeModal = ref('')
 /* ── derived ─────────────────────────────────────────────────────── */
 
 const isOwn = computed(() => props.playerType === 'player')
+
+/*
+  Past four point cards the deck is wider than the residence button can spare,
+  so it collapses to a single card and a number. Four is where a five-deep stack
+  stops fitting beside the button on the narrowest panel this renders in.
+*/
+const cramped = computed(() => props.points > 4)
 const seat = computed(() => seatStyle(props.seatIndex))
 
 const playerActive = computed(() => props.seatStatus === 'active')
@@ -283,8 +290,13 @@ const BTN_ENABLED =
     'focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2'
 const BTN_DISABLED = 'cursor-not-allowed opacity-40'
 
-const statLabel = 'text-[10px] font-bold uppercase tracking-widest'
-const statBox = 'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base font-bold tabular-nums'
+const statLabel = 'max-w-full truncate text-[10px] font-bold uppercase tracking-widest'
+// w-full inside a grid column still sizes to that COLUMN, and grid-cols-4 sizes
+// each column to its widest content — so the box under "MORTGAGE" came out far
+// wider than the one under "FOOD". A fixed width makes the four read as one row
+// of counters rather than four independent boxes.
+const statBox =
+    'w-14 rounded-lg border-2 px-1 py-0.5 text-center text-base font-bold tabular-nums'
 
 // `caption` is the -dark token so the label sits back against the panel while
 // the box keeps the fuller -light treatment.
@@ -491,11 +503,30 @@ function onEndTurn() {
             </div>
 
             <!-- points and residence travel together in both layouts -->
-            <div class="a-meta flex flex-wrap items-center gap-2 sm:justify-end">
-                <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
+            <!--
+                NOT flex-wrap. Wrapping is what dropped the residence box below
+                the points deck: a deck of a dozen point cards is wider than the
+                track, so the button had nowhere to sit but the next line. The
+                deck shrinks instead — it is the thing that can lose width
+                without becoming unreadable.
+            -->
+            <div class="a-meta flex min-w-0 items-center justify-end gap-2 overflow-hidden">
+                <!--
+                    A deck reports its own count beside itself, so when there is
+                    not room for both it is the DECK that gives way — but not to
+                    nothing. Letting it shrink freely clipped it to a sliver of
+                    one card; below its natural width the count alone is clearer
+                    than a fragment of a card.
+                -->
+                <CardDeck v-if="points > 0 && !cramped" :key="`pts-${points}`" :content-small="true"
+                    class="shrink-0">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
-                <span v-else class="px-1 text-sm font-bold text-gray-light">0 pts</span>
+                <span v-else-if="points > 0" class="flex shrink-0 items-center gap-1">
+                    <Card :card-type="'point'" :selected="true" :large="false" />
+                    <span class="text-sm font-bold tabular-nums text-gray-2x-light">{{ points }}</span>
+                </span>
+                <span v-if="points === 0" class="shrink-0 px-1 text-sm font-bold text-gray-light">0 pts</span>
 
                 <!--
                     The residence box is the way into all of housing: where you
@@ -532,10 +563,18 @@ function onEndTurn() {
             <div class="flex">
                 <span
                     class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
-                <!-- h-28, not min-h: the well must not resize as cards come and
-                     go, or every panel on the board shifts whenever anybody
-                     buys or sells. -->
-                <div class="a-hand relative flex h-28 min-w-0 items-center justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
+                <!--
+                    5.5rem is measured, not guessed: a small card is 40px
+                    (20 icon + 16 padding + 4 border), a five-deep stack adds
+                    4x4px of offset, the count label and its gap add 20, and the
+                    well's own py-1.5 adds 12. That is 88px, so a full deck fits
+                    exactly and nothing clips.
+
+                    Fixed rather than min-height so panels do not resize as cards
+                    come and go — otherwise the whole board shifts whenever
+                    anybody buys or sells.
+                -->
+                <div class="a-hand relative flex h-[5.5rem] min-w-0 items-center justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
                     :class="handState ? handState.well : 'border-gray-light outline-0'">
                     <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
                         class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
@@ -594,7 +633,9 @@ function onEndTurn() {
 
             <!-- caption above, number in the box: the box then shrinks to the
                  number, which is the width this reclaims -->
-            <div class="a-stats grid grid-cols-4 gap-2 xl:flex">
+            <!-- Four fixed-width counters, scrolled rather than squeezed. Compressing
+                 them was what made the labels wrap and the boxes disagree. -->
+            <div class="a-stats scroll-slim flex gap-2 overflow-x-auto pb-0.5">
                 <div v-for="stat in stats" :key="stat.key" :title="stat.title"
                     class="flex flex-col items-center gap-0.5">
                     <span :class="[statLabel, stat.caption]">{{ stat.label }}</span>
@@ -613,7 +654,7 @@ function onEndTurn() {
                 this cell, and their own stacking context is explicit rather
                 than implied by document order.
             -->
-            <div class="a-actions relative z-10 flex gap-2">
+            <div class="a-actions relative z-10 flex flex-wrap gap-2">
                 <button v-for="action in ACTIONS" :key="action.key" type="button" :disabled="!canAct" :class="[
                     BTN_BASE,
                     'flex-1 xl:flex-none',
@@ -702,7 +743,7 @@ function onEndTurn() {
                 <span
                     class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div
-                    class="relative flex h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+                    class="relative flex h-[5.5rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                         <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
                             class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
@@ -743,29 +784,26 @@ function onEndTurn() {
   in one auto/1fr pair, a long name and a deck of a dozen point cards had nowhere
   to go but through each other — the deck sits in the flexible track and wins.
 */
+/*
+  Name and meta share the top row at every width. The earlier fix gave meta its
+  own row on narrow screens, which cost a whole row of height to solve a
+  collision that min-w-0 plus wrapping inside meta solves for free.
+*/
 .own-grid {
     display: grid;
     gap: 0.5rem;
     align-items: center;
-    grid-template-columns: minmax(0, 1fr);
+    /*
+      minmax(0, auto) on the id track, not bare auto: auto refuses to shrink
+      below its content, so a long name pushed the meta column past the panel
+      instead of truncating. The 0 minimum lets the name ellipsis instead.
+    */
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
     grid-template-areas:
-        "id"
-        "meta"
-        "hand"
-        "stats"
-        "actions";
-}
-
-/* Once there is room for both, they share a row again. */
-@media (min-width: 640px) {
-    .own-grid {
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas:
-            "id      meta"
-            "hand    hand"
-            "stats   stats"
-            "actions actions";
-    }
+        "id      meta"
+        "hand    hand"
+        "stats   stats"
+        "actions actions";
 }
 
 @media (min-width: 1280px) {

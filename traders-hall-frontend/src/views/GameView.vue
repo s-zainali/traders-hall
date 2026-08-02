@@ -42,8 +42,20 @@ async function poll() {
     if (inFlight || acting.value || document.hidden) return
     inFlight = true
     try {
-        await games.fetchState(props.code, { silent: true })
+        /*
+          Events first, then state.
+
+          The other order made observers a poll behind on anything that changed
+          another player's row: state was read, THEN the event that explained it
+          arrived, so the dice row only caught up on the following cycle — up to
+          two seconds later, and longer if the observer was mid-action, because
+          poll() skips entirely while acting.
+
+          Reading events first means a new event and the state that produced it
+          land in the same tick.
+        */
         await games.fetchEvents(props.code)
+        await games.fetchState(props.code, { silent: true })
         await games.fetchOffers(props.code)
     } finally {
         inFlight = false
@@ -376,7 +388,7 @@ watch(
                         :rooms-total="seat.roomsTotal" :rooms-free="seat.roomsFree"
                         :is-tenant="!!seat.residenceLandlordId" :landlord-name="seat.landlordName"
                         :landlord-seat-index="seat.landlordSeatIndex"
-                        class="w-[calc((100%-1rem)/3)] min-w-[15rem] shrink-0 md:w-[calc((100%-1.5rem)/3)]
+                        class="w-[19rem] shrink-0 md:w-[calc((100%-1.5rem)/3)] md:min-w-[19rem]
                                xl:w-full xl:min-w-0 xl:flex-none" />
                 </div>
 
@@ -467,8 +479,8 @@ watch(
     grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
         "opp"
-        "own"
         "dice"
+        "own"
         "log"
         "offers";
 }
@@ -477,11 +489,11 @@ watch(
     .game-grid {
         gap: 0.75rem;
         grid-template-columns: 32rem minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
         grid-template-areas:
             "opp    opp"
-            "own    log"
             "dice   log"
+            "own    log"
             "offers offers";
     }
 }
@@ -489,11 +501,11 @@ watch(
 @media (min-width: 1024px) {
     .game-grid {
         grid-template-columns: 33% minmax(0, 1fr) 18rem;
-        grid-template-rows: auto minmax(0, 1fr) auto;
+        grid-template-rows: auto auto minmax(0, 1fr);
         grid-template-areas:
-            "opp  opp opp"
-            "own  log offers"
-            "dice log offers";
+            "opp  opp offers"
+            "dice log offers"
+            "own  log offers";
     }
 }
 
