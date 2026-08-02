@@ -204,15 +204,6 @@ const onResolveMoveOut = (leave) =>
 const onRollIncome = () =>
     runCredit('roll', games.rollIncome && (() => games.rollIncome(props.code)))
 
-// Opponents who have rolled at least once, for the row under the dice.
-const otherRolls = computed(() =>
-    (state.value?.players ?? [])
-        .filter((p) => p.id !== me.value?.playerId && (p.lastDice ?? []).length)
-        .map((p) => ({
-            id: p.id, name: p.displayName, seatIndex: p.seatIndex, dice: p.lastDice,
-        }))
-)
-
 const onSeize = (picks) =>
     runCredit('seize', games.seizeCards && (() => games.seizeCards(props.code, picks)))
 const onWaiveSeizure = () =>
@@ -388,7 +379,7 @@ watch(
                         :rooms-total="seat.roomsTotal" :rooms-free="seat.roomsFree"
                         :is-tenant="!!seat.residenceLandlordId" :landlord-name="seat.landlordName"
                         :landlord-seat-index="seat.landlordSeatIndex"
-                        class="w-[19rem] shrink-0 md:w-[calc((100%-1.5rem)/3)] md:min-w-[19rem]
+                        class="w-[19rem] shrink-0 lg:w-[calc((100%-1.5rem)/3)] lg:min-w-[17rem]
                                xl:w-full xl:min-w-0 xl:flex-none" />
                 </div>
 
@@ -406,7 +397,7 @@ watch(
                 -->
                 <DiceSection class="area-dice" :can-roll="me?.canRollIncome ?? false"
                     :blocked-reason="me?.rollBlockedReason ?? ''" :dice="me?.lastDice ?? []"
-                    :income="me?.lastIncome ?? 0" :busy="acting" :others="otherRolls"
+                    :income="me?.lastIncome ?? 0" :busy="acting"
                     @roll="onRollIncome" :isMyTurn="isMyTurn" />
 
                 <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"
@@ -488,27 +479,50 @@ watch(
 @media (min-width: 768px) {
     .game-grid {
         gap: 0.75rem;
-        grid-template-columns: 32rem minmax(0, 1fr);
-        grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-columns: 22rem minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
         grid-template-areas:
             "opp    opp"
             "dice   log"
-            "own    log"
-            "offers offers";
+            "own    log";
     }
 }
 
+/*
+  Opponents span the top. Below them the log takes the middle column and offers
+  the right, both running to the bottom of the grid.
+
+  The last row is the only flexible track, so a cell spanning all three rows
+  still only grows by that row's share — which is why offers used to stop short.
+  own and dice are content-sized in their own rows; log and offers get the
+  stretch.
+*/
 @media (min-width: 1024px) {
     .game-grid {
-        grid-template-columns: 33% minmax(0, 1fr) 18rem;
+        grid-template-columns: 22rem minmax(0, 1fr) 18rem;
+        /*
+          Opponents get row 1 to THEMSELVES across all three columns, so the rail
+          is the full width of the page. Offers starts in row 2, under them,
+          beside the log — previously it spanned row 1 as well, which pulled it
+          up level with the opponents and stole a third of their width.
+        */
+        /*
+          dice is auto so it ends at its content — a flexible track left a band
+          of empty panel under it. own takes the remaining height in that column,
+          while log and offers span both rows and reach the bottom.
+        */
         grid-template-rows: auto auto minmax(0, 1fr);
         grid-template-areas:
-            "opp  opp offers"
+            "opp  opp opp"
             "dice log offers"
             "own  log offers";
     }
 }
 
+/*
+  Widest: opponents become a rail on the far right, offers sits between the log
+  column and that rail, and the player's own panel spans the bottom.
+*/
 @media (min-width: 1280px) {
     .game-grid {
         gap: 1rem;

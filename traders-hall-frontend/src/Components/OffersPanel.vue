@@ -102,7 +102,12 @@ const rows = computed(() =>
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4">
+  <!--
+    Fills its grid cell. Whether that cell is tall is the LAYOUT's decision, not
+    this component's — an earlier self-start here overrode the grid and pinned
+    the panel to its content at every breakpoint, which is the opposite problem.
+  -->
+  <div class="flex h-full min-h-0 flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4">
     <div class="flex shrink-0 items-center justify-between pb-3">
       <h2 class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Open offers</h2>
       <span class="text-xs font-bold uppercase tracking-widest text-gray-light">{{

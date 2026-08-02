@@ -85,12 +85,6 @@ const activeModal = ref('')
 
 const isOwn = computed(() => props.playerType === 'player')
 
-/*
-  Past four point cards the deck is wider than the residence button can spare,
-  so it collapses to a single card and a number. Four is where a five-deep stack
-  stops fitting beside the button on the narrowest panel this renders in.
-*/
-const cramped = computed(() => props.points > 4)
 const seat = computed(() => seatStyle(props.seatIndex))
 
 const playerActive = computed(() => props.seatStatus === 'active')
@@ -510,7 +504,13 @@ function onEndTurn() {
                 deck shrinks instead — it is the thing that can lose width
                 without becoming unreadable.
             -->
-            <div class="a-meta flex min-w-0 items-center justify-end gap-2 overflow-hidden">
+            <!--
+                No overflow-hidden here. CardDeck reserves its stack offset as
+                padding so it measures correctly, but the offset cards are still
+                absolutely positioned — clipping this row sliced them off, which
+                is what cut the points deck down its right edge.
+            -->
+            <div class="a-meta flex min-w-0 items-center justify-end gap-2">
                 <!--
                     A deck reports its own count beside itself, so when there is
                     not room for both it is the DECK that gives way — but not to
@@ -518,7 +518,7 @@ function onEndTurn() {
                     one card; below its natural width the count alone is clearer
                     than a fragment of a card.
                 -->
-                <CardDeck v-if="points > 0 && !cramped" :key="`pts-${points}`" :content-small="true"
+                <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true"
                     class="shrink-0">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
@@ -574,7 +574,7 @@ function onEndTurn() {
                     come and go — otherwise the whole board shifts whenever
                     anybody buys or sells.
                 -->
-                <div class="a-hand relative flex h-[5.5rem] min-w-0 items-center justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
+                <div class="a-hand relative flex h-[5.5rem] min-w-0 items-center justify-between overflow-hidden rounded-[1rem] border-1 py-1.5 pl-3 pr-6 transition-colors duration-300 ease-in-out"
                     :class="handState ? handState.well : 'border-gray-light outline-0'">
                     <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
                         class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
@@ -635,9 +635,12 @@ function onEndTurn() {
                  number, which is the width this reclaims -->
             <!-- Four fixed-width counters, scrolled rather than squeezed. Compressing
                  them was what made the labels wrap and the boxes disagree. -->
-            <div class="a-stats scroll-slim flex gap-2 overflow-x-auto pb-0.5">
+            <div class="a-stats scroll-slim flex justify-center gap-2 overflow-x-auto pb-0.5 xl:justify-start">
+                <!-- w-14 matches statBox exactly, so MORTGAGE's long label
+                     centres over its own number instead of widening its column
+                     and pushing the group off-centre. -->
                 <div v-for="stat in stats" :key="stat.key" :title="stat.title"
-                    class="flex flex-col items-center gap-0.5">
+                    class="flex w-14 shrink-0 flex-col items-center gap-0.5">
                     <span :class="[statLabel, stat.caption]">{{ stat.label }}</span>
                     <div :class="[statBox, stat.tone]">{{ stat.value }}</div>
                     <!-- the amount, under the countdown. Spelled out rather than

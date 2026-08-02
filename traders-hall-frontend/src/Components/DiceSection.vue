@@ -24,9 +24,7 @@ const props = defineProps({
     dice: { type: Array, default: () => [] },
     income: { type: Number, default: 0 },
     busy: { type: Boolean, default: false },
-    isMyTurn : { type: Boolean},
-    // opponents' most recent rolls, so the table can see everyone's luck
-    others: { type: Array, default: () => [] },
+    isMyTurn: { type: Boolean },
 })
 
 const emit = defineEmits(['roll'])
@@ -92,24 +90,6 @@ const BLOCKED = {
 }
 const blockedLabel = computed(() => BLOCKED[props.blockedReason] ?? '')
 
-/*
-  Three rolls shown, the rest counted.
-
-  A cap rather than a scroll: the strip is a glance, not a list, and three chips
-  is what fits the narrowest panel this renders in. Measuring the container to
-  fit exactly as many as possible would cost a ResizeObserver and a reflow per
-  roll for at most one extra chip.
-*/
-const MAX_SHOWN = 3
-
-const visibleOthers = computed(() => props.others.slice(0, MAX_SHOWN))
-const hiddenCount = computed(() => Math.max(0, props.others.length - MAX_SHOWN))
-const hiddenTitle = computed(() =>
-    props.others
-        .slice(MAX_SHOWN)
-        .map((o) => `${o.name} rolled ${o.dice.join(' + ')}`)
-        .join('\n')
-)
 const shown = ref([1, 1])
 
 // Follow the server's dice whenever they change, except while the animation is
@@ -192,7 +172,16 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
             Now the dice and the payout own the top row and the button owns the
             bottom one. Both are full width, so nothing has to negotiate.
         -->
-        <div class="flex items-center gap-3">
+        <!--
+            Wraps below xl, one line at xl.
+
+            The section is a tall narrow column at xl, where a button under the
+            dice leaves a band of empty panel; below xl it is a short wide block,
+            where squeezing the button in beside the readout crushes the payout
+            into a sliver. flex-wrap with a full-width basis does both: the
+            button takes its own line until there is room for it beside.
+        -->
+        <div class="flex flex-wrap items-center gap-3">
             <div class="flex shrink-0 gap-2">
                 <div v-for="(pips, i) in faces" :key="i"
                     class="die grid h-12 w-12 shrink-0 grid-cols-3 grid-rows-3 gap-0.5 rounded-xl border-2 border-gray-x-light bg-gray-2x-light p-1.5"
@@ -203,7 +192,9 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
                 </div>
             </div>
 
-            <div class="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+            <!-- basis-24 so the readout keeps a sane width and the BUTTON is
+                 what wraps when space runs out, not this. -->
+            <div class="flex min-w-0 flex-1 basis-24 flex-col gap-0.5 leading-tight">
                 <span class="truncate text-[10px] font-bold uppercase tracking-widest text-gray-light">
                     {{ dice.length ? `Rolled ${total}` : 'Not rolled' }}
                 </span>
@@ -213,57 +204,29 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
                 </span>
                 <span v-else class="truncate text-xs text-gray-x-light">Two dice, once a round.</span>
             </div>
-        </div>
 
-        <button type="button" :disabled="!canRoll || busy || tumbling" @click="roll"
-            :title="blockedLabel"
-            class="relative w-full overflow-hidden rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
-            :class="canRoll && !busy && !tumbling
-                ? 'cursor-pointer border-teal-light text-gray-dark hover:brightness-110'
-                : 'cursor-not-allowed border-gray-light text-gray-light opacity-50'">
+            <button type="button" :disabled="!canRoll || busy || tumbling" @click="roll" :title="blockedLabel"
+                class="relative w-full shrink-0 overflow-hidden rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out xl:w-50 focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
+                :class="canRoll && !busy && !tumbling
+                    ? 'cursor-pointer border-teal-light text-gray-dark hover:brightness-110'
+                    : 'cursor-not-allowed border-gray-light text-gray-light opacity-50'">
 
-            <span v-if="canRoll && !busy && !tumbling" class="absolute inset-0 bg-teal-light"
-                aria-hidden="true"></span>
-            <span v-if="canRoll && !busy && !tumbling" class="timer-fill absolute inset-y-0 left-0 bg-teal-dark"
-                :style="{ width: `${100 - fillPercent}%` }" aria-hidden="true"></span>
+                <span v-if="canRoll && !busy && !tumbling" class="absolute inset-0 bg-teal-light"
+                    aria-hidden="true"></span>
+                <span v-if="canRoll && !busy && !tumbling" class="timer-fill absolute inset-y-0 left-0 bg-teal-dark"
+                    :style="{ width: `${100 - fillPercent}%` }" aria-hidden="true"></span>
 
-            <!-- The reason lives ON the disabled button rather than beside it: a
+                <!-- The reason lives ON the disabled button rather than beside it: a
                  message with no width of its own was what collided with the
                  payout column. -->
-            <span class="relative z-10 truncate tabular-nums">
-                {{ tumbling ? '…'
-                    : canRoll ? `Roll ${secondsLeft}`
-                    : blockedLabel || 'Roll' }}
-            </span>
-        </button>
-
-        <!-- Everyone else's last roll. Income is public, and knowing a rival just
-             pulled 3 is part of reading the table. -->
-        <!--
-            Every opponent's latest roll, scrolled rather than wrapped. Wrapping
-            grew the section a row at a time as players joined; one scrolling
-            line keeps its height fixed however many are at the table.
-        -->
-        <div v-if="others.length"
-            class="flex items-center gap-2 overflow-hidden border-t-1 border-gray-light pt-3">
-            <span v-for="o in visibleOthers" :key="o.id"
-                class="flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-gray-light px-2 py-1"
-                :title="`${o.name} rolled ${o.dice.join(' + ')}`">
-                <SeatToken :seat-index="o.seatIndex" size="sm" />
-                <span class="text-[10px] font-bold tabular-nums text-gray-x-light">
-                    {{ o.dice.join('+') }}
+                <span class="relative z-10 truncate tabular-nums">
+                    {{ tumbling ? '…'
+                        : canRoll ? `Roll ${secondsLeft}`
+                            : blockedLabel || 'Roll' }}
                 </span>
-                <span class="text-[10px] font-bold tabular-nums text-teal-light">
-                    +{{ Math.floor(o.dice.reduce((a, b) => a + b, 0) / 4) }}
-                </span>
-            </span>
-
-            <!-- Hover names everyone folded into the count, so nothing is lost. -->
-            <span v-if="hiddenCount" :title="hiddenTitle"
-                class="shrink-0 rounded-lg border-2 border-gray-light px-2 py-1 text-[10px] font-bold tabular-nums text-gray-light">
-                +{{ hiddenCount }}
-            </span>
+            </button>
         </div>
+
     </div>
 </template>
 
@@ -308,23 +271,5 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
     .die {
         transition: none;
     }
-}
-
-.scroll-slim {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--color-gray-x-light) 30%, transparent) transparent;
-}
-
-.scroll-slim::-webkit-scrollbar {
-    height: 6px;
-}
-
-.scroll-slim::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.scroll-slim::-webkit-scrollbar-thumb {
-    background: color-mix(in oklab, var(--color-gray-x-light) 28%, transparent);
-    border-radius: 999px;
 }
 </style>
