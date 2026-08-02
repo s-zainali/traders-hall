@@ -92,6 +92,7 @@ function toState(s) {
       // 'active' | 'eliminated' | 'resigned'. The defeat screen keys off this.
       status: s.you.status ?? 'active',
       canRollIncome: s.you.can_roll_income ?? false,
+      rollBlockedReason: s.you.roll_blocked_reason ?? '',
       lastDice: s.you.last_dice ?? [],
       lastIncome: s.you.last_income ?? 0,
       /*

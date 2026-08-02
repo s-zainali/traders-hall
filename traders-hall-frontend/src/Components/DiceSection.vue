@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import Card from './Card.vue'
 import SeatToken from './SeatToken.vue'
 
@@ -15,8 +15,12 @@ import SeatToken from './SeatToken.vue'
  * rolled. Deciding the outcome on the client and reconciling later is how dice
  * end up appearing to change after they have settled.
  */
+const AUTO_ROLL_MS = 10000
+
 const props = defineProps({
     canRoll: { type: Boolean, default: false },
+    // '' | 'not_your_turn' | 'already_rolled' | 'homeless' | 'frozen'
+    blockedReason: { type: String, default: '' },
     dice: { type: Array, default: () => [] },
     income: { type: Number, default: 0 },
     busy: { type: Boolean, default: false },
@@ -28,6 +32,65 @@ const props = defineProps({
 const emit = defineEmits(['roll'])
 
 const tumbling = ref(false)
+
+/*
+  Auto-roll after ten seconds.
+
+  The roll is not a decision — there is nothing to weigh and no reason to decline
+  free points — so leaving it to the player only ever stalls the table on someone
+  who stepped away. The countdown fills the button itself: the thing running out
+  and the thing it will press are the same object.
+
+  Driven by a deadline against the clock rather than a decrementing counter. A
+  background tab throttles intervals, so a counter drifts while a deadline just
+  arrives late.
+*/
+const remaining = ref(0)
+let deadline = 0
+let ticker = null
+
+function stopTimer() {
+    if (ticker) clearInterval(ticker)
+    ticker = null
+    remaining.value = 0
+    deadline = 0
+}
+
+function startTimer() {
+    stopTimer()
+    deadline = Date.now() + AUTO_ROLL_MS
+    remaining.value = AUTO_ROLL_MS
+    ticker = setInterval(() => {
+        remaining.value = Math.max(0, deadline - Date.now())
+        if (remaining.value <= 0) {
+            stopTimer()
+            roll()
+        }
+    }, 100)
+}
+
+// Live only while the roll is genuinely available. Anything that takes it away —
+// the turn passing, a seizure freezing the game — cancels it.
+watch(
+    () => props.canRoll && !props.busy,
+    (live) => (live ? startTimer() : stopTimer()),
+    { immediate: true }
+)
+
+onUnmounted(stopTimer)
+
+const secondsLeft = computed(() => Math.ceil(remaining.value / 1000))
+const fillPercent = computed(() =>
+    remaining.value > 0 ? (remaining.value / AUTO_ROLL_MS) * 100 : 0
+)
+
+const BLOCKED = {
+    homeless: 'You need somewhere to live',
+    already_rolled: 'Taken this round',
+    not_your_turn: 'Not your turn',
+    frozen: 'Game paused',
+}
+const blockedLabel = computed(() => BLOCKED[props.blockedReason] ?? '')
 const shown = ref([1, 1])
 
 // Follow the server's dice whenever they change, except while the animation is
@@ -45,6 +108,7 @@ let timer = null
 function roll() {
     if (!props.canRoll || props.busy || tumbling.value) return
 
+    stopTimer()
     tumbling.value = true
     // Decorative faces while the request is in flight. Cleared by the watcher
     // below the moment the real dice arrive.
@@ -119,15 +183,25 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
                 <span v-else class="text-xs text-gray-x-light">Two dice, once a round.</span>
             </div>
 
-            <p v-if="!canRoll && dice.length" class="text-[10px] font-bold uppercase tracking-widest text-gray-light">
-                {{ isMyTurn? 'Taken this round': 'Not Your Turn' }}
+            <p v-if="!canRoll && blockedLabel"
+                class="text-[10px] font-bold uppercase tracking-widest text-gray-light">
+                {{ blockedLabel }}
             </p>
             <button type="button" :disabled="!canRoll || busy || tumbling" @click="roll"
-                class="shrink-0 rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
+                :title="blockedLabel"
+                class="relative shrink-0 overflow-hidden rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
                 :class="canRoll && !busy && !tumbling
-                    ? 'cursor-pointer border-teal-light bg-teal-light text-gray-dark hover:brightness-110'
+                    ? 'cursor-pointer border-teal-light text-gray-dark hover:brightness-110'
                     : 'cursor-not-allowed border-gray-light text-gray-light opacity-50'">
-                {{ tumbling ? '…' : 'Roll' }}
+
+                <span v-if="canRoll && !busy && !tumbling" class="absolute inset-0 bg-teal-light"
+                    aria-hidden="true"></span>
+                <span v-if="canRoll && !busy && !tumbling" class="timer-fill absolute inset-y-0 left-0 bg-teal-dark"
+                    :style="{ width: `${100 - fillPercent}%` }" aria-hidden="true"></span>
+
+                <span class="relative z-10 tabular-nums">
+                    {{ tumbling ? '…' : canRoll ? `Roll ${secondsLeft}` : 'Roll' }}
+                </span>
             </button>
         </div>
 
@@ -153,6 +227,12 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
 <style scoped>
 .die {
     transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Linear, matched to the tick interval: an eased countdown lies about how much
+   time is left. */
+.timer-fill {
+    transition: width 100ms linear;
 }
 
 /*

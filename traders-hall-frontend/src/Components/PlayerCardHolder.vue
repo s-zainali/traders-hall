@@ -295,19 +295,69 @@ const statBox = 'w-full rounded-lg border-2 px-3 py-0.5 text-center text-base fo
 // cost something; the tooltip breaks the two apart. An em dash rather than a
 // zero when nothing is owed: "Loan 0" reads as "due right now", which is the
 // one thing it must never be confused with.
-const stats = computed(() => [
-    { key: 'food', label: 'Food', value: props.foodDue, note: '', title: '', caption: 'text-cream-dark', tone: 'border-cream-light bg-cream-dark text-cream-light' },
-    { key: 'rent', label: 'Rent', value: props.rentDue, note: '', title: '', caption: 'text-purple-dark', tone: 'border-purple-light bg-purple-dark text-purple-light' },
-    {
-        key: 'loan',
-        label: 'Loan',
-        value: hasDebt.value ? debtSoonest.value : '—',
-        note: hasDebt.value ? `${debtTotal.value} owed` : '',
-        title: debtTitle.value,
-        caption: hasDebt.value ? urgencyText(debtSoonest.value) : 'text-teal-dark',
-        tone: hasDebt.value ? urgencyBox(debtSoonest.value) : 'border-gray-light bg-gray-dark text-gray-light',
-    },
-])
+const stats = computed(() => {
+    /*
+      Four clocks, each rendering an em dash when it does not apply. A zero and
+      an absent clock are completely different states — "Rent 0" reads as due
+      right now, which is the one thing it must never be confused with when the
+      player is not even renting.
+    */
+    const isRenting = props.isTenant && props.rentDue > 0
+    const hasLoan = props.loanOutstanding > 0
+    const hasMortgage = props.mortgageOutstanding > 0
+
+    return [
+        {
+            key: 'food',
+            label: 'Food',
+            value: props.foodDue > 0 ? props.foodDue : 0,
+            note: '',
+            title: 'Turns until you must eat',
+            caption: props.foodDue <= 1 ? urgencyText(props.foodDue) : 'text-cream-dark',
+            tone: props.foodDue <= 1
+                ? urgencyBox(props.foodDue)
+                : 'border-cream-light bg-cream-dark text-cream-light',
+        },
+        {
+            key: 'rent',
+            label: 'Rent',
+            value: isRenting ? props.rentDue : '—',
+            note: '',
+            title: isRenting ? 'Turns until rent falls due' : 'You are not renting',
+            caption: isRenting ? urgencyText(props.rentDue) : 'text-gray-light',
+            tone: isRenting
+                ? urgencyBox(props.rentDue)
+                : 'border-gray-light bg-gray-dark text-gray-light',
+        },
+        {
+            key: 'loan',
+            label: 'Loan',
+            value: hasLoan ? props.loanDue : '—',
+            note: hasLoan ? `${props.loanOutstanding} owed` : '',
+            title: hasLoan ? `${props.loanOutstanding} owed to the bank` : 'No loan',
+            caption: hasLoan ? urgencyText(props.loanDue) : 'text-gray-light',
+            tone: hasLoan
+                ? urgencyBox(props.loanDue)
+                : 'border-gray-light bg-gray-dark text-gray-light',
+        },
+        {
+            // Its own box, not folded into Loan: a mortgage is secured against a
+            // named card and falls due on its own clock, so collapsing the two
+            // hid whichever was further away.
+            key: 'mortgage',
+            label: 'Mortgage',
+            value: hasMortgage ? props.mortgageDue : '—',
+            note: hasMortgage ? `${props.mortgageOutstanding} owed` : '',
+            title: hasMortgage
+                ? `${props.mortgageOutstanding} owed on your ${props.mortgageCardType}`
+                : 'No mortgage',
+            caption: hasMortgage ? urgencyText(props.mortgageDue) : 'text-gray-light',
+            tone: hasMortgage
+                ? urgencyBox(props.mortgageDue)
+                : 'border-gray-light bg-gray-dark text-gray-light',
+        },
+    ]
+})
 
 /* ── behaviour ────────────────────────────────────────────────────── */
 
@@ -441,7 +491,7 @@ function onEndTurn() {
             </div>
 
             <!-- points and residence travel together in both layouts -->
-            <div class="a-meta flex items-center justify-end gap-2">
+            <div class="a-meta flex flex-wrap items-center gap-2 sm:justify-end">
                 <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
@@ -482,7 +532,10 @@ function onEndTurn() {
             <div class="flex">
                 <span
                     class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
-                <div class="a-hand relative flex min-w-0 justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
+                <!-- h-28, not min-h: the well must not resize as cards come and
+                     go, or every panel on the board shifts whenever anybody
+                     buys or sells. -->
+                <div class="a-hand relative flex h-28 min-w-0 items-center justify-between overflow-hidden rounded-[1rem] border-1 px-3 py-1.5 transition-colors duration-300 ease-in-out"
                     :class="handState ? handState.well : 'border-gray-light outline-0'">
                     <button v-if="handState" type="button" aria-label="Cancel" @click="emit('cancelOperation')"
                         class="absolute top-0 right-0 z-10 flex cursor-pointer items-center justify-center p-2 leading-none text-gray-x-light transition-colors duration-200 ease-in-out hover:text-rose-400">🗙</button>
@@ -541,7 +594,7 @@ function onEndTurn() {
 
             <!-- caption above, number in the box: the box then shrinks to the
                  number, which is the width this reclaims -->
-            <div class="a-stats grid grid-cols-3 gap-2 xl:flex">
+            <div class="a-stats grid grid-cols-4 gap-2 xl:flex">
                 <div v-for="stat in stats" :key="stat.key" :title="stat.title"
                     class="flex flex-col items-center gap-0.5">
                     <span :class="[statLabel, stat.caption]">{{ stat.label }}</span>
@@ -649,7 +702,7 @@ function onEndTurn() {
                 <span
                     class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <div
-                    class="relative flex min-h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+                    class="relative flex h-[4.25rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                     <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                         <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
                             class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
@@ -685,16 +738,34 @@ function onEndTurn() {
    share and steal room from the controls. The 0 minimum is the grid equivalent
    of min-w-0 on a flex item.
 ────────────────────────────────────────────────────────────────── */
+/*
+  Narrow screens give the name and the points deck their own ROWS. Side by side
+  in one auto/1fr pair, a long name and a deck of a dozen point cards had nowhere
+  to go but through each other — the deck sits in the flexible track and wins.
+*/
 .own-grid {
     display: grid;
     gap: 0.5rem;
     align-items: center;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-        "id      meta"
-        "hand    hand"
-        "stats   stats"
-        "actions actions";
+        "id"
+        "meta"
+        "hand"
+        "stats"
+        "actions";
+}
+
+/* Once there is room for both, they share a row again. */
+@media (min-width: 640px) {
+    .own-grid {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+            "id      meta"
+            "hand    hand"
+            "stats   stats"
+            "actions actions";
+    }
 }
 
 @media (min-width: 1280px) {

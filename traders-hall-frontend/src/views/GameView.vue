@@ -358,8 +358,14 @@ watch(
 
             <div class="game-grid min-h-0 flex-1">
 
+                <!--
+                    Opponents scroll horizontally at every width below xl and each
+                    takes a third of the rail. Letting them share the space evenly
+                    meant a fourth player made all four too narrow to read; a fixed
+                    share keeps every panel legible and moves the cost to a scroll,
+                    which is the right trade for a table that can grow.
+                -->
                 <div class="scroll-slim area-opp flex min-w-0 gap-2 overflow-x-auto pb-1 md:gap-3
-                            lg:overflow-visible lg:pb-0
                             xl:flex-col xl:gap-3 xl:overflow-x-hidden xl:overflow-y-auto xl:pb-0 xl:pr-1">
                     <PlayerCardHolder v-for="seat in opponentSeats" :key="seat.seatIndex" :player-type="'opponent'"
                         :seat-index="seat.seatIndex" :player-name="seat.name" :seat-status="seat.seatStatus"
@@ -370,7 +376,8 @@ watch(
                         :rooms-total="seat.roomsTotal" :rooms-free="seat.roomsFree"
                         :is-tenant="!!seat.residenceLandlordId" :landlord-name="seat.landlordName"
                         :landlord-seat-index="seat.landlordSeatIndex"
-                        class="w-[17rem] shrink-0 md:w-[19rem] lg:w-auto lg:min-w-0 lg:flex-1 xl:w-full xl:flex-none" />
+                        class="w-[calc((100%-1rem)/3)] min-w-[15rem] shrink-0 md:w-[calc((100%-1.5rem)/3)]
+                               xl:w-full xl:min-w-0 xl:flex-none" />
                 </div>
 
                 <div class="area-log flex min-h-0 min-w-0 flex-col gap-2 md:gap-3">
@@ -378,10 +385,17 @@ watch(
                     :name-by-player="nameByPlayer" :sending="sendingChat"
                     @send="(text) => games.sendChat(code, text)" />
 
-                <DiceSection :can-roll="me?.canRollIncome ?? false" :dice="me?.lastDice ?? []"
+                </div>
+
+                <!--
+                    Dice sit under the player's own panel below xl, where the
+                    stats row leaves a column of dead space, and under the log
+                    from xl where the own panel spans the full width instead.
+                -->
+                <DiceSection class="area-dice" :can-roll="me?.canRollIncome ?? false"
+                    :blocked-reason="me?.rollBlockedReason ?? ''" :dice="me?.lastDice ?? []"
                     :income="me?.lastIncome ?? 0" :busy="acting" :others="otherRolls"
                     @roll="onRollIncome" :isMyTurn="isMyTurn" />
-                </div>
 
                 <OffersPanel class="area-offers min-h-0 min-w-0" :offers="offers" :my-player-id="me?.playerId ?? ''"
                     :my-points="availablePoints" :my-hand="me?.hand ?? {}"
@@ -450,10 +464,11 @@ watch(
     display: grid;
     gap: 0.5rem;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
         "opp"
         "own"
+        "dice"
         "log"
         "offers";
 }
@@ -462,10 +477,11 @@ watch(
     .game-grid {
         gap: 0.75rem;
         grid-template-columns: 32rem minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr);
         grid-template-areas:
             "opp    opp"
             "own    log"
+            "dice   log"
             "offers offers";
     }
 }
@@ -473,10 +489,11 @@ watch(
 @media (min-width: 1024px) {
     .game-grid {
         grid-template-columns: 33% minmax(0, 1fr) 18rem;
-        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
         grid-template-areas:
-            "opp opp opp"
-            "own log offers";
+            "opp  opp opp"
+            "own  log offers"
+            "dice log offers";
     }
 }
 
@@ -484,15 +501,20 @@ watch(
     .game-grid {
         gap: 1rem;
         grid-template-columns: minmax(0, 1fr) 19rem 21rem;
-        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-rows: minmax(0, 1fr) auto auto;
         grid-template-areas:
-            "log offers opp"
-            "own own    own";
+            "log  offers opp"
+            "dice offers opp"
+            "own  own    own";
     }
 }
 
 .area-opp {
     grid-area: opp;
+}
+
+.area-dice {
+    grid-area: dice;
 }
 
 .area-own {
