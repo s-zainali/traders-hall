@@ -199,7 +199,11 @@ async def _deal(db: AsyncSession, game: Game) -> None:
     for player in game.players:
         player.points = config.STARTING_POINTS
         player.food_due = config.FOOD_INTERVAL_TURNS
-        player.rent_due = config.RENT_INTERVAL_TURNS
+        # NOT set. rent_due mirrors an agreement's turns_until_due, and nobody
+        # has a tenancy at the deal — seeding it produced a countdown that ran
+        # to zero and reset without ever charging anything, because there was no
+        # agreement behind it to charge against.
+        player.rent_due = 0
 
         for card_type in all_codes:
             db.add(PlayerHand(

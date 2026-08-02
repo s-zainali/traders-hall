@@ -149,13 +149,8 @@ def build_game_state(raw: dict) -> GameStateOut:
             rent_due=me.rent_due,
             is_my_turn=game.current_player_id == me.id,
             status=me.status,
-            can_roll_income=(
-                me.status == "active"
-                and game.status == "in_progress"
-                and game.phase != "seizure"
-                and game.current_player_id == me.id
-                and me.income_round != game.turn_number
-            ),
+            can_roll_income=_can_roll(game, me),
+            roll_blocked_reason=_roll_block(game, me),
             last_dice=[d for d in (me.last_die_a, me.last_die_b) if d is not None],
             last_income=(
                 (me.last_die_a + me.last_die_b) // 4
@@ -177,6 +172,35 @@ def build_game_state(raw: dict) -> GameStateOut:
         ),
         players=players,
     )
+
+
+def _can_roll(game, me) -> bool:
+    """Income needs a roof.
+
+    A player with nowhere to live has no household to earn for, so the roll is
+    unavailable to them. That makes homelessness bite immediately rather than
+    only when the food clock runs out.
+    """
+    return not _roll_block(game, me)
+
+
+def _roll_block(game, me) -> str:
+    """Why the roll is unavailable, in the order the player would ask.
+
+    Returned as a code rather than a sentence so the client owns the wording,
+    and empty when nothing is blocking.
+    """
+    if me.status != "active" or game.status != "in_progress":
+        return "not_your_turn"
+    if game.phase == "seizure":
+        return "frozen"
+    if game.current_player_id != me.id:
+        return "not_your_turn"
+    if me.residence_card_type is None:
+        return "homeless"
+    if me.income_round == game.turn_number:
+        return "already_rolled"
+    return ""
 
 
 def _capacity(summary: dict | None, *, public: bool) -> dict:

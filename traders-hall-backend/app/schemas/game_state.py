@@ -149,6 +149,10 @@ class YouBlock(BaseModel):
     # can_roll is computed server-side so the client never has to know that
     # turn_number advances per lap.
     can_roll_income: bool = False
+    # Why rolling is unavailable, when it is. The UI shows this rather than
+    # guessing, so a disabled button always explains itself.
+    #   '' | 'not_your_turn' | 'already_rolled' | 'homeless' | 'frozen'
+    roll_blocked_reason: str = ""
     last_dice: list[int] = []
     last_income: int = 0
 

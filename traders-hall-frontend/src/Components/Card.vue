@@ -102,7 +102,7 @@ function onClick() {
     @mouseleave="isHovered = false"
     @click="onClick"
   >
-    <div class="h-6 w-5">
+    <div class="h-6 w-4.5">
       <div
         class="h-full w-full"
         :style="{

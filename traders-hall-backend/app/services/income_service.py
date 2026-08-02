@@ -68,6 +68,15 @@ async def collect(
 
     # income_round holds the turn_number of the last roll, and turn_number moves
     # once per lap — so this is "already rolled this round" with nothing to reset.
+    # Income needs a roof. A player with nowhere to live has no household to earn
+    # for, which is what makes homelessness bite immediately rather than only
+    # when the food clock eventually runs out.
+    if seat.residence_card_type is None:
+        raise ActionError(
+            "NO_RESIDENCE",
+            "You need somewhere to live before you can earn",
+        )
+
     if seat.income_round == game.turn_number:
         raise ActionError(
             "ALREADY_ROLLED",

@@ -33,10 +33,16 @@ BANK_POOL_PER_PLAYER = {
 
 # --- upkeep timers, in turns ---
 #
-# FOOD_INTERVAL_TURNS is the opening grace period only. After the first meal the
-# counter is set by the card eaten, via card_types.nutrition_turns (rice 2,
-# wheat 5) — so this number governs the start of the game, not the rhythm of it.
-FOOD_INTERVAL_TURNS = 3
+# How long a player is fed at the deal. Two, matching rice, so the opening grace
+# is the cheapest meal rather than a number with nothing behind it.
+#
+# After the first meal the counter is set by the card eaten (nutrition_turns:
+# rice 2, wheat 5), so this governs the start of the game and nothing else.
+FOOD_INTERVAL_TURNS = 2
+
+# NOT a starting value. Rent has no clock until a tenancy exists, and its
+# interval is whatever the two players agreed in the offer — this is only a
+# default suggestion for the UI's stepper.
 RENT_INTERVAL_TURNS = 5
 
 # Which category can be eaten. Named rather than inlined as "food" so the check
