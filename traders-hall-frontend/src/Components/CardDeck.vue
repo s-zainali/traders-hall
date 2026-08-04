@@ -6,8 +6,8 @@ const props = defineProps({
   contentSmall: { type: Boolean, default: false },
 })
 
-const offsetX = props.contentSmall ? 4 : 7
-const offsetY = props.contentSmall ? 4 : 7
+const offsetX = props.contentSmall ? 2.5 : 5
+const offsetY = props.contentSmall ? 2.5 : 5
 
 const slots = useSlots()
 

@@ -42,7 +42,7 @@ function pick(offerId, playerId) {
 function selectedFor(offer) {
   const chosen = picked.value[offer.id]
   if (chosen && offer.claims.some((c) => c.playerId === chosen)) return chosen
-  return offer.claims[0]?.playerId ?? null
+  return null
 }
 
 function claimTitle(claim) {
