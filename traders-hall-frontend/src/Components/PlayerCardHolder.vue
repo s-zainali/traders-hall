@@ -483,7 +483,7 @@ function onEndTurn() {
 
             <div class="a-id flex min-w-0 items-center gap-2">
                 <SeatToken :seat-index="seatIndex" size="md" :filled="isTurn && playerActive" />
-                <h1 class="truncate text-lg font-bold tracking-wide whitespace-nowrap xl:text-xl" :class="seat.text">
+                <h1 class="truncate text-sm font-bold tracking-wide whitespace-nowrap" :class="seat.text">
                     {{ playerName }}
                 </h1>
                 <!--
@@ -537,20 +537,18 @@ function onEndTurn() {
                 <button type="button" :disabled="busy"
                     :aria-label="residence !== '' ? 'Manage your residence' : 'Find somewhere to live'"
                     :title="residence !== '' ? 'Manage residence' : 'You live nowhere'" @click="openResidence""
-                    class=" flex shrink-0 cursor-pointer items-center gap-1 rounded-[1rem] border-4 bg-purple-dark pl-2
+                    class=" flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border-2 bg-purple-dark
                     transition duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50" :class="residence !== ''
                         ? 'border-purple-light hover:brightness-125'
                         : 'border-purple-light/50 hover:border-purple-light'">
-                    <span class="flex flex-col items-start leading-tight">
-                        <span class="text-xs font-bold text-purple-light">Residence</span>
-                        <!-- Capacity only when there is any: a player owning no
-                             property has nothing to report here. -->
+                    <!-- <span class="flex flex-col items-start leading-tight">
+                        <span class="text-[0.5rem] font-bold text-purple-light">Residence</span>
                         <span v-if="roomsTotal > 0" class="text-[10px] font-bold tabular-nums"
                             :class="roomsFree > 0 ? 'text-teal-light' : 'text-gray-x-light'">
                             {{ roomsFree }} free
                         </span>
                         <span v-else-if="isTenant" class="text-[10px] font-bold text-gray-x-light">rented</span>
-                    </span>
+                    </span> -->
                     <div>
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-8 w-8 bg-purple-light" :style="{

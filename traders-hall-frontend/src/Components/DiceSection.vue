@@ -208,12 +208,12 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
             <button type="button" :disabled="!canRoll || busy || tumbling" @click="roll" :title="blockedLabel"
                 class="relative w-full shrink-0 overflow-hidden rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out xl:w-50 focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
                 :class="canRoll && !busy && !tumbling
-                    ? 'cursor-pointer border-teal-light text-gray-dark hover:brightness-110'
+                    ? 'cursor-pointer border-teal-light text-gray-2x-light hover:brightness-110'
                     : 'cursor-not-allowed border-gray-light text-gray-light opacity-50'">
 
-                <span v-if="canRoll && !busy && !tumbling" class="absolute inset-0 bg-teal-light"
+                <span v-if="canRoll && !busy && !tumbling" class="absolute inset-0 bg-teal-dark"
                     aria-hidden="true"></span>
-                <span v-if="canRoll && !busy && !tumbling" class="timer-fill absolute inset-y-0 left-0 bg-teal-dark"
+                <span v-if="canRoll && !busy && !tumbling" class="timer-fill absolute inset-y-0 left-0 bg-teal-light"
                     :style="{ width: `${100 - fillPercent}%` }" aria-hidden="true"></span>
 
                 <!-- The reason lives ON the disabled button rather than beside it: a
