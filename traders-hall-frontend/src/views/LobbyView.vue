@@ -280,13 +280,13 @@ const dangerBtn =
             </div>
         </header>
 
-        <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
+        <div class="flex min-h-0 flex-1 gap-4">
             <!-- ── left: create + join ──────────────────────────── -->
-            <div class="flex min-h-0 flex-col justify-center gap-4">
+            <div class="flex min-h-0 flex-col justify-center gap-4 w-md">
                 <div :class="panelClass">
                     <div class="flex flex-col gap-1">
                         <h2 class="text-xl font-bold tracking-wide text-gray-2x-light">Start a game</h2>
-                        <p class="text-sm text-gray-x-light">
+                        <p v-if="!created" class="text-sm text-gray-x-light">
                             Create a table and share the code with up to three others.
                         </p>
                     </div>
@@ -331,7 +331,7 @@ const dangerBtn =
                         <p class="text-sm text-gray-x-light">Enter the six-character code you were given.</p>
                     </div>
 
-                    <form class="flex gap-3 flex-col h-full" @submit.prevent="joinGame">
+                    <form class="flex gap-3 flex-col h-full justify-between" @submit.prevent="joinGame">
                         <!--
               min-w-0 is load bearing: a flex item's default min-width:auto stops
               it shrinking below its content's intrinsic width, and with size=20
@@ -340,7 +340,7 @@ const dangerBtn =
             -->
                         <input v-model="joinCode" maxlength="6" size="6" spellcheck="false" autocapitalize="characters"
                             placeholder="ABC123"
-                            class="min-w-0 flex-1 rounded-xl border-2 border-gray-light bg-gray-dark px-4 py-3 text-center text-4xl font-bold uppercase tracking-[0.3em] text-gray-2x-light transition duration-200 ease-in-out placeholder:tracking-normal placeholder:text-gray-light hover:border-gray-x-light/60 focus:border-teal-light focus:outline-none" />
+                            class="min-w-0 rounded-xl border-2 border-gray-light bg-gray-dark px-4 py-3 text-center text-3xl font-bold uppercase tracking-[0.3em] text-gray-2x-light transition duration-200 ease-in-out placeholder:tracking-normal placeholder:text-gray-light placeholder:tracking-[0.3em] hover:border-gray-x-light/60 focus:border-teal-light focus:outline-none" />
                         <button type="submit" :disabled="!canJoin || busy"
                             class="w-full cursor-pointer rounded-xl border-2 border-teal-light bg-teal-light py-3 font-bold text-gray-dark transition duration-200 ease-in-out hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40">
                             Join
