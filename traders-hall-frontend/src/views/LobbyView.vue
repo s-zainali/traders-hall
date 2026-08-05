@@ -280,9 +280,9 @@ const dangerBtn =
             </div>
         </header>
 
-        <div class="flex min-h-0 flex-1 gap-4">
+        <div class="flex flex-col lg:flex-row min-h-0 flex-1 gap-4">
             <!-- ── left: create + join ──────────────────────────── -->
-            <div class="flex min-h-0 flex-col justify-center gap-4 w-md">
+            <div class="flex min-h-0 flex-col md:flex-row lg:flex-col justify-center gap-4 lg:w-md ">
                 <div :class="panelClass">
                     <div class="flex flex-col gap-1">
                         <h2 class="text-xl font-bold tracking-wide text-gray-2x-light">Start a game</h2>
@@ -352,7 +352,7 @@ const dangerBtn =
             </div>
 
             <!-- ── right: your tables ───────────────────────────── -->
-            <div :class="[panelClass, 'min-h-0']">
+            <div :class="[panelClass, 'min-h-0']" class="h-max">
                 <div class="flex shrink-0 items-center justify-between">
                     <div class="flex flex-col gap-1">
                         <h2 class="text-xl font-bold tracking-wide text-gray-2x-light">Your tables</h2>
@@ -379,7 +379,7 @@ const dangerBtn =
                 </div>
 
                 <!-- overflow-y-auto + min-h-0: the LIST scrolls, the page does not -->
-                <ul v-else class="scroll-slim grid grid-cols-1 xl:grid-cols-2 min-h-0 flex-1 gap-3 overflow-y-auto pr-2">
+                <ul v-else class="scroll-slim grid grid-cols-1 xl:grid-cols-2 content-start min-h-0 flex-1 gap-3 overflow-y-auto">
                     <li v-for="game in activeGames" :key="game.id"
                         class="flex flex-col gap-3 rounded-2xl border-2 border-gray-light bg-gray-dark/60 p-4 transition duration-200 ease-in-out hover:border-gray-x-light/60 max-w-full h-fit">
                         <div class="flex items-center gap-3">
