@@ -379,9 +379,9 @@ const dangerBtn =
                 </div>
 
                 <!-- overflow-y-auto + min-h-0: the LIST scrolls, the page does not -->
-                <ul v-else class="scroll-slim flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2">
+                <ul v-else class="scroll-slim grid grid-cols-1 xl:grid-cols-2 min-h-0 flex-1 gap-3 overflow-y-auto pr-2">
                     <li v-for="game in activeGames" :key="game.id"
-                        class="flex flex-col gap-3 rounded-2xl border-2 border-gray-light bg-gray-dark/60 p-4 transition duration-200 ease-in-out hover:border-gray-x-light/60">
+                        class="flex flex-col gap-3 rounded-2xl border-2 border-gray-light bg-gray-dark/60 p-4 transition duration-200 ease-in-out hover:border-gray-x-light/60 max-w-full h-fit">
                         <div class="flex items-center gap-3">
                             <SeatToken :seat-index="mySeat(game)" size="md" />
 
