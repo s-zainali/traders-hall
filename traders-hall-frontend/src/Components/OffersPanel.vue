@@ -39,6 +39,18 @@ function pick(offerId, playerId) {
   picked.value = { ...picked.value, [offerId]: playerId }
 }
 
+/*
+  Nothing is selected until the poster picks. There is no default claimant.
+
+  Falling back to claims[0] meant Accept was always live, so the first player to
+  raise a hand was one misclick away from winning an offer nobody had chosen them
+  for. Worse, if that first claim was withdrawn between renders the fallback
+  returned nothing and the request went out with a null player, which the server
+  rejects with PLAYER_REQUIRED — the "choose which player" error.
+
+  The pick is still checked against the current claim list, so a selection whose
+  player has since withdrawn clears itself rather than going stale.
+*/
 function selectedFor(offer) {
   const chosen = picked.value[offer.id]
   if (chosen && offer.claims.some((c) => c.playerId === chosen)) return chosen
@@ -102,12 +114,7 @@ const rows = computed(() =>
 </script>
 
 <template>
-  <!--
-    Fills its grid cell. Whether that cell is tall is the LAYOUT's decision, not
-    this component's — an earlier self-start here overrode the grid and pinned
-    the panel to its content at every breakpoint, which is the opposite problem.
-  -->
-  <div class="flex h-full min-h-0 flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4">
+  <div class="flex min-h-0 flex-col rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-4">
     <div class="flex shrink-0 items-center justify-between pb-3">
       <h2 class="text-sm font-bold uppercase tracking-widest text-gray-x-light">Open offers</h2>
       <span class="text-xs font-bold uppercase tracking-widest text-gray-light">{{
@@ -278,6 +285,15 @@ const rows = computed(() =>
             />
           </button>
         </div>
+
+        <!-- Says why Accept is inert. Without a default claimant a disabled
+             button with no explanation reads as broken. -->
+        <p
+          v-if="offer.mine && !selectedFor(offer)"
+          class="text-[10px] font-bold uppercase tracking-widest text-gray-light"
+        >
+          Pick a player to answer
+        </p>
 
         <div v-if="offer.mine && offer.claimed" class="flex gap-2">
           <button

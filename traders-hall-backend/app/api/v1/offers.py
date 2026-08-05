@@ -140,7 +140,7 @@ async def confirm_offer(code: str, offer_id: uuid.UUID, body: OfferAction, user:
     try:
         await offer_service.confirm_offer(
             db, user=user, code=code, offer_id=offer_id,
-            expected_state_version=body.expected_state_version,
+            expected_state_version=body.expected_state_version, player_id=body.player_id,
         )
         return await _state(db, user, code)
     except ActionError as e:
