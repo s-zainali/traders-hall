@@ -11,7 +11,7 @@ const year = new Date().getFullYear()
 <template>
   <footer
     class="relative select-none group bg-transparent"
-    :class="compact ? 'mt-0 pb-0' : 'pb-6'"
+    :class="compact ? 'mt-0 pb-0' : 'pb-4'"
     :style="compact ? { zoom: 0.7 } : {}"
   >
     <!-- hairline divider -->

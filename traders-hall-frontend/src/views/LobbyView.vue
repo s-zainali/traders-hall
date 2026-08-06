@@ -352,7 +352,7 @@ const dangerBtn =
             </div>
 
             <!-- ── right: your tables ───────────────────────────── -->
-            <div :class="[panelClass, 'min-h-0']" class="h-max">
+            <div :class="[panelClass, 'min-h-0']">
                 <div class="flex shrink-0 items-center justify-between">
                     <div class="flex flex-col gap-1">
                         <h2 class="text-xl font-bold tracking-wide text-gray-2x-light">Your tables</h2>
