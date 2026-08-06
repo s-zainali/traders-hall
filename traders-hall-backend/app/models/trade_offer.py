@@ -15,6 +15,8 @@ class TradeOffer(Base):
     'trade'     a card for another card
     'rent_out'  a landlord offering one room, at a rent and an interval
     'rent_ask'  a tenant requesting a room, at a rent and an interval
+    'invest'    a stake in what one property earns, at a principal, a share and
+                a term
 
     The rent kinds live here rather than in their own table because they share
     the whole lifecycle — post, claim, decline, confirm, cancel — and duplicating
@@ -35,8 +37,19 @@ class TradeOffer(Base):
             " OR (kind = 'rent_out' AND offer_card_type IS NOT NULL AND price_points IS NOT NULL"
             " AND want_card_type IS NULL AND rent_interval_turns IS NOT NULL)"
             " OR (kind = 'rent_ask' AND offer_card_type IS NULL AND price_points IS NOT NULL"
-            " AND want_card_type IS NULL AND rent_interval_turns IS NOT NULL)",
+            " AND want_card_type IS NULL AND rent_interval_turns IS NOT NULL"
+            " AND yield_percent IS NULL)"
+            " OR (kind = 'invest' AND offer_card_type IS NOT NULL AND price_points IS NOT NULL"
+            " AND want_card_type IS NULL AND rent_interval_turns IS NULL"
+            " AND yield_percent IS NOT NULL AND term_turns IS NOT NULL)",
             name="ck_offer_shape",
+        ),
+        CheckConstraint(
+            "yield_percent IS NULL OR yield_percent BETWEEN 1 AND 100",
+            name="ck_offer_yield_range",
+        ),
+        CheckConstraint(
+            "term_turns IS NULL OR term_turns > 0", name="ck_offer_term_positive"
         ),
         CheckConstraint(
             "(status = 'claimed') = (claimed_by_player_id IS NOT NULL)",
@@ -69,6 +82,11 @@ class TradeOffer(Base):
     # How many of the tenant's turns between rent payments. Set in the offer, not
     # from a constant: the interval is part of what the two players agree on.
     rent_interval_turns: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # invest only: the investor's share of each rent payment, and how many of the
+    # landlord's turns the arrangement runs for. Both negotiated in the offer.
+    yield_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    term_turns: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     want_card_type: Mapped[str | None] = mapped_column(
         String(32), ForeignKey("card_types.code"), nullable=True

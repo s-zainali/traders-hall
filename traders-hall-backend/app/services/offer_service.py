@@ -29,6 +29,7 @@ from app.services.action_service import (
 MAX_OPEN_PER_PLAYER = 5
 
 RENT_KINDS = ("rent_out", "rent_ask")
+ALL_KINDS = ("sell", "trade", "rent_out", "rent_ask", "invest")
 
 
 def _total_price(offer: TradeOffer) -> int:
@@ -164,6 +165,8 @@ async def list_offers(db: AsyncSession, *, user: User, code: str) -> list[dict]:
             # comparison. Null for rent, where price_points is already whole.
             "total_price_points": _total_price(offer) if offer.kind == "sell" else None,
             "rent_interval_turns": offer.rent_interval_turns,
+            "yield_percent": offer.yield_percent,
+            "term_turns": offer.term_turns,
             "claim_card_type": offer.claim_card_type,
             "want_card_type": offer.want_card_type,
             "want_quantity": offer.want_quantity,
@@ -206,7 +209,7 @@ async def create_offer(
 
     if game.current_player_id != seat.id:
         raise ActionError("NOT_YOUR_TURN", "Offers can only be posted on your turn")
-    if kind not in ("sell", "trade") + RENT_KINDS:
+    if kind not in ALL_KINDS:
         raise ActionError("VALIDATION_ERROR", f"Unknown offer kind: {kind}")
     if kind in ("sell", "trade") and offer_card_type == "point":
         raise ActionError("NOT_TRADEABLE", "Points cannot be offered as goods")
@@ -233,6 +236,17 @@ async def create_offer(
                 "You have no spare room in that property",
                 card_type=offer_card_type,
             )
+    elif kind == "invest":
+        # The invest card IS the stake: holding one is what lets you post, and it
+        # is consumed when the offer settles. Reserved here so a single card
+        # cannot back two open offers at once.
+        hand = await _hand_row(db, game, seat, "invest")
+        if hand.quantity - hand.reserved_quantity < 1:
+            raise ActionError(
+                "NO_INVEST_CARD",
+                "You need a free Invest card to post a stake",
+            )
+        hand.reserved_quantity += 1
     elif kind == "rent_ask":
         # A request names no property: it broadcasts, and any landlord with a
         # spare room may accept. Nothing of the asker's is committed.
@@ -334,6 +348,16 @@ async def claim_offer(
             raise ActionError(
                 "INSUFFICIENT_CARDS",
                 f"You need {offer.want_quantity} free {offer.want_card_type}",
+            )
+    elif offer.kind == "invest":
+        # The claimant is the LANDLORD taking the money. They must actually own
+        # the property being invested in, and they must be able to afford
+        # nothing — the principal flows to them.
+        owned = await _hand_row(db, game, claimant, offer.offer_card_type)
+        if owned.quantity < 1:
+            raise ActionError(
+                "INSUFFICIENT_CARDS",
+                "You do not own that property",
             )
     elif offer.kind == "rent_out":
         if claimant.residence_card_type is not None:
@@ -488,6 +512,80 @@ async def confirm_offer(
     # offer — the request itself names no property.
     if offer.kind == "rent_ask":
         offer.claim_card_type = chosen.card_type
+
+    if offer.kind == "invest":
+        # poster = investor, claimant = landlord. The principal moves to the
+        # landlord and does not come back; the investor is buying a share, not
+        # lending. Their Invest card is spent on the stake.
+        from app.services.investment_service import open_investment
+
+        investor, landlord = poster, buyer
+
+        available = investor.points - investor.reserved_points
+        if available < offer.price_points:
+            raise ActionError(
+                "INSUFFICIENT_POINTS",
+                f"You need {offer.price_points} free points to fund that stake",
+                required=offer.price_points,
+                available=available,
+            )
+
+        owned = await _hand_row(db, game, landlord, offer.offer_card_type)
+        if owned.quantity < 1:
+            raise ActionError(
+                "INSUFFICIENT_CARDS", "They no longer own that property"
+            )
+
+        card = await _hand_row(db, game, investor, "invest")
+        if card.quantity < 1:
+            raise ActionError("NO_INVEST_CARD", "You no longer hold an Invest card")
+
+        card.quantity -= 1
+        card.reserved_quantity = max(0, card.reserved_quantity - 1)
+        (await _pool_row(db, game, "invest")).quantity += 1
+
+        investor.points -= offer.price_points
+        landlord.points += offer.price_points
+
+        investment = await open_investment(
+            db, game,
+            investor=investor,
+            landlord=landlord,
+            card_type=offer.offer_card_type,
+            principal=offer.price_points,
+            yield_percent=offer.yield_percent,
+            term_turns=offer.term_turns,
+        )
+
+        event = await _append_event(
+            db, game,
+            event_type="offer.settled",
+            actor_player_id=poster.id,
+            payload={
+                "offer_id": str(offer.id),
+                "kind": "invest",
+                "with_player_id": str(buyer.id),
+                "investment_id": str(investment.id),
+                "investor_player_id": str(investor.id),
+                "landlord_player_id": str(landlord.id),
+                "card_type": offer.offer_card_type,
+                "principal": offer.price_points,
+                "yield_percent": offer.yield_percent,
+                "term_turns": offer.term_turns,
+            },
+        )
+        _ledger(db, game, event, player_id=investor.id, entry_type="investment",
+                points_delta=-offer.price_points, card_type="invest", card_delta=-1)
+        _ledger(db, game, event, player_id=landlord.id, entry_type="investment",
+                points_delta=offer.price_points)
+        _ledger(db, game, event, player_id=None, entry_type="investment",
+                card_type="invest", card_delta=1)
+
+        await _release_claim(db, game, offer)
+        offer.settled_with_player_id = buyer.id
+        offer.status = "settled"
+        offer.resolved_at = datetime.now(UTC)
+        return game
 
     if _is_rent(offer):
         landlord, tenant = _rent_parties(offer, poster, buyer)
@@ -669,8 +767,12 @@ async def cancel_offer(
     await _release_claim(db, game, offer)
 
     # Rent offers reserve nothing, and rent_ask has no card at all — _hand_row
-    # would raise UNKNOWN_CARD_TYPE on a NULL.
-    if not _is_rent(offer):
+    # would raise UNKNOWN_CARD_TYPE on a NULL. An invest offer reserves the
+    # Invest CARD rather than the property it names.
+    if offer.kind == "invest":
+        card = await _hand_row(db, game, seat, "invest")
+        card.reserved_quantity = max(0, card.reserved_quantity - 1)
+    elif not _is_rent(offer):
         poster_hand = await _hand_row(db, game, seat, offer.offer_card_type)
         poster_hand.reserved_quantity = max(
             0, poster_hand.reserved_quantity - offer.offer_quantity

@@ -262,6 +262,13 @@ async def _charge(
     _ledger(db, game, event, player_id=landlord.id, entry_type="rent",
             points_delta=rent)
 
+    # Investors take their share AFTER the rent has landed, so the points being
+    # split are ones the landlord actually holds. Paying first would let a
+    # landlord sitting at zero go negative on somebody else's rent.
+    from app.services.investment_service import pay_out
+
+    await pay_out(db, game, landlord, agreement.card_type, rent, event)
+
 
 MOVEOUT_PENALTY_NUMERATOR = 3
 MOVEOUT_PENALTY_DENOMINATOR = 2

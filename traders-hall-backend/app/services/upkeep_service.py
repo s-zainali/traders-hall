@@ -48,6 +48,13 @@ async def run_upkeep(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
 
     await rent_service.tick(db, game, seat)
 
+    # Investment terms run on the LANDLORD's turns, so they age here rather than
+    # inside the rent tick — a stake expires on schedule whether or not the room
+    # ever earned anything.
+    from app.services.investment_service import tick as investment_tick
+
+    await investment_tick(db, game, seat)
+
 
 async def _tick_food(db: AsyncSession, game: Game, seat: GamePlayer) -> None:
     """Burn one turn of nutrition.

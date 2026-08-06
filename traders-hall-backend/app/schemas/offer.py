@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class OfferCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    kind: str = Field(pattern="^(sell|trade|rent_out|rent_ask)$")
+    kind: str = Field(pattern="^(sell|trade|rent_out|rent_ask|invest)$")
     # NULL only for rent_ask, which names no property: it broadcasts, and any
     # landlord with a spare room may accept.
     offer_card_type: str | None = Field(default=None, min_length=1, max_length=32)
@@ -19,6 +19,10 @@ class OfferCreate(BaseModel):
     # How many of the tenant's turns between payments. Negotiated in the offer,
     # never a constant.
     rent_interval_turns: int | None = Field(default=None, ge=1, le=99)
+    # invest only: the investor's share of each rent payment, and how many of the
+    # landlord's turns the stake runs for.
+    yield_percent: int | None = Field(default=None, ge=1, le=100)
+    term_turns: int | None = Field(default=None, ge=1, le=99)
     want_card_type: str | None = Field(default=None, min_length=1, max_length=32)
     want_quantity: int | None = Field(default=None, ge=1, le=99)
 
@@ -52,6 +56,19 @@ class OfferCreate(BaseModel):
                 raise ValueError("rent_interval_turns is not allowed on a trade offer")
             if self.want_card_type == self.offer_card_type:
                 raise ValueError("Trade the card for a different one")
+        elif self.kind == "invest":
+            if self.offer_card_type is None:
+                raise ValueError("offer_card_type is required: name the property")
+            if self.price_points is None:
+                raise ValueError("price_points is the principal and is required")
+            if self.yield_percent is None:
+                raise ValueError("yield_percent is required")
+            if self.term_turns is None:
+                raise ValueError("term_turns is required")
+            if self.want_card_type is not None:
+                raise ValueError("want_card_type is not allowed on an invest offer")
+            if self.rent_interval_turns is not None:
+                raise ValueError("rent_interval_turns is not allowed on an invest offer")
         else:
             # rent_out names the property; rent_ask cannot, because it goes out
             # to every landlord rather than to one.
@@ -106,6 +123,8 @@ class OfferOut(BaseModel):
     price_points: int | None
     total_price_points: int | None = None
     rent_interval_turns: int | None = None
+    yield_percent: int | None = None
+    term_turns: int | None = None
     claim_card_type: str | None = None
 
     want_card_type: str | None
