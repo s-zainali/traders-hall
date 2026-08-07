@@ -414,7 +414,7 @@ const rows = computed(() =>
                 : offer.isRentAsk
                   ? 'Offer a room'
                   : offer.isInvest
-                    ? `Take ${offer.pricePoints}`
+                    ? `Accept investment of ${offer.pricePoints}`
                   : 'Claim')
           }}
         </button>

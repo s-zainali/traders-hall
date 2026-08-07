@@ -43,6 +43,7 @@ const term = ref(5)
   TYPE rather than a person — any owner of it can take the stake. Selecting an
   owner's card therefore picks the type; the owner shown is who prompted it.
 */
+
 const options = computed(() =>
     props.owners.flatMap((o) =>
         o.cards.map((c) => ({
