@@ -262,13 +262,6 @@ async def _charge(
     _ledger(db, game, event, player_id=landlord.id, entry_type="rent",
             points_delta=rent)
 
-    # Investors take their share AFTER the rent has landed, so the points being
-    # split are ones the landlord actually holds. Paying first would let a
-    # landlord sitting at zero go negative on somebody else's rent.
-    from app.services.investment_service import pay_out
-
-    await pay_out(db, game, landlord, agreement.card_type, rent, event)
-
 
 MOVEOUT_PENALTY_NUMERATOR = 3
 MOVEOUT_PENALTY_DENOMINATOR = 2
@@ -534,4 +527,75 @@ async def evict(
             "rent_forfeited": agreement.rent_points,
         },
     )
+    return game
+
+
+async def pay_now(
+    db: AsyncSession,
+    *,
+    user: User,
+    code: str,
+    expected_state_version: int | None,
+) -> Game:
+    """Settle rent early, before the clock runs out.
+
+    Upkeep collects automatically at zero, so this changes nothing about what is
+    owed — it lets a tenant clear the debt while they still have the points,
+    rather than watching the counter fall and hoping they can cover it on the
+    turn it lands. Paying resets the interval exactly as an automatic charge
+    would.
+    """
+    game = await _lock_game(db, code)
+    tenant = await _seat_of(db, game, user)
+    _check_version(game, expected_state_version)
+    _require_turn(game, tenant)
+
+    agreement = await active_for_tenant(db, game, tenant)
+    if agreement is None:
+        raise ActionError("NO_TENANCY", "You are not renting")
+
+    landlord = await db.get(GamePlayer, agreement.landlord_player_id)
+    if landlord is None or landlord.status != "active":
+        raise ActionError("LANDLORD_GONE", "That landlord has left the game")
+
+    rent = agreement.rent_points
+    available = tenant.points - tenant.reserved_points
+    if available < rent:
+        raise ActionError(
+            "INSUFFICIENT_POINTS",
+            f"Rent is {rent}; you have {available} free",
+            required=rent,
+            available=available,
+        )
+
+    tenant.points -= rent
+    landlord.points += rent
+    agreement.turns_until_due = agreement.interval_turns
+    tenant.rent_due = agreement.interval_turns
+
+    event = await _append_event(
+        db, game,
+        event_type="rent.paid",
+        actor_player_id=tenant.id,
+        payload={
+            "agreement_id": str(agreement.id),
+            "player_id": str(tenant.id),
+            "landlord_player_id": str(landlord.id),
+            "card_type": agreement.card_type,
+            "rent_points": rent,
+            "next_due_in": agreement.interval_turns,
+            "early": True,
+        },
+    )
+    _ledger(db, game, event, player_id=tenant.id, entry_type="rent",
+            points_delta=-rent)
+    _ledger(db, game, event, player_id=landlord.id, entry_type="rent",
+            points_delta=rent)
+
+    # Investors take their share of an early payment exactly as they would of an
+    # automatic one — the landlord received the same rent either way.
+    from app.services.investment_service import pay_out
+
+    await pay_out(db, game, landlord, agreement.card_type, rent, event)
+
     return game

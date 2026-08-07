@@ -6,6 +6,7 @@ import SeatToken from './SeatToken.vue'
 import TransactionModal from './Modals/TransactionModal.vue'
 import EatModal from './Modals/EatModal.vue'
 import ResidenceModal from './Modals/ResidenceModal.vue'
+import InvestModal from './Modals/InvestModal.vue'
 import { seatStyle } from '../seats'
 import { useCardTypesStore } from '../stores/cardTypes'
 
@@ -60,13 +61,15 @@ const props = defineProps({
     moveoutBuyout: { type: Number, default: 0 },
     availablePoints: { type: Number, default: 0 },
     tenants: { type: Array, default: () => [] },
+    // property types somebody in the game owns, for the invest picker
+    investableProperties: { type: Array, default: () => [] },
     /** an action is in flight; controls lock so a double-click cannot fire twice */
     busy: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
     'buy', 'sell', 'trade', 'eat', 'residence',
-    'moveIn', 'leaveResidence', 'rentOut', 'rentAsk',
+    'moveIn', 'leaveResidence', 'rentOut', 'rentAsk', 'payRent', 'invest',
     'respondMoveOut', 'resolveMoveOut', 'evict',
     'cancelOperation', 'transaction', 'endTurn',
 ])
@@ -172,6 +175,20 @@ const isMortgaged = (type) => hasMortgage.value && type === props.mortgageCardTy
    to negotiate with. It therefore has to yield to the market modes: a food card
    during a sell must stay sellable, or the player can never sell their wheat.
 ────────────────────────────────────────────────────────────────── */
+
+/*
+  The Invest card IS the stake: holding one is what lets you post an offer, and
+  it is spent when a landlord takes it. Clicking it opens the modal, the same way
+  a food card opens the eat modal.
+*/
+const canInvest = (type) =>
+    isOwn.value && canAct.value && props.activeAction === '' && type === 'invest'
+
+function openInvest(type) {
+    if (!canInvest(type)) return
+    selectedType.value = type
+    activeModal.value = 'invest'
+}
 
 const isEdible = (type) => {
     const card = cardTypes.get(type)
@@ -428,7 +445,10 @@ function onEndTurn() {
                    xl:top-auto xl:bottom-full xl:left-1/2 xl:ml-0 xl:-translate-x-1/2 xl:translate-y-0">
             <!-- Two modals share this anchor. Eating is not a transaction, so it
                  gets its own component rather than a fourth mode inside one. -->
-            <ResidenceModal v-if="activeModal === 'let' || activeModal === 'residence'"
+            <InvestModal v-if="activeModal === 'invest'" :busy="busy" :can-act="canAct"
+                :available-points="availablePoints" :properties="investableProperties"
+                @close-modal="closeModal" @invest="(p) => onHousing('invest', p)" />
+            <ResidenceModal v-else-if="activeModal === 'let' || activeModal === 'residence'"
                 :mode="activeModal === 'let' ? 'let' : 'residence'" :card-type="selectedType"
                 :rooms-free-for-card="freeRoomsFor(selectedType)"
                 :rooms-pending-for-card="pendingRoomsFor(selectedType)" :residence-card-type="residence || null"
@@ -439,6 +459,7 @@ function onEndTurn() {
                 :rooms-by-card="roomsByCard" :busy="busy" :can-act="canAct" @close-modal="closeModal"
                 @move-in="(t) => onHousing('moveIn', t)" @leave="onHousing('leaveResidence')"
                 @rent-out="(p) => onHousing('rentOut', p)" @rent-ask="(p) => onHousing('rentAsk', p)"
+                @pay-rent="onHousing('payRent')"
                 @respond-move-out="(p) => onHousing('respondMoveOut', p)"
                 @resolve-move-out="(v) => onHousing('resolveMoveOut', v)"
                 @evict="(id) => onHousing('evict', id)" />
@@ -611,7 +632,7 @@ function onEndTurn() {
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
                                     :trading="activeAction === 'trade' && !isMortgaged(type)" :eating="canEat(type)"
-                                    :letting="canLet(type)" @sell="openModal(type)" @trade="openModal(type)"
+                                    :letting="canLet(type)" :investing="canInvest(type)" @invest="openInvest(type)" @sell="openModal(type)" @trade="openModal(type)"
                                     @eat="openEat(type)" @let="openLet(type)" />
                             </CardDeck>
                             <span v-if="isMortgaged(type)"

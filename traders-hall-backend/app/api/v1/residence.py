@@ -14,6 +14,7 @@ from app.schemas.residence import (
     MoveInRequest,
     MoveOutResolveRequest,
     MoveOutResponseRequest,
+    PayRentRequest,
 )
 from app.services import game_service, rent_service, residence_service
 from app.services.action_service import ActionError
@@ -31,6 +32,7 @@ _STATUS = {
     "ALREADY_RESIDING": status.HTTP_409_CONFLICT,
     "NO_RESIDENCE": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "NO_TENANCY": status.HTTP_404_NOT_FOUND,
+    "INSUFFICIENT_POINTS": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "NOT_LANDLORD": status.HTTP_403_FORBIDDEN,
     "NO_MOVEOUT_REQUEST": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "NO_MOVEOUT_REFUSAL": status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -130,6 +132,19 @@ async def evict(code: str, body: EvictRequest, user: CurrentUser, db: Db):
         await rent_service.evict(
             db, user=user, code=code,
             agreement_id=body.agreement_id,
+            expected_state_version=body.expected_state_version,
+        )
+        return await _state(db, user, code)
+    except ActionError as e:
+        raise _http(e)
+
+
+@router.post("/{code}/actions/pay-rent", response_model=GameStateOut)
+async def pay_rent(code: str, body: PayRentRequest, user: CurrentUser, db: Db):
+    """Clear rent now rather than waiting for the counter to reach zero."""
+    try:
+        await rent_service.pay_now(
+            db, user=user, code=code,
             expected_state_version=body.expected_state_version,
         )
         return await _state(db, user, code)

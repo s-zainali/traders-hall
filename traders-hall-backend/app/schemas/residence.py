@@ -35,3 +35,7 @@ class EvictRequest(ActionRequest):
     """The landlord ending a tenancy. No rent is charged."""
 
     agreement_id: uuid.UUID
+
+
+class PayRentRequest(ActionRequest):
+    """Settle rent early. No fields: the amount is whatever the tenancy says."""

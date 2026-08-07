@@ -212,6 +212,33 @@ const onWaiveSeizure = () =>
 const onEvict = (agreementId) =>
     runCredit('evict', games.evictTenant && (() => games.evictTenant(props.code, agreementId)))
 
+const onPayRent = () =>
+    runCredit('pay rent', games.payRent && (() => games.payRent(props.code)))
+
+const onInvest = ({ cardType, principal, yieldPercent, termTurns }) =>
+    runCredit('invest', games.postInvest
+        && (() => games.postInvest(props.code, cardType, principal, yieldPercent, termTurns)))
+
+/*
+  Property types somebody at the table owns, for the invest picker. Derived from
+  the public hands rather than sent: an investor can stake any property in play,
+  and every client already has the hands.
+*/
+const investableProperties = computed(() => {
+    const counts = {}
+    for (const p of state.value?.players ?? []) {
+        for (const [code, n] of Object.entries(p.hand ?? {})) {
+            const card = cardTypes.get(code)
+            if (!card || card.category !== 'property' || n < 1) continue
+            counts[code] = (counts[code] ?? 0) + 1
+        }
+    }
+    return Object.entries(counts).map(([code, owners]) => ({
+        code, owners, title: cardTypes.get(code)?.title ?? code,
+    }))
+})
+
+
 const onRentAsk = ({ rentPoints, intervalTurns }) =>
     runCredit('request a room', games.rentAsk && (() => games.rentAsk(props.code, rentPoints, intervalTurns)))
 
@@ -234,7 +261,13 @@ const myTenantCount = computed(
   and omits the figure, which is honest; adding rent_points to YouBlock is a
   two-line backend change that makes it appear.
 */
-const myRentPoints = computed(() => me.value?.rentPoints ?? 0)
+/*
+  The rent lives on the TENANCY, not on the player — there is no me.rentPoints,
+  so this read was always undefined and fell through to 0. That is why the
+  residence modal showed no amount and told tenants that leaving would cost them
+  "0 rent".
+*/
+const myRentPoints = computed(() => me.value?.tenancy?.rentPoints ?? 0)
 
 const onEat = ({ cardType }) =>
     runCredit('eat', games.eatFood && (() => games.eatFood(props.code, cardType)))
@@ -419,13 +452,13 @@ watch(
                     :rooms-by-card="me?.roomsByCard ?? {}" :rooms-pending-by-card="me?.roomsPendingByCard ?? {}"
                     :moveout-status="me?.tenancy?.moveoutStatus ?? null"
                     :moveout-buyout="me?.tenancy?.moveoutBuyout ?? 0"
-                    :available-points="availablePoints" :tenants="me?.tenants ?? []"
+                    :available-points="availablePoints" :tenants="me?.tenants ?? []" :investable-properties="investableProperties"
                     :residence-landlord-id="me?.residenceLandlordId ?? null"
                     :landlord-name="myLandlord?.displayName ?? ''"
                     :landlord-seat-index="myLandlord?.seatIndex ?? -1" :rent-points="myRentPoints"
                     :busy="acting" @buy="startAction('buy')" @sell="startAction('sell')" @trade="startAction('trade')"
                     @eat="onEat" @move-in="onMoveIn" @leave-residence="onLeaveResidence" @rent-out="onRentOut"
-                    @rent-ask="onRentAsk" @respond-move-out="onRespondMoveOut"
+                    @rent-ask="onRentAsk" @pay-rent="onPayRent" @invest="onInvest" @respond-move-out="onRespondMoveOut"
                     @resolve-move-out="onResolveMoveOut" @evict="onEvict" @cancel-operation="cancelAction"
                     @transaction="onTransaction" @end-turn="onEndTurn" />
             </div>

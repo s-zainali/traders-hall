@@ -18,9 +18,12 @@ const props = defineProps({
   // owned property with a spare room and it is your turn, rather than a mode
   // entered from the action bar.
   letting: { type: Boolean, default: false },
+  // Same shape as eating and letting: available whenever the card is an Invest
+  // card in your own hand on your turn, rather than a mode from the action bar.
+  investing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['buy', 'sell', 'trade', 'eat', 'let', 'details'])
+const emit = defineEmits(['buy', 'sell', 'trade', 'eat', 'let', 'invest', 'details'])
 
 const cardTypes = useCardTypesStore()
 
@@ -45,7 +48,7 @@ const cost = computed(() => info.value.baseCost)
 const isSelected = computed(() => props.selected)
 const isActive = computed(() => isHovered.value || isSelected.value)
 const interactive = computed(
-  () => props.buying || props.selling || props.trading || props.eating || props.letting,
+  () => props.buying || props.selling || props.trading || props.eating || props.letting || props.investing,
 )
 
 const background = computed(() => `var(--color-${isActive.value ? bgColor.value : color.value})`)
@@ -59,6 +62,7 @@ function onClick() {
   else if (props.trading) emit('trade')
   else if (props.eating) emit('eat')
   else if (props.letting) emit('let')
+  else if (props.investing) emit('invest')
   else emit('details')
 }
 </script>

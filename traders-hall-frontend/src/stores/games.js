@@ -36,6 +36,8 @@ function toOffer(o) {
     pricePoints: o.price_points,
     totalPricePoints: o.total_price_points,
     rentIntervalTurns: o.rent_interval_turns,
+    yieldPercent: o.yield_percent,
+    termTurns: o.term_turns,
     claimCardType: o.claim_card_type,
     // Everyone with a hand up, oldest first. The poster picks one.
     claims: (o.claims ?? []).map((c) => ({
@@ -365,6 +367,23 @@ export const useGamesStore = defineStore('games', () => {
   */
   const leaveResidence = (code) => act(code, 'leave-residence')
 
+  // Clear rent now rather than waiting for the counter to hit zero.
+  const payRent = (code) => act(code, 'pay-rent')
+
+  /*
+    Buy a share of what one room earns. The principal is not returned and the
+    Invest card is spent on settle, so this is a purchase rather than a loan.
+  */
+  const postInvest = (code, cardType, principal, yieldPercent, termTurns) =>
+    postOffer(code, {
+      kind: 'invest',
+      offer_card_type: cardType,
+      offer_quantity: 1,
+      price_points: principal,
+      yield_percent: yieldPercent,
+      term_turns: termTurns,
+    })
+
   // Landlord answers. Refusing quotes the tenant a buy-out rather than ending it.
   const respondMoveOut = (code, agreementId, accept) =>
     act(code, 'moveout-response', { agreement_id: agreementId, accept })
@@ -596,7 +615,7 @@ export const useGamesStore = defineStore('games', () => {
     buyFromBank, sellToBank, endTurn, eatFood, rollIncome,
     borrow, repayLoan, openMortgage, redeemMortgage,
     sellOffer, tradeOffer, rentOut, rentAsk, moveIn, leaveResidence,
-    respondMoveOut, resolveMoveOut, evictTenant, seizeCards, waiveSeizure,
+    respondMoveOut, resolveMoveOut, evictTenant, payRent, postInvest, seizeCards, waiveSeizure,
     claimOffer, unclaimOffer, declineOffer, confirmOffer, cancelOffer,
     createGame, joinGame, fetchGame, startGame, closeGame, leaveGame,
   }

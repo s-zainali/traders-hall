@@ -460,6 +460,26 @@ const pickerBtn =
           </p>
         </template>
 
+        <!--
+          Pay now rather than waiting for the counter. Upkeep collects at zero
+          either way, so this changes nothing about what is owed — it lets a
+          tenant clear it while they still hold the points instead of hoping
+          they can cover it on the turn it lands.
+        -->
+        <template v-if="isTenant && !awaitingLandlord && !wasRefused">
+          <button
+            type="button"
+            :class="[actionButton, tealBtn, 'w-full']"
+            :disabled="locked || !canAffordRent"
+            @click="emit('payRent')"
+          >
+            Pay rent · {{ rentPoints }}
+          </button>
+          <p v-if="!canAffordRent" class="text-xs font-bold text-rose-400">
+            You need {{ rentPoints }} free points.
+          </p>
+        </template>
+
         <template v-else>
           <button
             type="button"
