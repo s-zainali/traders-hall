@@ -234,19 +234,50 @@ const onInvest = ({ cardType, principal, yieldPercent, termTurns }) =>
   Derived from the public hands rather than sent, since every client already has
   them.
 */
-const investableOwners = computed(() =>
-    (state.value?.players ?? [])
-        .filter((p) => p.id !== me.value?.playerId && p.status === 'active')
+const investableProperties = computed(() => {
+    const players = state.value?.players ?? []
+    const mineId = me.value?.playerId
+
+    const out = players
+        .filter((p) => p.id !== mineId)
+        // Not filtered on status: `status` is only ever 'active' for a seat that
+        // is in play, and an eliminated player's cards have already moved to
+        // whoever was owed — so the filter could only ever remove a row that was
+        // already empty, at the cost of hiding everyone if the field were absent.
         .map((p) => ({
             playerId: p.id,
             name: p.displayName,
             seatIndex: p.seatIndex,
             cards: Object.entries(p.hand ?? {})
-                .filter(([code, n]) => n > 0 && cardTypes.get(code)?.category === 'property')
+                .filter(([code, n]) => {
+                    if (!n || n < 1) return false
+                    const card = cardTypes.get(code)
+                    // rooms > 0 rather than category === 'property': rooms is the
+                    // thing an investment is actually a share of, and it does not
+                    // depend on a category string matching exactly.
+                    return !!card && (card.rooms ?? 0) > 0
+                })
                 .map(([code, count]) => ({ code, count })),
         }))
         .filter((p) => p.cards.length > 0)
-)
+
+    if (import.meta.env.DEV && players.length > 1 && out.length === 0) {
+        // Names the reason rather than leaving an empty picker unexplained.
+        console.warn('[invest] nothing investable', {
+            catalogueLoaded: cardTypes.loaded,
+            players: players.map((p) => ({
+                name: p.displayName,
+                isMe: p.id === mineId,
+                hand: p.hand,
+                roomsPerCard: Object.keys(p.hand ?? {}).map(
+                    (c) => `${c}:${cardTypes.get(c)?.rooms ?? '?'}`
+                ),
+            })),
+        })
+    }
+
+    return out
+})
 
 
 const onRentAsk = ({ rentPoints, intervalTurns }) =>
@@ -462,7 +493,7 @@ watch(
                     :rooms-by-card="me?.roomsByCard ?? {}" :rooms-pending-by-card="me?.roomsPendingByCard ?? {}"
                     :moveout-status="me?.tenancy?.moveoutStatus ?? null"
                     :moveout-buyout="me?.tenancy?.moveoutBuyout ?? 0"
-                    :available-points="availablePoints" :tenants="me?.tenants ?? []" :investable-owners="investableOwners"
+                    :available-points="availablePoints" :tenants="me?.tenants ?? []" :investable-properties="investableProperties"
                     :residence-landlord-id="me?.residenceLandlordId ?? null"
                     :landlord-name="myLandlord?.displayName ?? ''"
                     :landlord-seat-index="myLandlord?.seatIndex ?? -1" :rent-points="myRentPoints"

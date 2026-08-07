@@ -166,43 +166,54 @@ const rows = computed(() =>
         </div>
 
         <!--
-          An invest offer reads as a sentence in cards: this much money, into
-          that property, for this share. The property is the thing being bought
-          into, not the thing being handed over, so it sits on the right of the
-          arrow where the "what you get" always goes.
+          Two labelled halves rather than one flat row: what is put in, and what
+          comes back. An invest offer has three numbers in it — stake, share and
+          term — and strung along a single line they read as one long expression
+          the eye has to parse rather than two things being exchanged.
         -->
-        <div v-if="offer.isInvest" class="flex flex-col gap-1.5">
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1">
+        <div v-if="offer.isInvest" class="flex items-stretch gap-2">
+          <div class="flex flex-1 flex-col items-center gap-1 rounded-xl border-2 border-gray-light bg-gray-dark/60 px-2 py-2">
+            <span class="text-[9px] font-bold uppercase tracking-widest text-gray-light">Stake</span>
+            <span class="flex items-center gap-1">
               <Card :card-type="'point'" :selected="true" :large="false" />
-              <span class="text-sm font-bold tabular-nums text-teal-light">{{ offer.pricePoints }}</span>
-            </div>
-
-            <svg
-              class="h-4 w-4 shrink-0 text-blue-light"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M2.5 8h11M9.5 4 13.5 8l-4 4" />
-            </svg>
-
-            <div class="flex items-center gap-1">
-              <Card :card-type="offer.offerCardType" :selected="true" :large="false" />
-              <span class="rounded-lg border-2 border-blue-light/50 bg-blue-dark/30 px-1.5 py-0.5 text-sm font-bold tabular-nums text-blue-light">
-                {{ offer.yieldPercent }}%
+              <span class="text-sm font-bold tabular-nums text-teal-light">
+                {{ offer.pricePoints }}
               </span>
-            </div>
+            </span>
           </div>
 
-          <span class="text-[10px] font-bold uppercase tracking-widest text-gray-x-light">
-            of rent · {{ offer.termLabel }}
-          </span>
+          <svg
+            class="h-4 w-4 shrink-0 self-center text-blue-light"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2.5 8h11M9.5 4 13.5 8l-4 4" />
+          </svg>
+
+          <div class="flex flex-1 flex-col items-center gap-1 rounded-xl border-2 border-blue-light/40 bg-blue-dark/15 px-2 py-2">
+            <span class="text-[9px] font-bold uppercase tracking-widest text-blue-light">
+              {{ offer.yieldPercent }}% of rent
+            </span>
+            <span class="flex items-center gap-1">
+              <Card :card-type="offer.offerCardType" :selected="true" :large="false" />
+              <span class="text-sm font-bold text-gray-2x-light">
+                {{ titleOf(offer.offerCardType) }}
+              </span>
+            </span>
+          </div>
         </div>
+
+        <span
+          v-if="offer.isInvest"
+          class="text-[10px] font-bold uppercase tracking-widest text-gray-x-light"
+        >
+          for {{ offer.termLabel }}
+        </span>
 
         <div v-else-if="offer.isRentAsk" class="flex items-center gap-2">
           <span class="text-xs font-bold text-gray-2x-light">A room</span>
