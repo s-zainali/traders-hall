@@ -62,6 +62,7 @@ const props = defineProps({
     availablePoints: { type: Number, default: 0 },
     tenants: { type: Array, default: () => [] },
     // property types somebody in the game owns, for the invest picker
+    // opponents who own property, each with what they hold
     investableProperties: { type: Array, default: () => [] },
     /** an action is in flight; controls lock so a double-click cannot fire twice */
     busy: { type: Boolean, default: false },
@@ -446,23 +447,20 @@ function onEndTurn() {
             <!-- Two modals share this anchor. Eating is not a transaction, so it
                  gets its own component rather than a fourth mode inside one. -->
             <InvestModal v-if="activeModal === 'invest'" :busy="busy" :can-act="canAct"
-                :available-points="availablePoints" :properties="investableProperties"
-                @close-modal="closeModal" @invest="(p) => onHousing('invest', p)" />
+                :available-points="availablePoints" :owners="investableProperties" @close-modal="closeModal"
+                @invest="(p) => onHousing('invest', p)" />
             <ResidenceModal v-else-if="activeModal === 'let' || activeModal === 'residence'"
                 :mode="activeModal === 'let' ? 'let' : 'residence'" :card-type="selectedType"
                 :rooms-free-for-card="freeRoomsFor(selectedType)"
                 :rooms-pending-for-card="pendingRoomsFor(selectedType)" :residence-card-type="residence || null"
                 :residence-landlord-id="residenceLandlordId" :landlord-name="landlordName"
                 :landlord-seat-index="landlordSeatIndex" :rent-points="rentPoints" :rent-due="rentDue"
-                :moveout-status="moveoutStatus" :moveout-buyout="moveoutBuyout"
-                :available-points="availablePoints" :tenants="tenants"
-                :rooms-by-card="roomsByCard" :busy="busy" :can-act="canAct" @close-modal="closeModal"
+                :moveout-status="moveoutStatus" :moveout-buyout="moveoutBuyout" :available-points="availablePoints"
+                :tenants="tenants" :rooms-by-card="roomsByCard" :busy="busy" :can-act="canAct" @close-modal="closeModal"
                 @move-in="(t) => onHousing('moveIn', t)" @leave="onHousing('leaveResidence')"
                 @rent-out="(p) => onHousing('rentOut', p)" @rent-ask="(p) => onHousing('rentAsk', p)"
-                @pay-rent="onHousing('payRent')"
-                @respond-move-out="(p) => onHousing('respondMoveOut', p)"
-                @resolve-move-out="(v) => onHousing('resolveMoveOut', v)"
-                @evict="(id) => onHousing('evict', id)" />
+                @pay-rent="onHousing('payRent')" @respond-move-out="(p) => onHousing('respondMoveOut', p)"
+                @resolve-move-out="(v) => onHousing('resolveMoveOut', v)" @evict="(id) => onHousing('evict', id)" />
             <EatModal v-else-if="activeModal === 'eat'" :card-type="selectedType" :available="hand[selectedType] ?? 1"
                 :food-due="foodDue" :busy="busy" :popover="true" @confirm="onEat($event)" @cancel="closeModal" />
             <TransactionModal v-else-if="activeModal === 'sell' || activeModal === 'trade'"
@@ -539,8 +537,7 @@ function onEndTurn() {
                     one card; below its natural width the count alone is clearer
                     than a fragment of a card.
                 -->
-                <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true"
-                    class="shrink-0">
+                <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true" class="shrink-0">
                     <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
                 </CardDeck>
                 <span v-else-if="points > 0" class="flex shrink-0 items-center gap-1">
@@ -632,8 +629,9 @@ function onEndTurn() {
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
                                     :trading="activeAction === 'trade' && !isMortgaged(type)" :eating="canEat(type)"
-                                    :letting="canLet(type)" :investing="canInvest(type)" @invest="openInvest(type)" @sell="openModal(type)" @trade="openModal(type)"
-                                    @eat="openEat(type)" @let="openLet(type)" />
+                                    :letting="canLet(type)" :investing="canInvest(type)" @invest="openInvest(type)"
+                                    @sell="openModal(type)" @trade="openModal(type)" @eat="openEat(type)"
+                                    @let="openLet(type)" />
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
@@ -709,10 +707,6 @@ function onEndTurn() {
                     :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
 
                 <div class="ml-auto flex shrink-0 items-center gap-2">
-                    <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
-                        <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
-                    </CardDeck>
-                    <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
 
                     <!--
                         Its own labelled box beside the residence, not a badge
@@ -722,19 +716,19 @@ function onEndTurn() {
                         neither has to fight the card for space.
                     -->
 
-                    <div class="flex items-center rounded-[0.8rem] border-2 border-purple-light bg-purple-dark gap-1">
+                    <div class="flex flex-row-reverse items-center rounded-[0.8rem] border-2 border-purple-light bg-purple-dark gap-1">
                         <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
                         <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
                             mask: `url(/cancel.png) no-repeat center / contain`,
                             '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
                         }"></div>
                         <div v-if="isTenant" class="flex items-center gap-1">
-                            <div :title="`Renting from ${landlordName || 'another player'}`"
+                            <!-- <div :title="`Renting from ${landlordName || 'another player'}`"
                                 class="flex flex-col text-[10px] font-bold uppercase tracking-widest text-purple-light break-all">
                                 <span>on</span>
                                 <span>rent</span>
-                            </div>
-                            <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="true" class="mr-2" />
+                            </div> -->
+                            <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="false" class="ml-1" />
                         </div>
                     </div>
                 </div>
@@ -761,31 +755,40 @@ function onEndTurn() {
                 </span>
             </div>
 
-            <div class="flex">
-                <span
-                    class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
-                <div
-                    class="relative flex h-[5.5rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
-                    <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
-                        <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
-                            class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
-                            :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
-                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
-                                <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
-                            </CardDeck>
-                            <span v-if="isMortgaged(type)"
-                                :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
-                                <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
-                                    stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-                                    <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
-                                    <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
-                                </svg>
-                            </span>
+            <div class="flex justify-between gap-2 items-center">
+                <div class="flex">
+                    <span
+                        class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
+                    <div
+                        class="relative flex h-[5.5rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+                        <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
+                            <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
+                                class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
+                                :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
+                                <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
+                                    <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
+                                </CardDeck>
+                                <span v-if="isMortgaged(type)"
+                                    :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
+                                    class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
+                                    <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
+                                        stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                                        <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
+                                        <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
+                                    </svg>
+                                </span>
+                            </div>
                         </div>
+                        <span v-else class="text-sm text-gray-light">No cards</span>
                     </div>
-                    <span v-else class="text-sm text-gray-light">No cards</span>
                 </div>
+                <div>
+                    <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
+                        <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
+                    </CardDeck>
+                    <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
+                </div>
+
             </div>
         </template>
     </section>

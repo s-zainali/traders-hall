@@ -224,19 +224,29 @@ const onInvest = ({ cardType, principal, yieldPercent, termTurns }) =>
   the public hands rather than sent: an investor can stake any property in play,
   and every client already has the hands.
 */
-const investableProperties = computed(() => {
-    const counts = {}
-    for (const p of state.value?.players ?? []) {
-        for (const [code, n] of Object.entries(p.hand ?? {})) {
-            const card = cardTypes.get(code)
-            if (!card || card.category !== 'property' || n < 1) continue
-            counts[code] = (counts[code] ?? 0) + 1
-        }
-    }
-    return Object.entries(counts).map(([code, owners]) => ({
-        code, owners, title: cardTypes.get(code)?.title ?? code,
-    }))
-})
+/*
+  Opponents who own property, and what each holds.
+
+  Only opponents: investing in your own property would be paying yourself a share
+  of your own rent, and the server refuses it anyway — the claimant of an invest
+  offer is the owner, and nobody can claim their own offer.
+
+  Derived from the public hands rather than sent, since every client already has
+  them.
+*/
+const investableOwners = computed(() =>
+    (state.value?.players ?? [])
+        .filter((p) => p.id !== me.value?.playerId && p.status === 'active')
+        .map((p) => ({
+            playerId: p.id,
+            name: p.displayName,
+            seatIndex: p.seatIndex,
+            cards: Object.entries(p.hand ?? {})
+                .filter(([code, n]) => n > 0 && cardTypes.get(code)?.category === 'property')
+                .map(([code, count]) => ({ code, count })),
+        }))
+        .filter((p) => p.cards.length > 0)
+)
 
 
 const onRentAsk = ({ rentPoints, intervalTurns }) =>
@@ -452,7 +462,7 @@ watch(
                     :rooms-by-card="me?.roomsByCard ?? {}" :rooms-pending-by-card="me?.roomsPendingByCard ?? {}"
                     :moveout-status="me?.tenancy?.moveoutStatus ?? null"
                     :moveout-buyout="me?.tenancy?.moveoutBuyout ?? 0"
-                    :available-points="availablePoints" :tenants="me?.tenants ?? []" :investable-properties="investableProperties"
+                    :available-points="availablePoints" :tenants="me?.tenants ?? []" :investable-owners="investableOwners"
                     :residence-landlord-id="me?.residenceLandlordId ?? null"
                     :landlord-name="myLandlord?.displayName ?? ''"
                     :landlord-seat-index="myLandlord?.seatIndex ?? -1" :rent-points="myRentPoints"

@@ -82,6 +82,8 @@ async def create_offer(code: str, body: OfferCreate, user: CurrentUser, db: Db):
             kind=body.kind,
             offer_card_type=body.offer_card_type,
             offer_quantity=body.offer_quantity,
+            yield_percent=body.yield_percent,
+            term_turns=body.term_turns,
             price_points=body.price_points,
             want_card_type=body.want_card_type,
             want_quantity=body.want_quantity,

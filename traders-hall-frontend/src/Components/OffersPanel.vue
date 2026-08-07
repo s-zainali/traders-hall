@@ -31,6 +31,7 @@ const KIND_BADGE = {
   trade: { label: 'Trade', cls: 'border-amber-400/50 bg-amber-400/15 text-amber-400' },
   rent_out: { label: 'To let', cls: 'border-teal-light/50 bg-teal-dark/30 text-teal-light' },
   rent_ask: { label: 'Wanted', cls: 'border-purple-light/50 bg-purple-dark/30 text-purple-light' },
+  invest: { label: 'Invest', cls: 'border-blue-light/50 bg-blue-dark/30 text-blue-light' },
 }
 
 const picked = ref({})
@@ -76,6 +77,7 @@ const rows = computed(() =>
     const isRentAsk = o.kind === 'rent_ask'
     const isRent = isRentOut || isRentAsk
     const isTrade = o.kind === 'trade'
+    const isInvest = o.kind === 'invest'
     const total = isSell ? totalOf(o) : null
 
     let blocked = ''
@@ -86,6 +88,11 @@ const rows = computed(() =>
         blocked = 'You already have a home'
       } else if (isRentAsk && props.myRoomsFree < 1) {
         blocked = 'No spare room'
+      } else if (isInvest && (props.myHand[o.offerCardType] ?? 0) < 1) {
+        // The claimant is the LANDLORD taking the stake, so they must own the
+        // property being invested in. Visible to everyone, actionable only by
+        // an owner — the same shape as every other offer's eligibility.
+        blocked = `You own no ${titleOf(o.offerCardType)}`
       } else if (isTrade && (props.myHand[o.wantCardType] ?? 0) < o.wantQuantity) {
         blocked = `Need ${o.wantQuantity} ${titleOf(o.wantCardType)}`
       }
@@ -102,8 +109,10 @@ const rows = computed(() =>
       isRentOut,
       isRentAsk,
       isTrade,
+      isInvest,
       badge: KIND_BADGE[o.kind] ?? KIND_BADGE.trade,
       rentEvery: isRent ? turnsLabel(o.rentIntervalTurns) : '',
+      termLabel: isInvest ? turnsLabel(o.termTurns) : '',
       total,
       showsUnitPrice: isSell && o.offerQuantity > 1,
       blocked,
@@ -156,7 +165,46 @@ const rows = computed(() =>
           </span>
         </div>
 
-        <div v-if="offer.isRentAsk" class="flex items-center gap-2">
+        <!--
+          An invest offer reads as a sentence in cards: this much money, into
+          that property, for this share. The property is the thing being bought
+          into, not the thing being handed over, so it sits on the right of the
+          arrow where the "what you get" always goes.
+        -->
+        <div v-if="offer.isInvest" class="flex flex-col gap-1.5">
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1">
+              <Card :card-type="'point'" :selected="true" :large="false" />
+              <span class="text-sm font-bold tabular-nums text-teal-light">{{ offer.pricePoints }}</span>
+            </div>
+
+            <svg
+              class="h-4 w-4 shrink-0 text-blue-light"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2.5 8h11M9.5 4 13.5 8l-4 4" />
+            </svg>
+
+            <div class="flex items-center gap-1">
+              <Card :card-type="offer.offerCardType" :selected="true" :large="false" />
+              <span class="rounded-lg border-2 border-blue-light/50 bg-blue-dark/30 px-1.5 py-0.5 text-sm font-bold tabular-nums text-blue-light">
+                {{ offer.yieldPercent }}%
+              </span>
+            </div>
+          </div>
+
+          <span class="text-[10px] font-bold uppercase tracking-widest text-gray-x-light">
+            of rent · {{ offer.termLabel }}
+          </span>
+        </div>
+
+        <div v-else-if="offer.isRentAsk" class="flex items-center gap-2">
           <span class="text-xs font-bold text-gray-2x-light">A room</span>
           <svg
             viewBox="0 0 16 16"
@@ -354,6 +402,8 @@ const rows = computed(() =>
                 ? 'Take the room'
                 : offer.isRentAsk
                   ? 'Offer a room'
+                  : offer.isInvest
+                    ? `Take ${offer.pricePoints}`
                   : 'Claim')
           }}
         </button>
