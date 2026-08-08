@@ -252,29 +252,15 @@ const investableProperties = computed(() => {
                 .filter(([code, n]) => {
                     if (!n || n < 1) return false
                     const card = cardTypes.get(code)
-                    // rooms > 0 rather than category === 'property': rooms is the
-                    // thing an investment is actually a share of, and it does not
-                    // depend on a category string matching exactly.
-                    return !!card && (card.category) === 'property'
+                    // category, not rooms: the client catalogue does not carry
+                    // a rooms field, so testing it matched nothing and the picker
+                    // came up empty even when an opponent plainly owned a house.
+                    return !!card && card.category === 'property'
                 })
                 .map(([code, count]) => ({ code, count })),
         }))
         .filter((p) => p.cards.length > 0)
 
-    if (import.meta.env.DEV && players.length > 1 && out.length === 0) {
-        // Names the reason rather than leaving an empty picker unexplained.
-        console.warn('[invest] nothing investable', {
-            catalogueLoaded: cardTypes.loaded,
-            players: players.map((p) => ({
-                name: p.displayName,
-                isMe: p.id === mineId,
-                hand: p.hand,
-                roomsPerCard: Object.keys(p.hand ?? {}).map(
-                    (c) => `${c}:${cardTypes.get(c)?.rooms ?? '?'}`
-                ),
-            })),
-        })
-    }
 
     return out
 })

@@ -576,7 +576,7 @@ function onEndTurn() {
                     </div>
                 </button>
             </div>
-            <div class="flex">
+            <div class="flex items-center">
                 <span
                     class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
                 <!--
@@ -699,96 +699,98 @@ function onEndTurn() {
             is what scrambled it.
         -->
         <template v-else>
-            <div class="flex min-w-0 items-center gap-2">
-                <SeatToken :seat-index="seatIndex" size="sm" :filled="isTurn && playerActive" />
-                <h1 class="truncate text-sm font-bold tracking-wide" :class="seat.text">{{ playerName }}</h1>
-                <span v-if="isTurn"
-                    class="shrink-0 rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
-                    :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
-
-                <div class="ml-auto flex shrink-0 items-center gap-2">
-
-                    <!--
-                        Its own labelled box beside the residence, not a badge
-                        stuck on top of it. A corner token overlapped the card
-                        art and left the state to be inferred from a colour; the
-                        word says WHAT and the seat token says FROM WHOM, and
-                        neither has to fight the card for space.
-                    -->
-
-                    <div class="flex flex-row-reverse items-center rounded-[0.8rem] border-2 border-purple-light bg-purple-dark gap-1">
-                        <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
-                        <div v-else class="m-1 h-6 w-6 bg-purple-light" :style="{
-                            mask: `url(/cancel.png) no-repeat center / contain`,
-                            '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
-                        }"></div>
-                        <div v-if="isTenant" class="flex items-center gap-1">
-                            <!-- <div :title="`Renting from ${landlordName || 'another player'}`"
-                                class="flex flex-col text-[10px] font-bold uppercase tracking-widest text-purple-light break-all">
-                                <span>on</span>
-                                <span>rent</span>
-                            </div> -->
-                            <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="false" class="ml-1" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!--
-                A full-width strip rather than a chip in the header row.
-
-                That header already carries a token, a truncating name, a turn
-                pill, a points deck and the residence box; a debt badge squeezed
-                in beside them had to shorten itself to "2·5r" to fit, which is
-                not something anyone can read. Given its own row it has room to
-                say what it means, and it only exists when there is debt.
-            -->
-            <div v-if="hasDebt" :title="debtTitle"
-                class="flex items-center justify-between gap-2 rounded-lg border-2 px-2 py-1" :class="debtSoonest <= 1
-                    ? 'border-rose-400 bg-rose-400/10'
-                    : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20'">
-                <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
-                    Owes {{ debtTotal }}
-                </span>
-                <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
-                    Due in {{ roundsLabel(debtSoonest) }}
-                </span>
-            </div>
-
-            <div class="flex justify-between gap-2 items-center">
-                <div class="flex">
-                    <span
-                        class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
-                    <div
-                        class="relative flex h-[5.5rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
-                        <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
-                            <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
-                                class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
-                                :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
-                                <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
-                                    <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
-                                </CardDeck>
-                                <span v-if="isMortgaged(type)"
-                                    :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                    class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
-                                    <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
-                                        stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
-                                        <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
-                                        <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
-                                    </svg>
-                                </span>
+            <div class="flex flex-col gap-2 justify-between h-full">
+                <div class="flex min-w-0 items-center gap-2">
+                    <SeatToken :seat-index="seatIndex" size="sm" :filled="isTurn && playerActive" />
+                    <h1 class="truncate text-sm font-bold tracking-wide" :class="seat.text">{{ playerName }}</h1>
+                    <span v-if="isTurn"
+                        class="shrink-0 rounded-full border-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                        :class="[seat.borderSoft, seat.bgSoft, seat.text]">Turn</span>
+    
+                    <div class="ml-auto flex shrink-0 items-center gap-2">
+    
+                        <!--
+                            Its own labelled box beside the residence, not a badge
+                            stuck on top of it. A corner token overlapped the card
+                            art and left the state to be inferred from a colour; the
+                            word says WHAT and the seat token says FROM WHOM, and
+                            neither has to fight the card for space.
+                        -->
+    
+                        <div class="flex flex-row-reverse items-center rounded-[0.8rem] border-2 border-purple-light bg-purple-dark gap-1">
+                            <Card v-if="residence !== ''" :selected="true" :card-type="residence" :large="false" />
+                            <div v-else class="my-2.5 h-6 w-6 mx-1.5 bg-purple-light" :style="{
+                                mask: `url(/cancel.png) no-repeat center / contain`,
+                                '-webkit-mask': `url(/cancel.png) no-repeat center / contain`,
+                            }"></div>
+                            <div v-if="isTenant" class="flex items-center gap-1">
+                                <!-- <div :title="`Renting from ${landlordName || 'another player'}`"
+                                    class="flex flex-col text-[10px] font-bold uppercase tracking-widest text-purple-light break-all">
+                                    <span>on</span>
+                                    <span>rent</span>
+                                </div> -->
+                                <SeatToken :seat-index="landlordSeatIndex" size="sm" :filled="false" class="ml-1" />
                             </div>
                         </div>
-                        <span v-else class="text-sm text-gray-light">No cards</span>
                     </div>
                 </div>
-                <div>
-                    <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
-                        <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
-                    </CardDeck>
-                    <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
+    
+                <!--
+                    A full-width strip rather than a chip in the header row.
+    
+                    That header already carries a token, a truncating name, a turn
+                    pill, a points deck and the residence box; a debt badge squeezed
+                    in beside them had to shorten itself to "2·5r" to fit, which is
+                    not something anyone can read. Given its own row it has room to
+                    say what it means, and it only exists when there is debt.
+                -->
+                <div v-if="hasDebt" :title="debtTitle"
+                    class="flex items-center justify-between gap-2 rounded-lg border-2 px-2 py-1" :class="debtSoonest <= 1
+                        ? 'border-rose-400 bg-rose-400/10'
+                        : debtSoonest <= 2 ? 'border-amber-400 bg-amber-400/10' : 'border-teal-light bg-teal-dark/20'">
+                    <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
+                        Owes {{ debtTotal }}
+                    </span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest tabular-nums" :class="debtTone">
+                        Due in {{ roundsLabel(debtSoonest) }}
+                    </span>
                 </div>
-
+    
+                <div class="flex justify-between gap-2 items-center">
+                    <div class="flex items-center">
+                        <span
+                            class="card-label rotate-180 text-center uppercase text-gray-x-light tracking-[0.3rem] text-xs font-bold mb-1">cards</span>
+                        <div
+                            class="relative flex h-[5.5rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
+                            <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
+                                <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
+                                    class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
+                                    :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
+                                    <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
+                                        <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
+                                    </CardDeck>
+                                    <span v-if="isMortgaged(type)"
+                                        :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
+                                        class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
+                                        <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
+                                            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                                            <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
+                                            <rect x="2" y="4.4" width="6" height="4.2" rx="1" />
+                                        </svg>
+                                    </span>
+                                </div>
+                            </div>
+                            <span v-else class="text-sm text-gray-light">No cards</span>
+                        </div>
+                    </div>
+                    <div>
+                        <CardDeck v-if="points > 0" :key="`pts-${points}`" :content-small="true">
+                            <Card v-for="n in points" :key="n" :card-type="'point'" :large="false" />
+                        </CardDeck>
+                        <span v-else class="text-sm font-bold text-gray-light">0 pts</span>
+                    </div>
+    
+                </div>
             </div>
         </template>
     </section>

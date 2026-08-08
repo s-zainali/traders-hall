@@ -135,35 +135,45 @@ const pickerBtn =
 </script>
 
 <template>
-    <!--
-        Popover only — no backdrop, no centring. The parent anchors this beside or
-        above the panel exactly as it does for buy, sell, trade and eat. A
-        page-wide overlay for a two-stepper decision was far heavier than the
-        decision, which is what made it feel wrong.
-    -->
     <div role="dialog" aria-modal="true" aria-labelledby="residence-title"
-        class="relative flex w-max max-w-[20rem] flex-col gap-4 rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-6 shadow-2xl shadow-black/60">
+        class="scroll-slim relative flex max-h-full w-[44rem] max-w-full flex-col gap-4 overflow-y-auto rounded-[1.5rem] border-2 border-gray-light bg-gray-x-dark p-6 shadow-2xl shadow-black/60"
+        :class="isLet ? 'sm:w-[22rem]' : ''">
+
         <button type="button" aria-label="Close" @click="emit('closeModal')"
             class="absolute top-3 right-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-x-light transition-colors duration-200 hover:bg-gray-light/40 hover:text-gray-2x-light">
             ✕
         </button>
 
-        <!-- ══ let a room ══════════════════════════════════════════ -->
+        <header class="flex flex-col gap-0.5 pr-10">
+            <h2 id="residence-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
+                {{ isLet ? 'Let a room' : 'Residence' }}
+            </h2>
+            <p class="text-sm text-gray-x-light">
+                {{
+                    isLet
+                        ? `One room in your ${titleOf(cardType)}, open to every player.`
+                        : isTenant
+                            ? 'You rent a room.'
+                            : isHoused
+                                ? 'Your own property.'
+                                : 'You live nowhere.'
+                }}
+            </p>
+        </header>
 
+        <!--
+            Two columns: where you live on the left, what you do as a landlord on
+            the right. They are separate concerns that happened to share a modal,
+            and stacking them meant scrolling past your own housing to reach the
+            controls for somebody else's.
 
-        <!-- ══ residence ═══════════════════════════════════════════ -->
-        <div>
-            <header class="flex flex-col gap-0.5 pr-10">
-                <h2 id="residence-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
-                    Residence
-                </h2>
-                <p class="text-sm text-gray-x-light">
-                    {{
-                        isTenant ? 'You rent a room.' : isHoused ? 'Your own property.' : 'You live nowhere.'
-                    }}
-                </p>
-            </header>
+            Opening from a property card shows the right column only — that click
+            means "let this room", not "review my housing".
+        -->
+        <div class="grid gap-5" :class="isLet ? 'grid-cols-1' : 'md:grid-cols-2'">
 
+            <!-- ── left: where you live ── -->
+            <div v-if="!isLet" class="flex flex-col gap-4">
             <div v-if="isHoused" :class="[wellClass, 'justify-between gap-3 px-4 py-3']">
                 <span class="flex items-center gap-2">
                     <Card :card-type="residenceCardType" :selected="true" :large="false" />
@@ -188,12 +198,14 @@ const pickerBtn =
                     </span>
                 </span>
             </div>
+
             <section class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
                 <div class="text-sm tracking-wide text-center"
                     :class="roomsByCard[residenceCardType] === 0 ? 'text-rose-400' : 'text-teal-light'">
                     {{ roomsByCard[residenceCardType] }} rooms free
                 </div>
             </section>
+
             <!-- occupy: only when homeless and holding a property with a spare room -->
             <section v-if="!isHoused && occupiable.length"
                 class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
@@ -217,6 +229,7 @@ const pickerBtn =
                     Move in
                 </button>
             </section>
+
 
             <!-- request a room: only when homeless -->
             <section v-if="!isHoused" class="flex flex-col gap-3 border-t-1 border-gray-light pt-4">
@@ -260,6 +273,7 @@ const pickerBtn =
                     Post request
                 </button>
             </section>
+
 
             <section v-if="isHoused" class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
                 <template v-if="!isTenant">
@@ -316,15 +330,16 @@ const pickerBtn =
                 </template>
             </section>
 
-            <section>
-                <header class="flex flex-col gap-0.5 pr-10">
-                    <h2 id="residence-title" class="text-2xl font-bold tracking-wide text-gray-2x-light">
-                        Let a room
-                    </h2>
-                    <p class="text-sm text-gray-x-light">
-                        One room in your {{ titleOf(cardType) }}, open to every player.
-                    </p>
-                </header>
+
+            <p v-if="!isHoused && !occupiable.length" class="text-xs text-gray-light">
+                Buy a property to live in one, or post a request and wait.
+            </p>
+            </div>
+
+            <!-- ── right: being a landlord ── -->
+            <div class="flex flex-col gap-4" :class="!isLet ? 'md:border-l-1 md:border-gray-light md:pl-5' : ''">
+            <section class="flex flex-col gap-3">
+                <span :class="labelClass">Let a room</span>
 
                 <div class="flex items-center gap-4">
                     <div :class="[wellClass, 'p-3']">
@@ -381,15 +396,15 @@ const pickerBtn =
                     {{ rent }} pts every {{ turnsLabel(interval) }}
                 </p>
 
-                <footer class="flex items-center justify-between gap-3 border-t-1 border-gray-light pt-4">
-                    <span v-if="turnNote" class="text-xs font-bold text-gray-light">{{ turnNote }}</span>
-                    <button type="button" :class="[actionButton, tealBtn, 'ml-auto']"
+                <footer class="flex items-center gap-3">
+                    <button type="button" :class="[actionButton, tealBtn, 'w-full']"
                         :disabled="locked || roomsFreeForCard < 1"
                         @click="emit('rentOut', { cardType, rentPoints: rent, intervalTurns: interval })">
                         Post room
                     </button>
                 </footer>
             </section>
+
 
             <section v-if="tenants.length" class="flex flex-col gap-2 border-t-1 border-gray-light pt-4">
                 <span :class="labelClass">Your tenants</span>
@@ -427,11 +442,10 @@ const pickerBtn =
                 </div>
             </section>
 
-            <p v-if="!isHoused && !occupiable.length" class="text-xs text-gray-light">
-                Buy a property to live in one, or post a request and wait.
-            </p>
 
-            <p v-if="turnNote" class="text-xs font-bold text-gray-light">{{ turnNote }}</p>
+            </div>
         </div>
+
+        <p v-if="turnNote" class="text-xs font-bold text-gray-light">{{ turnNote }}</p>
     </div>
 </template>
