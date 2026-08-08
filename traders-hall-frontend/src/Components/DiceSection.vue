@@ -206,7 +206,7 @@ const faces = computed(() => shown.value.map((n) => PIPS[n] ?? [4]))
             </div>
 
             <button type="button" :disabled="!canRoll || busy || tumbling" @click="roll" :title="blockedLabel"
-                class="relative w-full shrink-0 overflow-hidden rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out xl:w-50 focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
+                class="relative w-full shrink-0 overflow-hidden rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition duration-200 ease-in-out xl:w-60 focus-visible:outline-2 focus-visible:outline-teal-light focus-visible:outline-offset-2"
                 :class="canRoll && !busy && !tumbling
                     ? 'cursor-pointer border-teal-light text-gray-2x-light hover:brightness-110'
                     : 'cursor-not-allowed border-gray-light text-gray-light opacity-50'">

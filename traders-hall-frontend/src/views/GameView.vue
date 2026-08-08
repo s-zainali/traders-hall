@@ -252,7 +252,6 @@ const investableProperties = computed(() => {
                 .filter(([code, n]) => {
                     if (!n || n < 1) return false
                     const card = cardTypes.get(code)
-                    console.log(card)
                     // rooms > 0 rather than category === 'property': rooms is the
                     // thing an investment is actually a share of, and it does not
                     // depend on a category string matching exactly.
