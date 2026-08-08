@@ -602,8 +602,7 @@ function onEndTurn() {
                         <!-- :key is required: without it Vue patches these decks in
                                  place by index, which mixes card types between decks -->
                         <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
-                            class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
-                            :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
+                            class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out">
                             <!--
                                 The mortgaged deck is dimmed, ringed and badged
                                 rather than hidden: the card is still yours, it
@@ -624,7 +623,7 @@ function onEndTurn() {
                                 well is overflow-hidden, so anything that hung
                                 out was being sliced.
                             -->
-                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
+                            <CardDeck :content-small="true" :class="isMortgaged(type) ? 'rounded-xl opacity-60 outline-2 outline-offset-2 outline-rose-400/70' : ''">
                                 <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false"
                                     :class="handState && !isMortgaged(type) ? 'cursor-pointer' : ''"
                                     :selling="activeAction === 'sell' && !isMortgaged(type)"
@@ -635,7 +634,7 @@ function onEndTurn() {
                             </CardDeck>
                             <span v-if="isMortgaged(type)"
                                 :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
+                                class="pointer-events-none absolute top-1.5 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
                                 <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
                                     stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
                                     <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
@@ -764,14 +763,13 @@ function onEndTurn() {
                             class="relative flex h-[5.5rem] min-w-0 items-center overflow-hidden rounded-[1rem] border-1 border-gray-light px-3 py-1.5">
                             <div v-if="heldTypes.length" class="scroll-slim flex gap-2 overflow-x-auto">
                                 <div v-for="type in heldTypes" :key="`${type}-${hand[type]}`"
-                                    class="relative shrink-0 rounded-[1rem] p-1 transition duration-200 ease-in-out"
-                                    :class="isMortgaged(type) ? 'outline-2 -outline-offset-1 outline-rose-400/70' : ''">
-                                    <CardDeck :content-small="true" :class="isMortgaged(type) ? 'opacity-60' : ''">
+                                    class="relative shrink-0  p-1 transition duration-200 ease-in-out">
+                                    <CardDeck :content-small="true" :class="isMortgaged(type) ? 'rounded-xl opacity-60 outline-2 outline-offset-2 outline-rose-400/70' : ''">
                                         <Card v-for="n in hand[type]" :key="`${type}-${n}`" :card-type="type" :large="false" />
                                     </CardDeck>
                                     <span v-if="isMortgaged(type)"
                                         :title="`Mortgaged for ${mortgageOutstanding}, due in ${mortgageDue} round(s)`"
-                                        class="pointer-events-none absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
+                                        class="pointer-events-none absolute top-1.5 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-md border-2 border-rose-400 bg-gray-x-dark">
                                         <svg viewBox="0 0 10 10" class="h-2.5 w-2.5 text-rose-400" fill="none"
                                             stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
                                             <path d="M3 4.4V3.2a2 2 0 0 1 4 0v1.2" />
